@@ -23,6 +23,7 @@ import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
+import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -200,5 +201,50 @@ void main() {
         await expectLater(find.byType(RumuzScreen), matchesGoldenFile('goldens/$name.png'));
       });
     }
+  }
+
+  // «البحث»: the empty state with recent queries, and a number's results.
+  for (final (state, query) in [('recent', null), ('number', '٢٢٩')]) {
+    final name = 'search_${state}_dark_390x844';
+    testWidgets(name, (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      addTearDown(tester.view.reset);
+      SharedPreferences.setMockInitialValues({
+        'flutter.v2.search.recent': '["ورش","بدأت","الإمالة"]',
+      });
+      late ReaderController r;
+      await tester.runAsync(() async {
+        final prefs = await Prefs.create();
+        final recording = content.recordings.defaultRecording;
+        final windows = await content.windowsFor(recording);
+        r = ReaderController(
+          content: content,
+          recording: recording,
+          viewer: PageViewerController(legacyData(content, windows), prefs),
+          initialVerse: 226,
+        );
+      });
+      await tester.pumpWidget(MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          fontFamily: 'ScheherazadeNew',
+          extensions: [colorsFor(ReaderTheme.dark)],
+        ),
+        home: SearchScreen(reader: r),
+      ));
+      await tester.pump();
+      if (query != null) {
+        await tester.enterText(find.byType(TextField), query);
+        await tester.pump(const Duration(milliseconds: 250));
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      }
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1)); // the cursor settles
+      await expectLater(find.byType(SearchScreen), matchesGoldenFile('goldens/$name.png'));
+    });
   }
 }

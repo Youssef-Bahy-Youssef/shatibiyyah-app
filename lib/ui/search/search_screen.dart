@@ -1,9 +1,11 @@
 // lib/ui/search/search_screen.dart — «البحث» and «الانتقال السريع».
 //
-// Search (features-v3 search): one field over verses, chapters and the three
-// books, with a count per group; a verse or chapter opens the reader there, a
-// book passage opens that book at its verse. Empty, it offers the prototype's
-// suggestions and the quick jump.
+// Search (features-v3 search, plan P6 search v2): one field over verses,
+// chapters, the user's notes and the three books, with a count per group; a verse,
+// chapter or note opens the reader there, a book passage opens that book at its
+// verse. Long groups show a page and «عرض المزيد». A number alone is not searched
+// for: it offers the verse and the page of that number. Empty, it offers the recent queries, the
+// prototype's suggestions and the quick jump.
 //
 // Quick jump (quick-jump): a page or verse number on an Arabic-Indic keypad, with a
 // live preview of the target.
@@ -12,6 +14,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/recent_searches.dart';
+import '../../data/user_store.dart' show Note;
 import '../../domain/normalizer.dart';
 import '../../domain/search.dart';
 import '../../theme.dart' show kufi, naskh;
@@ -21,6 +25,9 @@ import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 
 const List<String> kSearchSuggestions = ['ورش', 'النقل', 'حمزة', 'بدأت'];
+
+/// Verses shown before «عرض المزيد», and how many more each tap shows.
+const int kVersePageSize = 40;
 
 class SearchScreen extends StatefulWidget {
   final ReaderController reader;
@@ -36,8 +43,14 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   late final _searcher = Searcher(widget.reader.content);
   final _field = TextEditingController();
+  late final _recent = RecentSearches(widget.reader.viewer.prefs);
   SearchResults _results = SearchResults.empty;
+  List<CommentaryHit> _commentary = const [];
   int _commentaryTotal = 0;
+  bool _loadingMore = false;
+  int _verseLimit = kVersePageSize;
+  List<Note> _notes = const [];
+  int? _number;
   Timer? _debounce;
   int _generation = 0;
 
@@ -56,13 +69,39 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _run() async {
     final generation = ++_generation;
-    final r = await _searcher.search(_field.text);
+    // A number alone is a place to go to, not text to look for (digits in the
+    // books are mostly Quran verse numbers).
+    final number = queryNumber(_field.text);
+    final r = number != null
+        ? (results: SearchResults.empty, commentaryTotal: 0)
+        : await _searcher.search(_field.text);
     if (!mounted || generation != _generation) return; // a newer query is on its way
+    final q = r.results.query;
+    final personal = widget.reader.personal;
     setState(() {
       _results = r.results;
+      _commentary = r.results.commentary;
       _commentaryTotal = r.commentaryTotal;
+      _verseLimit = kVersePageSize;
+      _loadingMore = false;
+      _number = number;
+      _notes = q.isEmpty || personal == null ? const [] : notesMatching(personal.notes, q);
     });
   }
+
+  Future<void> _moreCommentary() async {
+    if (_loadingMore) return;
+    final generation = _generation;
+    setState(() => _loadingMore = true);
+    final more = await _searcher.commentaryPage(_results.query, _commentary.length);
+    if (!mounted || generation != _generation) return;
+    setState(() {
+      _commentary = [..._commentary, ...more];
+      _loadingMore = false;
+    });
+  }
+
+  void _remember() => _recent.add(_field.text);
 
   void _setQuery(String q) {
     _field.text = q;
@@ -70,14 +109,20 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _openVerse(int verse) {
+    _remember();
     widget.reader.tapVerse(verse);
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  void _openPage(int page) {
+    widget.reader.viewer.setPage(page, true); // browse; playback, if any, carries on
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
-    final typed = normalizedLength(_field.text) >= kMinQueryLength;
+    final typed = normalizedLength(_field.text) >= kMinQueryLength || _number != null;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -130,6 +175,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 controller: _field,
                 autofocus: true,
                 onChanged: _onChanged,
+                onSubmitted: (_) => _remember(),
                 textInputAction: TextInputAction.search,
                 style: naskh(size: 18, color: t.text),
                 cursorColor: t.gold,
@@ -151,24 +197,36 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       );
 
+  Widget _chip(TaysirColors t, String s) => OutlinedButton(
+        onPressed: () => _setQuery(s),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 40),
+          side: BorderSide(color: t.line),
+          shape: const StadiumBorder(),
+        ),
+        child: Text(s, style: naskh(size: 16, color: t.text)),
+      );
+
   List<Widget> _emptyState(TaysirColors t) => [
+        if (_recent.all case final recent when recent.isNotEmpty) ...[
+          Row(
+            children: [
+              Expanded(child: Text('بحثت مؤخرًا', style: kufi(size: 12.5, weight: 400, color: t.muted))),
+              TextButton(
+                onPressed: () => setState(_recent.clear),
+                child: Text('مسح', style: kufi(size: 12.5, weight: 400, color: t.goldText)),
+              ),
+            ],
+          ),
+          Wrap(spacing: 8, runSpacing: 8, children: [for (final s in recent) _chip(t, s)]),
+          const SizedBox(height: 18),
+        ],
         Text('جرّب: ${kSearchSuggestions.join(' · ')}', style: kufi(size: 12.5, weight: 400, color: t.muted)),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [
-            for (final s in kSearchSuggestions)
-              OutlinedButton(
-                onPressed: () => _setQuery(s),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 40),
-                  side: BorderSide(color: t.line),
-                  shape: const StadiumBorder(),
-                ),
-                child: Text(s, style: naskh(size: 16, color: t.text)),
-              ),
-          ],
+          children: [for (final s in kSearchSuggestions) _chip(t, s)],
         ),
         const SizedBox(height: 12),
         InkWell(
@@ -215,11 +273,59 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
         );
+    Widget more(String text, VoidCallback? onTap) => Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton(
+            onPressed: onTap,
+            child: Text(text, style: kufi(size: 13, weight: 500, color: onTap == null ? t.dim : t.goldText)),
+          ),
+        );
+    final number = _number;
+    final numberedVerse = number != null && number >= 1 && number <= matn.lastVerse ? number : null;
+    final numberedPage =
+        number != null && number >= 1 && number <= widget.reader.content.layout.pageCount ? number : null;
+    final nothing = r.isEmpty && _notes.isEmpty && numberedVerse == null && numberedPage == null;
     return [
-      // «،» between the counts: next to digits a «·» reads as «٠» in Reem Kufi.
-      Text('الأبيات ${ar(r.verses.length)}، الأبواب ${ar(r.chapters.length)}، الشروح ${ar(_commentaryTotal)}',
-          style: kufi(size: 12.5, weight: 400, color: t.muted)),
-      if (r.isEmpty)
+      if (numberedVerse != null)
+        card(
+          onTap: () => _openVerse(numberedVerse),
+          child: Row(
+            children: [
+              Icon(LucideIcons.hash, size: 18, color: t.goldText),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('البيت ${ar(numberedVerse)}', style: kufi(size: 14.5, weight: 600, color: t.text)),
+                    Text(matn.verse(numberedVerse).firstHemistich,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: naskh(size: 16, color: t.muted, height: 1.6)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      if (numberedPage != null)
+        card(
+          onTap: () => _openPage(numberedPage),
+          child: Row(
+            children: [
+              Icon(LucideIcons.bookOpen, size: 18, color: t.goldText),
+              const SizedBox(width: 10),
+              Text('الصفحة ${ar(numberedPage)}', style: kufi(size: 14.5, weight: 600, color: t.text)),
+            ],
+          ),
+        ),
+      if (!r.isEmpty || _notes.isNotEmpty || number == null)
+        // «،» between the counts: next to digits a «·» reads as «٠» in Reem Kufi.
+        Text(
+            'الأبيات ${ar(r.verses.length)}، الأبواب ${ar(r.chapters.length)}، الشروح ${ar(_commentaryTotal)}'
+            '${_notes.isEmpty ? '' : '، ملاحظاتك ${ar(_notes.length)}'}',
+            style: kufi(size: 12.5, weight: 400, color: t.muted)),
+      if (nothing)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 30),
           child: Text('لا نتائج', textAlign: TextAlign.center, style: kufi(size: 14, weight: 400, color: t.dim)),
@@ -239,9 +345,26 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
       ],
+      if (_notes.isNotEmpty) ...[
+        label('ملاحظاتك'),
+        for (final note in _notes)
+          card(
+            onTap: () => _openVerse(note.verse),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('البيت ${ar(note.verse)}', style: kufi(size: 12, weight: 600, color: t.goldText)),
+                Text(snippetAround(note.body, r.query),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: naskh(size: 16.5, color: t.text, height: 1.75)),
+              ],
+            ),
+          ),
+      ],
       if (r.verses.isNotEmpty) ...[
         label('الأبيات'),
-        for (final n in r.verses)
+        for (final n in r.verses.take(_verseLimit))
           InkWell(
             onTap: () => _openVerse(n),
             child: Padding(
@@ -275,13 +398,19 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
       ],
-      if (r.commentary.isNotEmpty) ...[
-        label(_commentaryTotal > r.commentary.length
-            ? 'الشروح (أول ${ar(r.commentary.length)} من ${ar(_commentaryTotal)})'
+      if (r.verses.length > _verseLimit)
+        more('عرض المزيد (بقي ${ar(r.verses.length - _verseLimit)})',
+            () => setState(() => _verseLimit += kVersePageSize)),
+      if (_commentary.isNotEmpty) ...[
+        label(_commentaryTotal > _commentary.length
+            ? 'الشروح (${ar(_commentary.length)} من ${ar(_commentaryTotal)})'
             : 'الشروح'),
-        for (final h in r.commentary)
+        for (final h in _commentary)
           card(
-            onTap: () => CommentaryScreen.open(context, widget.reader.content, h.fromVerse, bookId: h.bookId),
+            onTap: () {
+              _remember();
+              CommentaryScreen.open(context, widget.reader.content, h.fromVerse, bookId: h.bookId);
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -301,6 +430,9 @@ class _SearchScreenState extends State<SearchScreen> {
               ],
             ),
           ),
+        if (_commentaryTotal > _commentary.length)
+          more(_loadingMore ? 'جارٍ التحميل…' : 'عرض المزيد (بقي ${ar(_commentaryTotal - _commentary.length)})',
+              _loadingMore ? null : _moreCommentary),
       ],
     ];
   }
