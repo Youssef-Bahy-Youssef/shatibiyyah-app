@@ -57,3 +57,6 @@ app.*.map.json
 # Local tool state and caches
 /android/.kotlin/
 .claude/settings.local.json
+
+# Diff images from a failed golden run
+test_goldens/failures/

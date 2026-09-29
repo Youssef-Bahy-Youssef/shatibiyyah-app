@@ -99,6 +99,9 @@ TextStyle kufi({
 }) =>
     TextStyle(
       fontFamily: kFontKufi,
+      // Reem Kufi has no «٪» (U+066A) among others: the Naskh face, not a system
+      // font or a box, stands in for what it lacks.
+      fontFamilyFallback: const [kFontNaskh],
       fontSize: size,
       fontWeight: FontWeight.values[(weight ~/ 100) - 1],
       fontVariations: [FontVariation('wght', weight.toDouble())],

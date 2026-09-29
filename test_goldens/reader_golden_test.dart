@@ -14,9 +14,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shatibiyyah/app/personal_data.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
+import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
@@ -24,6 +26,8 @@ import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
+import 'package:shatibiyyah/ui/shell/home_screen.dart';
+import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -246,5 +250,64 @@ void main() {
       await tester.pump(const Duration(seconds: 1)); // the cursor settles
       await expectLater(find.byType(SearchScreen), matchesGoldenFile('goldens/$name.png'));
     });
+  }
+
+  // «الرئيسية» (the bookmarks tab; history shows clock times) and «الفهرس», over a
+  // user.sqlite with two bookmarks, a note and the first chapters of الأصول heard.
+  for (final screen in ['home', 'index']) {
+    for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
+      final name = '${screen}_${theme.name}_390x844';
+      testWidgets(name, (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        addTearDown(tester.view.reset);
+        SharedPreferences.setMockInitialValues({});
+        late ReaderController r;
+        late UserStore user;
+        await tester.runAsync(() async {
+          final dir = await Directory.systemTemp.createTemp('golden_user');
+          addTearDown(() => dir.delete(recursive: true));
+          user = await UserStore.open(directory: dir.path, factory: databaseFactoryFfi);
+          final recording = content.recordings.defaultRecording;
+          for (var v = 95; v <= 160; v++) {
+            await user.recordVerseListened(recording.id, v);
+          }
+          for (var v = 226; v <= 229; v++) {
+            await user.recordVerseListened(recording.id, v);
+          }
+          final personal = PersonalData(user);
+          await personal.load();
+          await personal.saveBookmark(229, color: BookmarkColor.values[4], tag: BookmarkTag.muraja);
+          await personal.saveBookmark(120, to: 123, color: BookmarkColor.values[1], tag: BookmarkTag.hifz);
+          await personal.saveNote(230, 'قارن بالوافي');
+          final prefs = await Prefs.create();
+          final windows = await content.windowsFor(recording);
+          r = ReaderController(
+            content: content,
+            recording: recording,
+            viewer: PageViewerController(legacyData(content, windows), prefs),
+            user: user,
+            initialVerse: 226,
+          )..personal = personal;
+        });
+        addTearDown(() => tester.runAsync(user.close));
+        await tester.pumpWidget(MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
+            fontFamily: 'ScheherazadeNew',
+            extensions: [colorsFor(theme)],
+          ),
+          builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+          home: screen == 'home' ? HomeScreen(reader: r) : IndexScreen(reader: r),
+        ));
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100))); // listened verses
+        await tester.pumpAndSettle();
+        await expectLater(
+            find.byType(screen == 'home' ? HomeScreen : IndexScreen), matchesGoldenFile('goldens/$name.png'));
+      });
+    }
   }
 }
