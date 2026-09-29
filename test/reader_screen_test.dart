@@ -454,7 +454,7 @@ void main() {
       await show(tester, r);
       await tester.tap(find.byTooltip('القائمة'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('الإعدادات'));
+      await tester.tap(find.text('التنبيهات'));
       await tester.pumpAndSettle();
       expect(find.text('قريبًا في تحديث قادم'), findsOneWidget);
       await tester.tap(find.byTooltip('رجوع'));

@@ -1,6 +1,8 @@
-// lib/services/device_storage.dart — the two questions the recording downloader asks
-// the device, answered by MainActivity on Android ("taysir/device" channel).
-// Elsewhere (iOS not yet in scope, tests) the answers are "unknown" and "yes".
+// lib/services/device_storage.dart — what the app asks the device, answered by
+// MainActivity on Android ("taysir/device" channel): the recording downloader's
+// two questions (free space, unmetered network) and, for backups, the system's
+// «save as» and «open» document pickers. Elsewhere (iOS not yet in scope, tests)
+// the answers are "unknown" and "yes", and the pickers are unsupported.
 import 'package:flutter/services.dart';
 
 const MethodChannel _channel = MethodChannel('taysir/device');
@@ -20,5 +22,34 @@ Future<bool> deviceOnUnmeteredNetwork() async {
     return await _channel.invokeMethod<bool>('unmetered') ?? true;
   } on MissingPluginException {
     return true;
+  }
+}
+
+/// Why a document could not be saved or read.
+class DocumentError implements Exception {
+  final String code; // 'unsupported', 'too_large', 'io', 'busy'
+  const DocumentError(this.code);
+}
+
+/// Lets the user save [text] as a file named [name] where they choose (the
+/// system's «save as»). Null when they cancel.
+Future<String?> saveDocument(String name, String text) async {
+  try {
+    return await _channel.invokeMethod<String>('saveDocument', {'name': name, 'text': text});
+  } on MissingPluginException {
+    throw const DocumentError('unsupported');
+  } on PlatformException catch (e) {
+    throw DocumentError(e.code);
+  }
+}
+
+/// Lets the user pick a file and returns its text. Null when they cancel.
+Future<String?> openDocument() async {
+  try {
+    return await _channel.invokeMethod<String>('openDocument');
+  } on MissingPluginException {
+    throw const DocumentError('unsupported');
+  } on PlatformException catch (e) {
+    throw DocumentError(e.code);
   }
 }

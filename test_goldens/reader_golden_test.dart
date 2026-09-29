@@ -28,7 +28,9 @@ import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/home_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
+import 'package:shatibiyyah/ui/shell/backup_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
+import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -307,6 +309,47 @@ void main() {
         await tester.pumpAndSettle();
         await expectLater(
             find.byType(screen == 'home' ? HomeScreen : IndexScreen), matchesGoldenFile('goldens/$name.png'));
+      });
+    }
+  }
+
+  // «الإعدادات» and «نسخ احتياطي» (before any backup).
+  for (final screen in ['settings', 'backup']) {
+    for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
+      final name = '${screen}_${theme.name}_390x844';
+      testWidgets(name, (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        addTearDown(tester.view.reset);
+        SharedPreferences.setMockInitialValues({});
+        appTheme.value = theme;
+        addTearDown(() => appTheme.value = ReaderTheme.dark);
+        late ReaderController r;
+        await tester.runAsync(() async {
+          final prefs = await Prefs.create();
+          final recording = content.recordings.defaultRecording;
+          final windows = await content.windowsFor(recording);
+          r = ReaderController(
+            content: content,
+            recording: recording,
+            viewer: PageViewerController(legacyData(content, windows), prefs),
+            initialVerse: 226,
+          );
+        });
+        await tester.pumpWidget(MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
+            fontFamily: 'ScheherazadeNew',
+            extensions: [colorsFor(theme)],
+          ),
+          home: screen == 'settings' ? SettingsScreen(reader: r) : BackupScreen(reader: r),
+        ));
+        await tester.pumpAndSettle();
+        await expectLater(find.byType(screen == 'settings' ? SettingsScreen : BackupScreen),
+            matchesGoldenFile('goldens/$name.png'));
       });
     }
   }

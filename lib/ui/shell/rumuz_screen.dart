@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../data/rumuz_repository.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
+import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import 'shell_page.dart';
@@ -49,7 +50,11 @@ class _RumuzScreenState extends State<RumuzScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _tabs(t),
+          PillTabs<RamzKind>(
+            options: const {RamzKind.letter: 'الحروف', RamzKind.groupLetter: 'الجماعات', RamzKind.word: 'الكلمات'},
+            selected: _tab,
+            onSelect: (k) => setState(() => _tab = k),
+          ),
           const SizedBox(height: 14),
           if (list.isEmpty)
             const SizedBox.shrink()
@@ -77,43 +82,6 @@ class _RumuzScreenState extends State<RumuzScreen> {
             const SizedBox(height: 8),
             for (final r in list) _row(t, r),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _tabs(TaysirColors t) {
-    const labels = {RamzKind.letter: 'الحروف', RamzKind.groupLetter: 'الجماعات', RamzKind.word: 'الكلمات'};
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: t.panel,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: t.line),
-      ),
-      child: Row(
-        children: [
-          for (final e in labels.entries)
-            Expanded(
-              child: Semantics(
-                selected: e.key == _tab,
-                button: true,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => setState(() => _tab = e.key),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: e.key == _tab ? t.gold : null,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(e.value,
-                        style: kufi(size: 14, weight: e.key == _tab ? 600 : 400, color: e.key == _tab ? t.onGold : t.text)),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

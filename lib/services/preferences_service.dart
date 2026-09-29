@@ -20,5 +20,7 @@ class Prefs {
   }
 
   String? getString(String k) => _sp.getString(k);
+  Set<String> get keys => _sp.getKeys();
+  bool has(String k) => _sp.containsKey(k);
   void setString(String k, String v) => _sp.setString(k, v);
 }
