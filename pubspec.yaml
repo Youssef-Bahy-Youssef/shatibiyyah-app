@@ -35,7 +35,6 @@ flutter:
   assets:
     - assets/content/
     - assets/pages/
-    - assets/icons/
 
   fonts:
     # --ff-naskh: "Scheherazade New" — verse text, chapter names, medallion number, chips

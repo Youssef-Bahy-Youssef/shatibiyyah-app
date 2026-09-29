@@ -1,43 +1,10 @@
-// === PWA INVENTORY ===
-// Screens (single-screen app, two regions + overlays):
-//   - Page viewer (scanned manuscript pages 1–94 + canvas highlight overlay)
-//   - Controls panel: desktop = right side panel; mobile = immersive chrome
-//     (top toolbar + bottom range-status card + mini audio bar) over a full-screen page
-//   - Overlays/sheets: console sheet (cp-full), picker sheet (pause/speed/verse/section),
-//     settings sheet (night/brightness/page-cache), range selector sheet (باب/نطاق/كل المتن),
-//     full-screen verse search overlay, chapter-action band, resume chip, session chip, splash.
-// State variables (audio.js + page-viewer.js + app.js, all persisted to localStorage):
-//   mode(chapter|range|full), chapterIdx, fromVerse, toVerse, verseRepsTotal, sectionRepsTotal,
-//   speed, pauseSeconds, currentVerse, rangeStart/EndVerse, rangeStart/EndTime, verseRepsLeft,
-//   sectionRepsLeft, atEndGuard, scrubbing, selectedChapterName; viewer: zoom, tx, ty,
-//   currentPage, activeId, activeBox, prevBox, pulse, chapterSel, chapterHover, night,
-//   brightnessPct, showBoxes; app: barState, detached, chapterProgress map, last_session,
-//   keepControlsVisible, controlsHidden, immersiveHintShown.
-// User interactions: play/pause/stop/prev/next; tap verse → seek; tap chapter header → select
-//   → Play-Chapter band; swipe L/R → page turn; pinch-zoom; double-tap zoom; pan + momentum;
-//   scrubber drag (live verse preview); mini-scrub; mode tabs; chapter list tap; range steppers
-//   & number inputs; picker chips; night toggle; brightness slider; show-boxes toggle; search
-//   (diacritic-insensitive, chapters+verses); resume chip; session chip; keep-controls toggle;
-//   single empty-tap → toggle immersive chrome.
-// Audio behaviors (audio.js, ported verbatim): CBR frame-accurate seek; eps() boundary lead
-//   = max(.14, rate*.16); verse repeat (REP_OPTS incl ∞); section repeat; inter-verse pause
-//   (PAUSE_OPTS); speed (SPEED_OPTS, preservesPitch); setupRange for chapter/range/full;
-//   onBoundary→advance/repeat; reachRangeEnd→loop or park+pause; tick via positionStream+16ms
-//   timer; seekToVerse/Time/Fraction; togglePlay smart-restart; previewVerseAt; media session.
-// Data (since 2026-09-29): assets/content/content.sqlite, built by `spd app-snapshot`, read
-//   through lib/data/ (the PWA's verses.json / chapters.json / timestamps.json /
-//   shatibiyyah.txt / xing-toc.json are retired; lib/data/legacy_adapter.dart feeds the old
-//   screens). No audio is bundled: a recording plays from a file on the device.
-// Assets: 94 page WebPs (page001–094, 1130×1735) + page_cover.webp; icons
-//   icon.png/icon-192.png/icon-maskable.png; fonts ScheherazadeNew (naskh) + ReemKufi (kufi).
-// CSS colors (style.css :root): darker #965f0d, base/gold #ffab2e, lighter/goldBright #fadbae,
-//   accent #4314ff, dark #4e3613, light #f4f1eb, ink #1b1307, ink2 #241a0c, panel #2a1e0e,
-//   panel2 #33260f, raised #3f2f15, line #4a3719, lineSoft #382912, parch #f4f1eb,
-//   parchDim #d6ccb8, muted #b39a6b, muted2 #8d7850, teal #86b07a, danger #e08a5a, onGold #1a1304.
-//   highlight day rgba(255,171,46,.32/.95/.18); night rgba(120,140,250,.30)/(170,186,255,.95)/(150,168,255,.18).
-// CSS fonts: --ff-naskh "Scheherazade New" · --ff-kufi "Reem Kufi" · --ff-ui system. Sizes in
-//   rem (1rem=16px) ported 1:1; radii --r-lg 22 / --r-md 16 / --r-sm 12; --tap 52.
-// ─────────────────────────────────────────────────────────────────────────────
+// lib/main.dart — «تيسير الشاطبية».
+//
+// Boots the v3 reader (lib/app/reader_boot.dart) under the launch splash. Content
+// comes from assets/content/content.sqlite, built by `spd app-snapshot` in
+// shatibiyyah-data; the 94 manuscript pages are assets/pages/page001–094.webp.
+// No audio is bundled: a recording plays from a file on the device. The theme
+// (dark espresso or paper) is app-wide and switched from the tools sheet.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

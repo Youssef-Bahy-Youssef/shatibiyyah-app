@@ -5,18 +5,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shatibiyyah/app_controller.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/domain/commentary_text.dart';
-import 'package:shatibiyyah/services/audio_service.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/services/sync_service.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
-import 'package:shatibiyyah/ui/home_screen.dart';
+import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/ui/widgets/verse_menu.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -138,35 +135,40 @@ void main() {
   });
 
   testWidgets('long-press a verse on the page → menu → «الشرح» → commentary; «نسخ» copies', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     SharedPreferences.setMockInitialValues({});
     final copied = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
       return null;
     });
-    late AppController app;
+    late ReaderController reader;
     await tester.runAsync(() async {
       final prefs = await Prefs.create();
       final recording = content.recordings.defaultRecording;
-      final data = legacyData(content, await content.windowsFor(recording));
-      final audio = AudioEngine(AudioPlayer(), data, prefs);
-      final viewer = PageViewerController(data, prefs);
-      app = AppController(
-        content: content, recording: recording, audioFilePath: null, data: data,
-        verseText: legacyVerseText(content), audio: audio, viewer: viewer,
-        sync: SyncController(audio, viewer, data), prefs: prefs,
+      final windows = await content.windowsFor(recording);
+      reader = ReaderController(
+        content: content,
+        recording: recording,
+        windows: windows,
+        viewer: PageViewerController(legacyData(content, windows), prefs),
+        initialVerse: 3,
       );
     });
-    await tester.pumpWidget(host(HomeScreen(app: app)));
+    await tester.pumpWidget(host(ReaderScreen(reader: reader)));
     await tester.pump(const Duration(milliseconds: 500));
 
-    final rect = app.viewer.viewRectOfVerse(3)!; // page 1 is showing
-    final gesture = await tester.startGesture(rect.center);
+    // The verse's box on the page, in screen coordinates (page 1 is showing).
+    Offset centreOf(int verse) =>
+        tester.getTopLeft(find.byType(PageViewer)) + reader.viewer.viewRectOfVerse(verse)!.center;
+
+    final gesture = await tester.startGesture(centreOf(3));
     await tester.pump(const Duration(milliseconds: kLongPressMs + 50));
     await gesture.up();
     await tester.pump();
-    expect(app.menuVerse, 3);
+    expect(reader.menuVerse, 3);
     expect(find.byType(VerseMenu), findsOneWidget);
     expect(find.text('البيت ٣'), findsOneWidget);
     expect(find.text('تشغيل من هنا'), findsNothing); // no recording on the device
@@ -175,15 +177,14 @@ void main() {
     await tester.pump();
     expect(copied.single, startsWith('البيت ٣ — خطبة الكتاب\n'));
     expect(copied.single, endsWith('\n— تيسير الشاطبية'));
-    expect(app.menuVerse, isNull);
+    expect(reader.menuVerse, isNull);
 
-    // Re-measure: today's layout still resizes the page when the chrome toggles (T6,
-    // fixed in P4), so the verse may have moved since the first press.
-    final again = await tester.startGesture(app.viewer.viewRectOfVerse(3)!.center);
+    // The page never moves (fixed layout), so the same point opens the menu again.
+    final again = await tester.startGesture(centreOf(3));
     await tester.pump(const Duration(milliseconds: kLongPressMs + 50));
     await again.up();
     await tester.pump();
-    expect(app.menuVerse, 3);
+    expect(reader.menuVerse, 3);
     await tester.tap(find.text('الشرح'));
     await frames(tester);
     expect(find.byType(CommentaryScreen), findsOneWidget);
