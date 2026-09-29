@@ -25,6 +25,11 @@ class Recording {
   final String? sampleAssetPath;
   final String? licenseNote;
   final DeliveryFile? delivery;
+
+  /// The size of the file on the device: the delivery file once hosting is set up
+  /// (it may be a re-encode of the source), the source otherwise (side-loaded).
+  int get localBytes => delivery?.bytes ?? audioBytes;
+
   const Recording(this.id, this.slug, this.reciterId, this.reciterName, this.title, this.attribution,
       this.isDefault, this.durationMs, this.audioBytes, this.audioSha256, this.timebaseStatus, this.timebaseOffsetMs, this.sampleAssetPath,
       this.licenseNote, this.delivery);

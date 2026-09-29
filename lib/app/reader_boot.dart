@@ -41,7 +41,7 @@ Future<ReaderController> bootReader() async {
 
   PlaybackEngine? engine;
   final file = File(p.join(support.path, RecordingRepository.localFileName(recording)));
-  if (await file.exists() && await file.length() == recording.audioBytes) {
+  if (await file.exists() && await file.length() == recording.localBytes) {
     // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
     final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
     await port.load(
