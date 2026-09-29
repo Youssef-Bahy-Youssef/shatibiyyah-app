@@ -1,0 +1,2423 @@
+{
+  "schema_version": 2,
+  "generated": "2026-09-28",
+  "updated": "2026-09-28 (schema 2: status per feature, Mushaf 3.3.8 gap analysis)",
+  "status_legend": {
+    "implemented": "Exists in lib/ and was checked against the code on 2026-09-28 (the Dart sources have not changed since 2026-06-20).",
+    "partial": "Exists in the code but is incomplete on at least one platform. The entry's details and known_gaps say what is missing.",
+    "missing": "A Mushaf (com.abdo.quran 3.3.8) feature the app lacks, adapted to studying the Shatibiyyah. Not implemented.",
+    "proposed": "A Shatibiyyah-specific enhancement with no Mushaf equivalent, drawn from the shatibiyyah-data content or DESIGN.md. Not implemented."
+  },
+  "sources": {
+    "codebase": "lib/ (28 Dart files) read in full on 2026-09-28. The 40 features with status 'implemented'/'partial' are described from that code.",
+    "mushaf": "Static analysis of the Mushaf 3.3.8 XAPK; see mushaf_reference.",
+    "design_docs": [
+      "ROADMAP.md",
+      "DESIGN.md",
+      "~/Documents/Projects/docs/DATABASE_ARCHITECTURE_V2.md"
+    ],
+    "data_platform": "~/Documents/Projects/Shatibiyyah/shatibiyyah-data (3 commentaries, 2 reviewed recordings)"
+  },
+  "app": {
+    "package_name": "shatibiyyah",
+    "path": "~/Documents/Projects/temp/flutter_shatibiyyah",
+    "description": "متن الشاطبية — حِرز الأماني ووجه التهاني: synced audio recitation over the scanned manuscript pages of the Shatibiyyah poem (1173 verses, 79 chapters).",
+    "reciter": "الشيخ محمد عتيق",
+    "version": "1.0.0+1",
+    "origin": "Port of an earlier PWA (js/audio.js, page-viewer.js, sync.js, data.js, verse-text.js, app.js, style.css).",
+    "display_names": {
+      "material_app_title": "الشاطبية — حِرز الأماني ووجه التهاني",
+      "android_label": "تيسير الشاطبية",
+      "ios_display_name": "Shatibiyyah"
+    },
+    "identifiers": {
+      "android_application_id": "com.shatibiyyah.app",
+      "android_notification_channel_id": "app.shatibiyyah.hirz.channel.audio"
+    },
+    "dart_sdk": "^3.12.2",
+    "dependencies": {
+      "just_audio": "^0.10.5",
+      "just_audio_background": "^0.0.1-beta.17",
+      "audio_session": "^0.2.3",
+      "shared_preferences": "^2.5.5",
+      "flutter_riverpod": "^3.3.2 (declared, not used)",
+      "flutter_localizations": "sdk",
+      "cupertino_icons": "^1.0.8"
+    },
+    "locale": "ar only, forced RTL",
+    "orientation": "portrait up/down (locked in main.dart)",
+    "responsive_breakpoint_px": 1025,
+    "layouts": {
+      "desktop": "width >= 1025: side controls panel on the right plus the page viewer",
+      "mobile": "width < 1025: full-screen page viewer with immersive chrome that slides away, plus bottom sheets and overlays"
+    }
+  },
+
+  "architecture": {
+    "pattern": "Plain ChangeNotifier controllers wired by broadcast streams; no state-management package used.",
+    "modules": [
+      {
+        "name": "AppController",
+        "file": "lib/app_controller.dart",
+        "role": "Orchestrator. Wires engine, viewer, and sync events into UI state. Owns the bar state machine, sheets, session chip, chapter progress, immersive auto-hide, and search."
+      },
+      {
+        "name": "AudioEngine",
+        "file": "lib/services/audio_service.dart",
+        "role": "Owns the just_audio player and all playback state: modes, repeats, pause, speed, boundaries, seeking. Knows nothing about pages."
+      },
+      {
+        "name": "PageViewerController + PageViewer",
+        "file": "lib/ui/widgets/page_viewer.dart",
+        "role": "Page image, highlight overlay painter, zoom/pan transform, raw-pointer gesture engine, view prefs (night, brightness, boxes)."
+      },
+      {
+        "name": "SyncController",
+        "file": "lib/services/sync_service.dart",
+        "role": "The only module that touches both audio and viewer. Keeps the page following playback, routes verse taps to audio, owns the 'detached' browsing state."
+      },
+      {
+        "name": "ShatibiyyahData",
+        "file": "lib/services/data_service.dart",
+        "role": "Loads verses/timestamps/chapters JSON and builds lookups: verseMap, pageMap, verseTimes, chapterPageRange, chaptersByPage, startAtVerse."
+      },
+      {
+        "name": "VerseTextData",
+        "file": "lib/services/verse_text.dart",
+        "role": "Parses shatibiyyah.txt into verse lines (sadr/ajuz) and builds the diacritic-insensitive search index."
+      },
+      {
+        "name": "Prefs",
+        "file": "lib/services/preferences_service.dart",
+        "role": "SharedPreferences wrapper with a synchronous getLS/setLS API that mirrors localStorage. All values stored as strings."
+      }
+    ],
+    "events": {
+      "AudioEngine": ["onReady", "onVerseChange(verse, chapterName, pulse)", "onTimeUpdate(time, rangeStart, rangeEnd)", "onRangeChange(mode, startVerse, endVerse)", "onPlay", "onPause", "onEnded", "onLoadError"],
+      "PageViewerController": ["onVerseTap(id)", "onPageChange(page)", "onChapterTap(idx)", "onPageTap", "onViewPref(night, brightness, showBoxes)", "onOpenSearch"],
+      "SyncController": ["onDetachChange(detached, verse, chapterName)"]
+    }
+  },
+
+  "features": [
+    {
+      "id": "boot-splash",
+      "status": "implemented",
+      "category": "startup",
+      "name": "Boot sequence and splash screen",
+      "files": ["lib/main.dart"],
+      "description": "Loads prefs, data JSON, and verse text, builds all controllers, and shows the cover image on paper background for at least 1200 ms, then fades out over 400 ms.",
+      "details": [
+        "JustAudioBackground.init runs first. A failure there is swallowed so the in-app player still works.",
+        "If verse text fails to load, it falls back to an empty VerseTextData, so search and the session-chip text are empty but the app runs.",
+        "If data loading fails, it shows the error screen 'تعذّر تحميل البيانات'.",
+        "HomeScreen stays at a stable tree position under the splash so boot() and the audio load never run twice.",
+        "boot() is guarded by _booted. It loads the audio source, re-applies the mode, highlights the current verse, sets the bar to idle, and shows the session chip."
+      ]
+    },
+
+    {
+      "id": "audio-transport",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Transport controls: play/pause, stop, previous, next",
+      "files": ["lib/services/audio_service.dart", "lib/ui/widgets/playback_controls.dart", "lib/ui/widgets/mini_bar.dart"],
+      "ui": {
+        "full_transport": "Row of prev · play/pause · stop · next (LTR). Play is a gold-filled circle; the others are outlined gold rings. Scale to 0.9 on press. Shown in the console block.",
+        "mini_transport": "Mobile mini bar: the same four buttons, smaller. Shown only when barState is playing or paused. In idle state a single ▶ button is shown instead."
+      },
+      "behavior": {
+        "togglePlay": "If paused and the position is at or past the range end (minus eps) or more than 0.5 s before the range start, restart from the range start. Otherwise resume. If playing, pause.",
+        "stop": "Pause, cancel any pending inter-verse pause, reset verse and section repeat counters, seek to the range start, set the bar to idle.",
+        "prev_next": "seekToVerse(current ± 1), clamped to the current range. Keeps playing if it was playing."
+      },
+      "accessibility_labels": ["البيت السابق", "إيقاف والعودة إلى البداية", "البيت التالي"]
+    },
+    {
+      "id": "playback-modes",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Playback modes: باب (chapter) / نطاق (custom range) / كل المتن (full poem)",
+      "files": ["lib/services/audio_service.dart", "lib/ui/widgets/mode_tabs.dart", "lib/ui/widgets/range_selector.dart"],
+      "modes": {
+        "chapter": "Plays one chapter from its start_time to the next chapter's start_time. The end verse is the next chapter's start_verse - 1, or 1173 for the last chapter.",
+        "range": "Plays from fromVerse to toVerse. The end time is the next verse's start, cut earlier at the next chapter header's start_time when a chapter starts right after.",
+        "full": "Plays verses 1 to 1173 over the whole audio duration."
+      },
+      "details": [
+        "Switching mode pauses audio, cancels the pending pause timer, and calls setupRange(false), which resets the position to the range start.",
+        "Mode, chapter index, and from/to are persisted.",
+        "An invalid persisted mode falls back to 'chapter'."
+      ],
+      "persisted_keys": ["shatibiyyah_mode", "shatibiyyah_chapter_idx", "shatibiyyah_from", "shatibiyyah_to"]
+    },
+    {
+      "id": "verse-repeat",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Verse repeat (تكرار البيت)",
+      "files": ["lib/services/audio_service.dart", "lib/ui/widgets/advanced_controls_sheet.dart"],
+      "options": [1, 2, 3, 4, 5, 10, "∞"],
+      "behavior": "At each verse boundary, if verseRepsLeft > 1, decrement it, announce the verse with a pulse, and seek back to the verse start. Otherwise reset the counter and advance.",
+      "persisted_keys": ["shatibiyyah_verse_reps (∞ stored as 'inf')"]
+    },
+    {
+      "id": "section-repeat",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Section/range repeat (تكرار المقطع)",
+      "files": ["lib/services/audio_service.dart"],
+      "options": [1, 2, 3, 4, 5, 10, "∞"],
+      "behavior": "At the range end (reachRangeEnd, guarded by atEndGuard), decrement sectionRepsLeft unless it is ∞. If reps remain, jump to the range start and keep playing. Otherwise pause, park at the range start, and emit 'ended', which sets the bar to idle.",
+      "persisted_keys": ["shatibiyyah_section_reps"]
+    },
+    {
+      "id": "inter-verse-pause",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Pause between verses (فاصل زمني)",
+      "files": ["lib/services/audio_service.dart"],
+      "options_seconds": [0, 1, 2, 3, 5, 10],
+      "behavior": "When advancing to the next verse with pauseSeconds > 0, pause the player and resume from the new verse start after N seconds. A playToken invalidates the timer if the user seeks, stops, or changes mode meanwhile.",
+      "labels": {"0": "بدون", "n": "n ث"},
+      "persisted_keys": ["shatibiyyah_pause"]
+    },
+    {
+      "id": "playback-speed",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Recitation speed (سرعة التلاوة)",
+      "files": ["lib/services/audio_service.dart"],
+      "options": [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+      "behavior": "Applied through player.setSpeed on every play and on change. The boundary lead eps = max(0.14 s, speed × 0.16) widens at higher speeds so the next verse doesn't bleed in.",
+      "persisted_keys": ["shatibiyyah_speed"]
+    },
+    {
+      "id": "verse-boundary-tracking",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Verse boundary detection and position tracking",
+      "files": ["lib/services/audio_service.dart"],
+      "details": [
+        "tick() runs on every positionStream event and on a 16 ms Timer.periodic while playing (the analogue of the PWA's timeupdate + rAF pump).",
+        "Effective verse end = min(next verse start, range end). A boundary fires at effEnd - eps.",
+        "verseFromTime uses binary search over verseTimes, bounded to the current range.",
+        "Every seek is re-checked after 450 ms and retried once if the position is more than 0.5 s off.",
+        "Duration = max(the player's reported duration, last verse timestamp + 1). The default is 8916 s.",
+        "Natural completion of the file (ProcessingState.completed) calls reachRangeEnd().",
+        "Seeks requested before the source is ready are queued in pendingSeek and applied in onLoaded()."
+      ]
+    },
+    {
+      "id": "scrubber",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Range scrubber with live verse preview",
+      "files": ["lib/ui/widgets/progress_bar.dart", "lib/services/audio_service.dart"],
+      "variants": {
+        "full": "Console block. Slider plus elapsed/total time labels (Arabic-Indic m:ss, relative to the range start), LTR.",
+        "mini": "Mobile mini bar seek row. Thinner, no labels. Shown when playing or paused."
+      },
+      "behavior": "The slider spans the current range, not the whole file. Dragging sets scrubbing = true and calls previewVerseAt(frac), which updates the current verse and highlight live. Release calls seekToFraction(frac), which resets verse repeats and keeps the play state.",
+      "perf_note": "Time updates go through a separate ValueNotifier (AppController.time) so they don't trigger full notifyListeners rebuilds."
+    },
+    {
+      "id": "background-audio",
+      "status": "partial",
+      "category": "audio",
+      "name": "Background playback / lock-screen media controls",
+      "files": ["lib/main.dart", "lib/services/audio_service.dart", "android/app/src/main/AndroidManifest.xml"],
+      "details": [
+        "just_audio_background with MediaItem: title 'متن الشاطبية', artist 'الشيخ محمد عتيق', album 'متن الشاطبية · الشيخ محمد عتيق'.",
+        "Android: WAKE_LOCK, FOREGROUND_SERVICE, and FOREGROUND_SERVICE_MEDIA_PLAYBACK permissions, the AudioService foreground service (mediaPlayback), and an ongoing notification.",
+        "iOS: Info.plist has no UIBackgroundModes 'audio' entry. See known_gaps."
+      ]
+    },
+    {
+      "id": "bundled-offline-audio",
+      "status": "implemented",
+      "category": "audio",
+      "name": "Fully offline bundled audio",
+      "files": ["lib/services/audio_service.dart"],
+      "details": "assets/audio/audio.mp3 (~71 MB, CBR 64k mono) is loaded with AudioSource.asset, so there is no network dependency. The PWA's offline download/caching logic was dropped."
+    },
+
+    {
+      "id": "manuscript-page-viewer",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Scanned manuscript page viewer",
+      "files": ["lib/ui/widgets/page_viewer.dart"],
+      "details": [
+        "94 pages (assets/pages/page001–094.webp, native size 1130×1735). The page is fitted to the viewport width (baseScale = width / 1130).",
+        "View transform {zoom, tx, ty} is applied through a Matrix4 to the image and overlay together. Pan is clamped, and the page is centered when smaller than the viewport.",
+        "Warm radial viewer background, page drop shadow, and page background #FBF7EE by day or #140D05 at night.",
+        "gaplessPlayback avoids a flash on page change."
+      ]
+    },
+    {
+      "id": "active-verse-highlight",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Active verse highlight with crossfade and pulse",
+      "files": ["lib/ui/widgets/page_viewer.dart"],
+      "details": [
+        "The current verse's bounding box is painted as a rounded rect (radius 9, fill plus 2 px stroke). Day palette is amber, night palette is blue-violet.",
+        "Moving between verses crossfades the old box out and the new box in over 200 ms.",
+        "Pulse: an expanding, fading ring (460 ms) on verse tap, search jump, chapter jump, and repeat restarts.",
+        "The overlay ticker runs only while an animation is active."
+      ]
+    },
+    {
+      "id": "auto-follow",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Auto page-turn and follow playback",
+      "files": ["lib/ui/widgets/page_viewer.dart", "lib/services/sync_service.dart"],
+      "details": [
+        "On a verse change while attached: if the verse is on another page, load that page and reset the view. If zoomed in, do a 'cinematic turn' instead: zoom out, wait 400 ms, then zoom to 1.5× centered on the new verse (360 ms).",
+        "On the same page, re-center only when zoomed or scrollable and the box is outside the middle 60% of the viewport (the 'respectVisible' comfort zone)."
+      ]
+    },
+    {
+      "id": "show-verse-boxes",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Show all verse boxes toggle",
+      "files": ["lib/ui/widgets/page_viewer.dart", "lib/ui/widgets/page_chrome.dart"],
+      "details": "When on, draws a faint ghost outline around every verse on the page except the active one. Toolbar button 'إظهار صناديق الأبيات'.",
+      "persisted_keys": ["shatibiyyah_showboxes"]
+    },
+    {
+      "id": "night-mode",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Night mode with brightness slider",
+      "files": ["lib/ui/widgets/page_viewer.dart", "lib/ui/widgets/page_chrome.dart"],
+      "details": [
+        "Recolors the page with a combined color matrix equal to CSS invert(1) sepia(.3) brightness(b).",
+        "A brightness slider (50–110%, default 85) appears in the toolbar only while night mode is on.",
+        "Highlight colors switch to the night palette, and the mobile page indicator color adapts."
+      ],
+      "persisted_keys": ["shatibiyyah_night", "shatibiyyah_brightness"]
+    },
+    {
+      "id": "zoom-pan-gestures",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Pinch-zoom, double-tap zoom, pan with momentum",
+      "files": ["lib/ui/widgets/page_viewer.dart"],
+      "details": [
+        "A custom gesture engine on raw pointer events (Listener), not Flutter's gesture arena.",
+        "Pinch: zoom 1×–4× anchored at the finger centroid. Releasing below 1.02× snaps back to 1×.",
+        "Double-tap (within 300 ms and 34 px): if zoomed, reset. Otherwise zoom to 2.4× centered on the tapped verse, or on the tap point if no verse was hit.",
+        "Pan when zoomed or vertically scrollable, with momentum (0.94 friction per frame) on release.",
+        "Tap slop is 10 px, and a tap must finish within 500 ms.",
+        "Desktop-only zoom toggle button: resets if zoomed, otherwise zooms to 2.2× on the active verse.",
+        "Honors the OS reduce-motion setting (MediaQuery.disableAnimations): no animated transforms, no momentum, no pulse or crossfade."
+      ]
+    },
+    {
+      "id": "page-navigation",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Manual page navigation",
+      "files": ["lib/ui/widgets/page_viewer.dart", "lib/ui/widgets/page_chrome.dart"],
+      "details": [
+        "Swipe: a horizontal swipe of more than 55 px that is mostly horizontal turns the page. Swiping right goes to the next page (RTL book).",
+        "Desktop: › and ‹ arrow buttons on the viewer edges.",
+        "A manual page change resets zoom and puts sync into the 'detached' state (see resume-chip)."
+      ]
+    },
+    {
+      "id": "page-number-indicator",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Page number indicator",
+      "files": ["lib/ui/widgets/page_chrome.dart"],
+      "details": "Shows 'n / 94' in Arabic-Indic digits. Desktop: a pill at the bottom of the viewer. Mobile: a faint label shown only while the chrome is hidden, at 12% opacity, flashing to 70% for 1.8 s on page change."
+    },
+    {
+      "id": "page-toolbar",
+      "status": "implemented",
+      "category": "page-viewer",
+      "name": "Floating page toolbar",
+      "files": ["lib/ui/widgets/page_chrome.dart"],
+      "buttons": {
+        "all": ["Night mode (الوضع الليلي)", "Verse boxes (إظهار صناديق الأبيات)"],
+        "desktop_only": ["Zoom toggle (تكبير / إعادة الضبط)"],
+        "mobile_only": ["Search (بحث في الأبيات), opens the full-screen search overlay"],
+        "conditional": ["Brightness slider when night mode is on"]
+      }
+    },
+
+    {
+      "id": "verse-tap-to-seek",
+      "status": "implemented",
+      "category": "sync",
+      "name": "Tap a verse on the page to jump audio there",
+      "files": ["lib/services/sync_service.dart", "lib/ui/widgets/page_viewer.dart"],
+      "details": [
+        "Hit test: a direct hit inside a verse box, or else the nearest verse center within 1.2× the box height.",
+        "The tap pulses the verse, switches to باب mode for the chapter that owns the verse (if not already there), and seeks to the verse, keeping the play/pause state.",
+        "It also silently seeds the نطاق range with from = to = the tapped verse (presetRange) without switching mode.",
+        "It clears any chapter-header selection and re-attaches sync."
+      ]
+    },
+    {
+      "id": "detach-resume-chip",
+      "status": "implemented",
+      "category": "sync",
+      "name": "Detached browsing and the 'return to verse' chip",
+      "files": ["lib/services/sync_service.dart", "lib/ui/widgets/sync_controls.dart"],
+      "details": [
+        "A manual page turn detaches: playback continues, but the viewer stops following it.",
+        "A floating gold chip 'عودة إلى البيت N' (mobile: bottom-center above the chrome) re-attaches and jumps the view to the playing verse.",
+        "Pressing Play while detached re-attaches automatically.",
+        "Selecting a chapter from the list also re-attaches."
+      ]
+    },
+
+    {
+      "id": "chapter-list",
+      "status": "implemented",
+      "category": "navigation",
+      "name": "Chapter list (اختر الباب)",
+      "files": ["lib/ui/widgets/chapter_selector.dart"],
+      "row_contents": ["Number badge", "Chapter name", "'الأبيات a–b · n بيت · ص pages' meta line", "Thin progress bar", "Teal 'done' dot at ≥ 99.9% progress"],
+      "behavior": "Tapping a row sets باب mode on that chapter (pausing and resetting to its start), re-attaches sync, and closes the range sheet. The active chapter is highlighted in gold.",
+      "placement": "Desktop: inside the side panel, max height 440. Mobile: inside the range sheet, filling the height with sticky tabs."
+    },
+    {
+      "id": "chapter-header-tap",
+      "status": "implemented",
+      "category": "navigation",
+      "name": "Tappable chapter headers on the page + 'تشغيل الباب' band",
+      "files": ["lib/ui/widgets/page_viewer.dart", "lib/ui/widgets/sync_controls.dart", "lib/app_controller.dart"],
+      "details": [
+        "All 79 chapters have header bounding boxes. Tapping one selects it and draws a gold 3 px outline on the header.",
+        "The chapter-action band shows the name and 'n بيت · الأبيات a–b' with a 'تشغيل الباب' button. The button is disabled at 50% opacity if the chapter has no start_time.",
+        "Play Chapter sets the chapter, seeks to its start_time, highlights, and starts playing.",
+        "Tapping empty page space or a verse clears the selection. On mobile, selecting a header also reveals the hidden chrome.",
+        "Desktop: the band sits at the top of the side panel. Mobile: it sits above the range-status card."
+      ]
+    },
+    {
+      "id": "custom-range-input",
+      "status": "implemented",
+      "category": "navigation",
+      "name": "Custom verse range (نطاق) steppers",
+      "files": ["lib/ui/widgets/range_selector.dart"],
+      "details": [
+        "Two steppers, 'من البيت' and 'إلى البيت', each with −/+ buttons and a numeric text field.",
+        "The field accepts Western, Arabic-Indic, or Persian digits (normDigits). It commits on submit or on tap-outside.",
+        "Validation: both values are clamped to 1–1173, and to is forced ≥ from. Any change switches to نطاق mode and resets playback to the range start.",
+        "Helper text: 'اختر بيتًا بين ١ و ١١٧٣'."
+      ]
+    },
+    {
+      "id": "full-poem-panel",
+      "status": "implemented",
+      "category": "navigation",
+      "name": "كل المتن info panel",
+      "files": ["lib/ui/widgets/range_selector.dart"],
+      "details": "Static card: 'المتن كاملًا — من البيت ١ إلى البيت ١١٧٣'."
+    },
+    {
+      "id": "search",
+      "status": "implemented",
+      "category": "search",
+      "name": "Unified chapter + verse search",
+      "files": ["lib/app_controller.dart", "lib/services/verse_text.dart", "lib/ui/widgets/verse_text_overlay.dart"],
+      "matching": [
+        "Requires at least 2 characters.",
+        "Diacritic-insensitive: strips tashkeel U+0610–061A and U+064B–065F, superscript alef U+0670, and tatweel U+0640.",
+        "Folds آ أ إ ٱ to ا. Alef maqsura ى is not folded.",
+        "Collapses whitespace.",
+        "Substring match on chapter names and on the full verse text."
+      ],
+      "results": [
+        "Group 'الأبواب' (matching chapters, sorted by start verse) comes first, then 'الأبيات' (verses, capped at 30).",
+        "A verse row shows the verse number, chapter name, 'صـ page', and the sadr with the match highlighted. The highlight maps back through the normalization and extends over trailing diacritics.",
+        "An empty result shows 'لا توجد نتائج'."
+      ],
+      "actions": {
+        "pick_verse": "jumpToVerse(id, play: false): switches to the owning chapter if the verse is out of range, seeks, pauses, pulses, and re-attaches.",
+        "pick_chapter": "Selects the chapter header, navigates to its page, centers the header, pulses the first verse, and shows the 'تشغيل الباب' band."
+      },
+      "ui": {
+        "desktop": "Inline search bar in the side panel with results below (max height 400). Picking a result clears the query.",
+        "mobile": "Full-screen overlay opened from the toolbar search button, with an auto-focused field and a ✕ close button. Closing clears the query."
+      }
+    },
+
+    {
+      "id": "session-resume",
+      "status": "implemented",
+      "category": "persistence",
+      "name": "Resume last session chip (استكمال التلاوة)",
+      "files": ["lib/app_controller.dart", "lib/ui/widgets/sync_controls.dart"],
+      "details": [
+        "Once playback has happened, the session is saved on pause and 2 s (debounced) after each verse change: verseId, chapterId, chapterName, the first 8 words of the sadr, and pageNum.",
+        "On launch, if a session exists, a chip at the top of the console shows 'البيت N · chapter' plus the verse snippet.",
+        "Tapping the chip jumps to that verse and plays. The × button dismisses it.",
+        "The chip also hides automatically on the first play."
+      ],
+      "persisted_keys": ["shatibiyyah_last_session (JSON)"]
+    },
+    {
+      "id": "chapter-progress",
+      "status": "implemented",
+      "category": "persistence",
+      "name": "Per-chapter listening progress",
+      "files": ["lib/app_controller.dart", "lib/ui/widgets/chapter_selector.dart"],
+      "details": "On every verse change, progress = (verse - start) / (end - start) for the active chapter (or the chapter owning the verse in other modes). It only ever increases, and reaching the end verse sets it to 1. Saved 800 ms after the last change (debounced) and shown as bars and done-dots in the chapter list.",
+      "persisted_keys": ["shatibiyyah_chap_prog (JSON map idx → fraction)"]
+    },
+
+    {
+      "id": "immersive-mode",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "Immersive full-screen reading (mobile)",
+      "files": ["lib/app_controller.dart", "lib/ui/home_screen.dart"],
+      "details": [
+        "Starts with the chrome hidden on mobile unless 'keep controls visible' is on.",
+        "Tapping empty page space toggles the chrome. If a chapter header is selected, the tap clears it instead.",
+        "The top toolbar slides up and the bottom chrome slides down (300 ms). The page viewer expands to full height.",
+        "Auto-hide delay: 3 s while playing, 9 s when paused mid-range, 3 s when idle at 0, and 5 s after a control interaction.",
+        "Auto-hide is postponed while any panel is open (console, range sheet, search, or chapter selection).",
+        "Auto-hide is rescheduled on play, pause, and closing a sheet."
+      ]
+    },
+    {
+      "id": "keep-controls-visible",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "Keep controls visible toggle (إبقاء عناصر التحكم ظاهرة)",
+      "files": ["lib/ui/widgets/console_panel.dart", "lib/app_controller.dart"],
+      "details": "Custom pill switch at the bottom of the mobile console sheet. When on, auto-hide is disabled and the chrome is shown.",
+      "persisted_keys": ["keepControlsVisible"]
+    },
+    {
+      "id": "range-status-card",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "Range status card",
+      "files": ["lib/ui/widgets/mini_bar.dart", "lib/app_controller.dart"],
+      "details": "Bottom card showing the mode icon (📖 / 🎯 / 📚), a title (chapter name / 'نطاق مخصص' / 'كل المتن'), a subtitle with the verse span, and ▼. Tapping it opens the range selector sheet."
+    },
+    {
+      "id": "mini-bar",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "3-state mini audio bar",
+      "files": ["lib/ui/widgets/mini_bar.dart", "lib/app_controller.dart"],
+      "states": {
+        "idle": "▶ button · 'البيت N' + chapter name · gear",
+        "playing / paused": "Verse info · mini transport · gear, plus a seek row below"
+      },
+      "details": "Tapping the bar or the gear toggles the console sheet. After a pause, the bar state becomes 'idle' if the position is within 0.4 s of the range start, otherwise 'paused'. The 'ended' event sets it to idle."
+    },
+    {
+      "id": "console-sheet",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "Console bottom sheet (mobile)",
+      "files": ["lib/ui/home_screen.dart", "lib/ui/widgets/console_panel.dart"],
+      "details": "62% of screen height, with a dark backdrop. Close by tapping the backdrop or dragging the grip more than 80 px. Contents: session chip, console block (compact medallion row, scrubber, transport), the 2×2 control cards, and the keep-controls toggle."
+    },
+    {
+      "id": "range-selector-sheet",
+      "status": "implemented",
+      "category": "mobile-chrome",
+      "name": "Range selector bottom sheet (mobile)",
+      "files": ["lib/ui/home_screen.dart", "lib/ui/widgets/range_selector.dart"],
+      "details": "70% of screen height, with sticky mode tabs over the scrolling chapter list (or the range steppers or full-poem panel). Drag to dismiss (more than 80 px) or tap the backdrop. Picking a chapter closes it."
+    },
+
+    {
+      "id": "desktop-side-panel",
+      "status": "implemented",
+      "category": "desktop",
+      "name": "Desktop side controls panel",
+      "files": ["lib/ui/home_screen.dart", "lib/ui/widgets/console_panel.dart"],
+      "details": "Width is 34% of the screen, clamped to 320–430 px, on the right in RTL. Contents in order: chapter-action band, brand header ('الشاطبية' / 'حِرْزُ الأماني · بصوت الشيخ محمد عتيق'), ornament divider, session chip, mode tabs plus active panel, inline search, console block (large medallion), and control cards. The viewer has nav arrows, the toolbar with zoom, and the page pill."
+    },
+    {
+      "id": "now-playing-medallion",
+      "status": "implemented",
+      "category": "display",
+      "name": "Now-playing medallion (shamsa)",
+      "files": ["lib/ui/widgets/verse_display.dart"],
+      "details": [
+        "A custom-painted 16-point star shamsa with concentric rings. It shows the current verse number in Arabic-Indic digits.",
+        "An outer ring of 8 dots spins (one turn per 44 s) while playing and stops on pause.",
+        "The glow is at 70% opacity while playing and 25% otherwise. The number pops to 1.08× on each verse change (not while scrubbing).",
+        "Desktop: 150 px medallion over the caption 'البيت' and the chapter name. Mobile: 62 px medallion beside the chapter name (2 lines max)."
+      ]
+    },
+    {
+      "id": "advanced-control-cards",
+      "status": "implemented",
+      "category": "settings",
+      "name": "Advanced control cards + picker sheet",
+      "files": ["lib/ui/widgets/advanced_controls_sheet.dart", "lib/ui/widgets/sheet_scaffold.dart"],
+      "cards": ["⏱ فاصل زمني", "🎚 سرعة التلاوة", "🔁 تكرار البيت", "🔁 تكرار المقطع"],
+      "details": "Each card shows its current value. Tapping a card opens a picker bottom sheet (blurred backdrop, 340 ms slide, drag handle to dismiss) with chips for the option set. The selected chip is gold. Picking a value applies it immediately and closes the sheet after 130 ms."
+    },
+
+    {
+      "id": "arabic-localization",
+      "status": "implemented",
+      "category": "i18n",
+      "name": "Arabic-first localization",
+      "files": ["lib/main.dart", "lib/utils/arabic.dart"],
+      "details": [
+        "The only locale is ar, with global Material, Widgets, and Cupertino delegates. The whole app is wrapped in RTL Directionality.",
+        "Every number is shown in Arabic-Indic digits with the ٫ decimal separator (ar()). Times use m:ss format (fmtTime()).",
+        "The transport and scrubber are explicitly LTR.",
+        "Fonts: Scheherazade New (naskh: verse text, names, numbers) and Reem Kufi (kufi: brand, tabs, labels, sheet titles)."
+      ]
+    },
+    {
+      "id": "theme",
+      "status": "implemented",
+      "category": "design",
+      "name": "Warm dark gold theme",
+      "files": ["lib/theme.dart"],
+      "details": "Material 3 dark theme with design tokens ported 1:1 from the PWA CSS: espresso surfaces (ink #1B1307 → raised #3F2F15), gold accents (#FFAB2E / #FADBAE / #965F0D), and cream text. Radii are 22/16/12, the tap target is 52. Splash and highlight ripples are disabled. The system status and navigation bars are styled dark."
+    },
+
+    {
+      "id": "verse-action-menu",
+      "category": "interaction",
+      "name": "Verse action menu (long-press a verse)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "res/layout/arc_menu.xml (arc of FABs: تشغيل, مشاركة, نسخ, اختبار الحفظ, اضافة ملاحظة, التفسير/الترجمة, bookmark, close)",
+          "res/layout/arc_menu_quran_text.xml (same menu in the text view, without the test)",
+          "intro slide 2: 'قائمه التحكم في الايات قم بفتحها بالضغط المطول على الايه'"
+        ],
+        "behavior": "Long-pressing an ayah opens a radial menu anchored on it."
+      },
+      "adaptation": "Long-press a verse box on the manuscript page (or a verse row in text mode) to open a menu for that verse. A single tap keeps today's behavior (verse-tap-to-seek).",
+      "requirements": [
+        "Actions: تشغيل من هنا · الشرح · نص البيت/نسخ · مشاركة · إضافة مرجع · إضافة ملاحظة · اختبار الحفظ · بداية/نهاية النطاق · حالة الحفظ.",
+        "The menu is anchored to the verse rectangle and stays on screen at any zoom level. It is dismissed by a tap outside or Back.",
+        "The long-press threshold (≈450 ms) must not conflict with the custom gesture engine. Long-press is a new pointer state in PageViewerController, cancelled by any movement beyond the tap slop.",
+        "Haptic feedback on open. Every action has a semantics label."
+      ],
+      "extends": [
+        "verse-tap-to-seek",
+        "zoom-pan-gestures"
+      ],
+      "design_ref": "DESIGN.md §4.1 (verse actions)"
+    },
+    {
+      "id": "multi-verse-selection",
+      "category": "interaction",
+      "name": "Multi-verse selection across pages",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "questions_array/answers_array[5]: long-press the first verse, then tap the last one on the same page or a later page. Double-tap anywhere cancels.",
+          "intro slide 3",
+          "share_list: 'صوره من الآيات المحددة' / 'نص من الآيات المحددة'",
+          "string/action_selected_many '%1$s محدد'"
+        ],
+        "behavior": "Selects a contiguous run of ayahs, even across pages. The selection feeds share, copy and play."
+      },
+      "adaptation": "Select verses a–b directly on the scan or in text mode. The selection becomes the نطاق range (playback), the share or copy source, and a scope for memorization tests. This replaces typing numbers into the steppers.",
+      "requirements": [
+        "Start with a long-press, or with 'بداية النطاق' from the verse action menu. Extend by tapping the end verse, on the same or a later page. Selection is RTL-aware and allowed backwards (normalized to from ≤ to).",
+        "Selected verses are painted with a distinct selection color, different from the active-playback highlight and the chapter-header selection.",
+        "A contextual bar shows 'n أبيات محددة (a–b)' with actions: تشغيل النطاق · تكرار · نسخ · مشاركة · اختبار · إضافة مرجع. Double-tap on empty space or ✕ cancels.",
+        "Turning the page during selection doesn't cancel it. The bar stays visible."
+      ],
+      "extends": [
+        "custom-range-input",
+        "playback-modes"
+      ],
+      "depends_on": [
+        "verse-action-menu"
+      ]
+    },
+    {
+      "id": "share-and-copy",
+      "category": "sharing",
+      "name": "Share and copy verses (text, cropped image, page image)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/share_list: صوره من الآيات المحددة · نص من الآيات المحددة · صوره لكامل الصفحة",
+          "string/share_pages_limit 'لا يمكن مشاركة اكثر من 3 صفحات'",
+          "string/with_mushaf (share footer)",
+          "xml/image_share_filepaths.xml (FileProvider)",
+          "menu/search_menu.xml and menu/tafsir_menu.xml (copy/share of results and tafsir)"
+        ],
+        "behavior": "Share the selected ayahs as text or as an image cropped from the printed page, or share the whole page image. Copy the text. Sharing is limited to 3 pages."
+      },
+      "adaptation": "Share one verse or a selected range as vocalized text, or as an image cropped from the manuscript using verse_regions rectangles. Also: the whole page, or a styled text card. Every share includes an attribution line.",
+      "requirements": [
+        "Text format: 'البيت N — chapter\\nsadr\\najuz' per verse, then '— متن الشاطبية (تيسير الشاطبية)'. Numbers use Arabic-Indic digits.",
+        "Image crop: union of the selected verses' rectangles on each page, with padding, rendered from the page WebP. Multiple pages are stacked. Limit: 3 pages. Night mode is not applied, so the scan's original colors are shared.",
+        "Styled card: verse text in Scheherazade New on a paper background, plus verse number and chapter name.",
+        "Copy to clipboard shows the confirmation 'تم النسخ'.",
+        "Uses the platform share sheet (share_plus). Temporary images go to the cache directory."
+      ],
+      "data": [
+        "matn_verses.first/second_hemistich",
+        "verse_regions (or assets/data/verses.json today)"
+      ],
+      "depends_on": [
+        "multi-verse-selection"
+      ]
+    },
+    {
+      "id": "bookmarks",
+      "category": "study",
+      "name": "Page and verse bookmarks (المرجعيات) with color, tag and note",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "res/layout/add_bookmark_dialog.xml (color FAB, tag 'تصنيف (حفظ-ختمة..)', optional note)",
+          "bookmark_item.xml / bookmark_header_item.xml (sections مرجعيات الآيات / مرجعيات الصفحات / آخر المتصفحات)",
+          "quran_image_fragment.xml bookmark_handle (ribbon)",
+          "answers_array[7]: drag the top ribbon onto a page or an ayah; dragging it again moves the bookmark",
+          "strings page_bookmark_added / aya_bookmark_changed",
+          "menu/bookmark_menu.xml (edit, delete)",
+          "db/model/Bookmark"
+        ],
+        "behavior": "Drag a ribbon handle onto a page or ayah to bookmark it. Bookmarks have a color, a tag and a note, and can be moved by dragging again. The list is grouped into verse bookmarks, page bookmarks and recent pages."
+      },
+      "adaptation": "Bookmark a verse (stable verse ID) or a manuscript page. The ribbon handle works on the scan. A tag such as حفظ / مراجعة / إشكال lets students separate purposes.",
+      "requirements": [
+        "Add from the verse action menu, by dragging the ribbon handle at the page edge, or from the commentary reader (bookmark an explanation).",
+        "Fields: target (verse ID or page number), color (6-color palette), optional tag, optional note, created/updated timestamps.",
+        "Dragging an existing ribbon to another verse or page moves that bookmark ('تم تغيير الفاصل إلى البيت N'). Snackbar with Undo.",
+        "Markers: a small colored ribbon at the corner of the verse rectangle on the scan and next to the verse number in text mode.",
+        "List screen grouped by type, with tag filter and sort by verse order or date. Swipe or menu to edit and delete.",
+        "Stored in user.sqlite by stable ID, never by list index. Included in backup-and-sync."
+      ],
+      "data": [
+        "user.sqlite: bookmarks (DESIGN.md §3.4, extended with page_number, tag)"
+      ],
+      "design_ref": "DESIGN.md §7.6"
+    },
+    {
+      "id": "verse-notes",
+      "category": "study",
+      "name": "Personal notes on verses (الملاحظات)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "add_hint_dialog.xml, show_hint_dialog.xml ('تصفح الآية')",
+          "hints_fragment.xml + hint_item.xml (home tab 'الملاحظات')",
+          "show_all_hints_dialog.xml",
+          "quran_image_fragment.xml: a notes icon on the page",
+          "menu/hint_menu.xml (delete)",
+          "db/model/Hints"
+        ],
+        "behavior": "Attach a note to an ayah. A notes icon on the page opens that page's notes. There is a notes tab on the home screen, and each note can jump back to its ayah."
+      },
+      "adaptation": "Notes on a verse, or on a commentary explanation (for example a teacher's remark or a mnemonic for a رمز). They are reachable from the page, from the verse action menu, and from a Notes list.",
+      "requirements": [
+        "Create or edit in a bottom sheet with a multiline RTL field. Title: 'ملاحظة على البيت N'.",
+        "A notes icon appears on pages or verse rows that have notes. Tapping it lists the notes for the current page.",
+        "Notes list: search, sort by verse or date, and 'تصفح البيت' jumps the reader to the verse.",
+        "Optional link to a commentary block (commentary_block_id), so the note opens next to that explanation.",
+        "Stored in user.sqlite. Included in backup-and-sync."
+      ],
+      "data": [
+        "user.sqlite: notes (DESIGN.md §3.4)"
+      ],
+      "design_ref": "DESIGN.md §7.6"
+    },
+    {
+      "id": "reading-history",
+      "category": "persistence",
+      "name": "Automatic reading history and 'continue' card",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "pref key auto_last_bookmark 'عدد صفحات آخر المرجعيات التلقائية' (N recent pages saved automatically)",
+          "activity_main.xml last_read_lay: 'آخر المتصفحات' + sura + page + 'متابعة القراءة'"
+        ],
+        "behavior": "The last N visited pages are saved automatically. The home screen shows a continue-reading card."
+      },
+      "adaptation": "Keep the last N places the student visited, whether by reading or by listening, as verse and page entries. Extends session-resume, which today only restores the last playback verse.",
+      "requirements": [
+        "Record a history entry when the user stays on a page for more than 3 s, or on playback pause. Consecutive entries on the same page are deduplicated.",
+        "Setting: history size (0 = off, default 10).",
+        "Shown in the bookmarks list under 'آخر المتصفحات' and as the continue card on home-screen.",
+        "Keyed by verse or page ID, and kept separate from session-resume's playback state."
+      ],
+      "extends": [
+        "session-resume"
+      ],
+      "depends_on": [
+        "bookmarks"
+      ]
+    },
+    {
+      "id": "quick-jump",
+      "category": "navigation",
+      "name": "Quick jump (الانتقال السريع) to page, verse, chapter or part",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "res/layout/went_dialog.xml (fields: صفحة, جزء, سورة + آية, حزب)",
+          "menu/main.xml went_item",
+          "fragment_toolbox_more.xml go_btn"
+        ],
+        "behavior": "A dialog to jump to a page, juz, sura/ayah or hizb."
+      },
+      "adaptation": "Jump by page number (1–94), verse number (1–1173), chapter (picker of the 78 chapters) or part (مقدمة / الأصول / فرش الحروف / الخاتمة). This replaces juz and hizb.",
+      "requirements": [
+        "Accepts Arabic-Indic, Persian and ASCII digits (reuse normDigits).",
+        "Jumping to a verse pulses it and detaches from playback (the resume chip appears) unless 'تشغيل' is chosen.",
+        "Opened from the toolbar, the menu, and a long-press on the page-number indicator."
+      ],
+      "extends": [
+        "page-navigation",
+        "search"
+      ]
+    },
+    {
+      "id": "structured-index",
+      "category": "navigation",
+      "name": "Structured index: parts → chapters, searchable",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "fragment_sura.xml (search by sura name) + sura_list_row.xml (number, name, footer, page)",
+          "fragment_goza.xml + goza_item.xml (juz → quarter rows with title, subtitle, page; collapse/expand)",
+          "array/mani_tabs: الاجزاء · السور · المرجعيات · الختمات · الملاحظات"
+        ],
+        "behavior": "Two indexes (sura, juz/quarter) with name search, page numbers and collapsible groups."
+      },
+      "adaptation": "One index grouped by the poem's structure: المقدمة (1–94), الأصول (95–444), فرش الحروف (445–1120), and the closing chapters (التكبير, مخارج الحروف, الخاتمة). Each chapter row shows its first verse's opening words and the page. Extends chapter-list, which today is a flat 79-entry list.",
+      "requirements": [
+        "Collapsible part headers, with a verse count and listening/memorization progress per part.",
+        "Chapter search by name, normalized (diacritic-insensitive).",
+        "Row: number, short label, 'الأبيات a–b · n بيت · ص p', first 4 words of the first verse, progress bars.",
+        "Built on the 78 canonical chapters (V2 short_label) with chapters.part. Legacy index migration per DESIGN.md §3.5."
+      ],
+      "data": [
+        "chapters (78) + chapters.part (new input, DESIGN.md §3.2)"
+      ],
+      "extends": [
+        "chapter-list"
+      ]
+    },
+    {
+      "id": "page-header-info",
+      "category": "page-viewer",
+      "name": "Page header: chapter, part and page number",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "pref show_page_data 'اظهار معلومات الصفحة مثل (السورة ، الجزء ورقم الصفحة)'",
+          "quran_image_fragment.xml page_data_lay, left_indicator / right_indicator",
+          "sheet_tools_box.xml page_info_lay (title + two sub-lines)"
+        ],
+        "behavior": "Page info (sura, juz, page) is drawn over the page, with left/right page-side indicators."
+      },
+      "adaptation": "A slim header over the scan shows the chapter(s) on the page, the part, and 'ص n'. Can be toggled off. Extends page-number-indicator.",
+      "requirements": [
+        "Chapter name = the chapter of the first verse on the page. If a chapter starts on the page, show 'A ← B'.",
+        "Visible in immersive mode at low opacity. Setting 'إظهار معلومات الصفحة' (default on)."
+      ],
+      "extends": [
+        "page-number-indicator"
+      ]
+    },
+    {
+      "id": "chapter-boundary-toast",
+      "category": "page-viewer",
+      "name": "Chapter / part boundary notice",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "pref hizb_toast 'تفعيل علامات الجزء والحزب' (default on)",
+          "strings hizb_q / hizb_h / hizb_3q / rob3_of_hizb 'الربع %d الحزب %d'"
+        ],
+        "behavior": "A toast when the reader crosses a juz, hizb or quarter mark."
+      },
+      "adaptation": "When reading or playback enters a new chapter or part, a short toast shows 'بداية: باب …' (or 'بداية فرش الحروف').",
+      "requirements": [
+        "Setting, default on. Suppressed while scrubbing and during rapid page swipes (debounce 600 ms)."
+      ]
+    },
+    {
+      "id": "search-filters-and-stats",
+      "category": "search",
+      "name": "Search filters, occurrence count, copy/share results",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "search_activity.xml (filter buttons 'كل السور' / 'كل الاجزاء', result count, fast scroller)",
+          "sheet_search_sura_filter.xml ('تصفية البحث', multi-select checkboxes, 'تطبيق البحث')",
+          "string/search_result \"ظهرت كلمة '%s' %s مرة ، في %s آية\"",
+          "menu/search_menu.xml (share, copy)"
+        ],
+        "behavior": "Search can be limited to chosen suras or juz. Results show the number of occurrences and ayahs, and can be copied or shared."
+      },
+      "adaptation": "Extends search: filter by chapter(s) or part, a result summary 'ظهرت n مرة في m بيتًا', no 30-result cap (lazy paging), copy or share a result, and a fast scroller for long result lists.",
+      "requirements": [
+        "Filter sheet with multi-select chapters grouped by part. The active filter is shown as chips.",
+        "Count occurrences with the same normalization used for matching (Python-parity normalizer per DESIGN.md §5.5).",
+        "Result actions: open, copy text, share."
+      ],
+      "extends": [
+        "search"
+      ]
+    },
+    {
+      "id": "commentary-reader",
+      "category": "commentary",
+      "name": "Commentary reader (الشروح): الوافي / إبراز المعاني / سراج القارئ",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "tafsir_fragment.xml (book spinner 'أختر التفسير', zoom in/out, per-ayah ViewPager, download prompt)",
+          "tafsir_item.xml (ayah number, sura, bookmark icon, ayah text, tafsir text with links)",
+          "menu/tafsir_menu.xml (share, copy, bookmark)",
+          "array/tafsir_spinner (17 books), assets/databases/tafsir_muyassar.db bundled",
+          "dex: tafsir_hot_link / tafsir_hot_link_aya (links inside tafsir text jump to ayahs)",
+          "What's new 3.3.8: page background color in tafsir"
+        ],
+        "behavior": "Choose a tafsir book. Read the tafsir of each ayah in a swipeable pager showing the ayah text, with adjustable font size. Copy, share or bookmark from it. References inside the text link to other ayahs."
+      },
+      "adaptation": "The three imported commentaries replace the tafsir books. Everything ships in content.sqlite (no download). Segments with headings and footnotes follow the book's own structure. Grouped explanations cover several verses.",
+      "requirements": [
+        "Open from the verse action menu, the verse text panel, or a search result. Swipe between explanations in source order.",
+        "Book tabs (default book first). Segments rendered with their headings. Footnote markers are tappable (anchor_utf16).",
+        "A grouped block shows 'يشرح الأبيات a–b'. Cross-references to other verses are links (see commentary-cross-references).",
+        "Font size A−/A+, background color choice (paper/sepia/dark), copy selection, share an explanation with attribution, bookmark the explanation.",
+        "A 'يتبع التلاوة' toggle keeps it in sync with playback."
+      ],
+      "data": [
+        "commentary_blocks (2855)",
+        "commentary_block_verses",
+        "commentary_segments (3781)",
+        "footnotes (1830)",
+        "block_sources"
+      ],
+      "design_ref": "DESIGN.md §5.1–§5.3"
+    },
+    {
+      "id": "commentary-split-screen",
+      "category": "commentary",
+      "name": "Split screen: manuscript + commentary",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "quran_main_activity.xml split_handle, close_split_btn, tafsir_frame_layout",
+          "fragment_toolbox_view.xml 'انقسام الشاشة'",
+          "dex: tafsir_split",
+          "Play listing: 'Split screen between Quran and tafsir'"
+        ],
+        "behavior": "The screen splits between the mushaf page and the tafsir. A draggable handle resizes the panes, and a button closes the split."
+      },
+      "adaptation": "Page (or text mode) on top and commentary below on phones. Side by side on tablets and desktop. The commentary follows the active or selected verse.",
+      "requirements": [
+        "A draggable divider, from 30% to 70%, remembered per orientation. A ✕ closes the split.",
+        "The page viewer relayouts to the pane size (PageViewerController.relayout) without resetting the verse highlight.",
+        "Desktop: a third column or side-panel tab instead of a split (DESIGN.md §5.1)."
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ]
+    },
+    {
+      "id": "vocabulary-notes",
+      "category": "commentary",
+      "name": "Vocabulary / language notes (اللغة) for a verse",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "tafsir_download_list: 'معانى الكلمات - عربي', 'معانى الكلمات - السراج - عربي', 'إعراب القرآن - قاسم دعاس'"
+        ],
+        "behavior": "Word-meaning and grammar books appear as separate 'tafsir' sources."
+      },
+      "adaptation": "A quick 'اللغة' view listing the language segments of الوافي for the verse. The data covers only part of the poem: 82 'language' + 10 'language_and_meaning' segments, all in الوافي. There is no dedicated glossary or i'rab source.",
+      "requirements": [
+        "Show the tab only when the verse's الوافي block has a language segment. Otherwise hide it; don't show an empty state.",
+        "Future: a curated glossary of the poem's rare words, as a new editorial input."
+      ],
+      "data": [
+        "commentary_segments.segment_type in ('language','language_and_meaning')"
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ]
+    },
+    {
+      "id": "text-mode-reader",
+      "category": "reading",
+      "name": "Text mode (عرض نصي) with font and size options",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/quran_view: عرض مصور / عرض نصي",
+          "pref quran_display_view 'وضع العرض الأفتراضى للمصحف'",
+          "quran_text_fragment.xml, quran_aya_item.xml",
+          "menu/quran_text_menu.xml: zoom in/out; show as pages / sura / juz / hizb / quarter",
+          "pref setting_quran_font + quran_font_select_item.xml (7 fonts in assets/fonts)",
+          "fragment_toolbox_view.xml background color picker"
+        ],
+        "behavior": "Switch between the printed page and a text rendering. Choose the font and size, group by page, sura, juz, hizb or quarter, and pick a background color."
+      },
+      "adaptation": "Render the vocalized poem as text in the classical two-hemistich layout, synchronized with playback. Grouping options: by chapter (default), by manuscript page, or by part.",
+      "requirements": [
+        "Toolbar toggle الصفحات / النص. The last choice is remembered, and the default view is a setting.",
+        "Font choice: Scheherazade New (bundled) plus optional Amiri or KFGQPC-style naskh. Size via A−/A+, pinch, and a setting (0.8–1.8×).",
+        "The playing verse is highlighted and auto-scrolled (comfort zone). A tap seeks, a long-press opens the verse action menu, and manual scrolling detaches.",
+        "Background color presets (paper, sepia, dark) that follow night-mode.",
+        "Works without audio downloaded."
+      ],
+      "data": [
+        "matn_verses (1173, hemistich split)",
+        "chapters"
+      ],
+      "design_ref": "DESIGN.md §4.2"
+    },
+    {
+      "id": "screen-reader-support",
+      "category": "accessibility",
+      "name": "Screen-reader (TalkBack/VoiceOver) mode",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "pref quran_text_talkback_mode 'توافق التطبيق مع قارئ الشاشة في العرض النصي'",
+          "ayat.db column text_talkback (a separate text form for screen readers)",
+          "contentDescription on most controls"
+        ],
+        "behavior": "A text form tuned for screen readers, and labeled controls."
+      },
+      "adaptation": "In text mode, expose each verse as one semantics node: 'البيت N: sadr، ajuz'. Diacritics can optionally be stripped for better TTS. Add labels to every icon button, and provide a non-gesture alternative to page swipes.",
+      "requirements": [
+        "Setting 'توافق مع قارئ الشاشة' switches the verse text to the normalized form for TTS.",
+        "All custom controls (medallion, toggles, chips, ribbon) get Semantics labels. Page turns get explicit buttons.",
+        "Respect the system text scale everywhere."
+      ],
+      "depends_on": [
+        "text-mode-reader"
+      ]
+    },
+    {
+      "id": "reciter-catalog",
+      "category": "audio",
+      "name": "Reciter catalog and switch (القارئ المختار)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "sheet_qari.xml (tabs by sound type, 'إظهار المحمل فقط', pager)",
+          "qari_item.xml (selected check, progress, state)",
+          "item_qari_header.xml (avatar, name, description, 'رؤية المزيد')",
+          "array/sound_types: متصل · آيات · السور",
+          "~120 reciter strings grouped by riwaya (حفص, ورش, قالون, …)",
+          "What's new 3.3.0: 'Sort Qari according to rewaya'"
+        ],
+        "behavior": "Choose a qari from a list grouped by riwaya and audio type. The list shows each qari's download progress and can be filtered to downloaded only."
+      },
+      "adaptation": "Two reviewed recordings (محمد بن عتيق, default; عبدالحميد القريو), each one full-file 'gapless' recording with verse cues. Switching keeps the current verse (the cursor is the verse ID).",
+      "requirements": [
+        "Reciter sheet: name, duration, size, download state, a 'الافتراضي' badge, an info screen with attribution, and a bundled ~20 s sample per reciter.",
+        "Switching mid-play resumes at start(current verse) in the new recording. Mode, range, speed and pause are kept.",
+        "Chapter progress and stats are kept per recording. The lock screen shows the reciter.",
+        "Filter 'المحمّل فقط'."
+      ],
+      "data": [
+        "reciters",
+        "recordings",
+        "verse_timings (2×1173)",
+        "chapter_announcements (2×77)"
+      ],
+      "depends_on": [
+        "audio-downloads"
+      ],
+      "design_ref": "DESIGN.md §6.3–§6.4"
+    },
+    {
+      "id": "audio-downloads",
+      "category": "downloads",
+      "name": "Audio downloads and downloads manager",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "downloads_activity.xml (تنزيل الصوت / تنزيل المصاحف / تنزيل التفاسير)",
+          "qari_download_item.xml (progress, delete 'حذف الاصوات')",
+          "strings download_error_disk / download_error_invalid_download_retry / download_error_network_retry / 'resume supported' / download_progress",
+          "pref setting_file_location + prefs_sdcard_internal/external (storage location)",
+          "service/download/QuranDownloadService + QuranDownloadWorker",
+          "string/audio_downloading 'ملف الصوت غير محمل، جاري التحميل…' (download on first play)"
+        ],
+        "behavior": "Resumable downloads with progress, corruption detection and retry, disk-space checks, cancel and delete, and a choice of storage location. Audio downloads automatically on first play."
+      },
+      "adaptation": "Per the 2026-09-28 decision, both recordings are downloaded in the app on demand and nothing is bundled. One file per recording, verified by sha256 against the snapshot.",
+      "requirements": [
+        "Background, resumable (HTTP Range) downloads with mirror fallback. Wi-Fi-only option (default on).",
+        "Free-space check (size + 50 MB). sha256 + size verification, then an atomic rename. A corrupted file is deleted and retried.",
+        "Downloads screen: per-recording state (none/queued/downloading/paused/verifying/ready/update_available/failed), cancel, delete, total storage used.",
+        "Pressing play with no audio offers the download (the Mushaf behavior), instead of failing silently. This fixes the unused onLoadError."
+      ],
+      "data": [
+        "recording_files (DESIGN.md §3.2)"
+      ],
+      "design_ref": "DESIGN.md §6.1–§6.2"
+    },
+    {
+      "id": "self-recording",
+      "category": "study",
+      "name": "Record yourself and compare (استمع تسجيلك)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "permission RECORD_AUDIO + FOREGROUND_SERVICE_MICROPHONE",
+          "service/RecordService, dex strings start_record / stop_record / hearRecordButton / '/mushaf/record/'",
+          "strings record 'تسجيل', record_msg 'التسجيل يعمل الان', hear_record 'استمع تسجيلك'",
+          "pref record_sound 'الاحتفاظ بالأصوات المسجلة'",
+          "Play review (2026-09-08): 'use the microphone and read, and still listen to my recitation'"
+        ],
+        "behavior": "Record your own recitation from the sound tools, play it back, and optionally keep the recordings."
+      },
+      "adaptation": "تسميع: record your recitation of a verse or selected range from memory, then play it back alone or alternating with the reciter's version of the same verses. This is core to Shatibiyyah memorization.",
+      "requirements": [
+        "Record button in the console and memorization-test. Mic permission is requested on first use, with an explanation.",
+        "Recording is tagged with the verse range, date and duration. Playback modes: mine only · reciter then mine · mine then reciter.",
+        "Setting 'الاحتفاظ بالتسجيلات' (default off: keep only the latest recording per range). A storage list with delete.",
+        "Recording pauses reciter playback. The audio session switches to playAndRecord while recording, then restores.",
+        "iOS: NSMicrophoneUsageDescription. Android: RECORD_AUDIO."
+      ],
+      "data": [
+        "user.sqlite: recordings(id, from_verse, to_verse, path, duration_ms, created_at)"
+      ]
+    },
+    {
+      "id": "memorization-test",
+      "category": "study",
+      "name": "Memorization test (اختبار الحفظ) with masking",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "hefz_dialog.xml: mode عشوائى/مخصص, 'تحديد البدء' (sura, ayah), 'تحديد الانتهاء' (sura, ayah)",
+          "quran_image_fragment.xml image_mask + test_container (a mask layer over the page image)",
+          "quran_main_activity.xml 'تغيير السؤال' / 'غلق الاختبار'",
+          "arc_menu_test, fragment_toolbox_more test_btn, string/hefz_test"
+        ],
+        "behavior": "Inferred from resources: choose a random or custom ayah range. The page is covered by a mask while you recite. 'تغيير السؤال' picks another question and 'غلق الاختبار' ends the test. Exact question mechanics were not verified at runtime."
+      },
+      "adaptation": "Pick a scope (chapter, range, or random from memorized verses). The app hides the target verse on the scan or in text mode by painting over its verse_regions rectangle. The student recites (optionally recording), reveals, and grades أتقنت / ترددت / أخطأت. Grades feed the review scheduler.",
+      "requirements": [
+        "Modes: random verse in scope · sequential · 'what comes next' (show verse k, hide k+1) · second-hemistich quiz (text).",
+        "Mask color matches the page (day #FBF7EE / night-inverted). Press-and-hold to peek. 'سؤال آخر' and 'إنهاء الاختبار' controls.",
+        "Optional audio prompt: play the previous verse before the hidden one.",
+        "Session summary: questions, grades, weakest verses → add to review queue."
+      ],
+      "data": [
+        "verse_regions",
+        "matn_verses",
+        "user.sqlite: memo_state / memo_log"
+      ],
+      "depends_on": [
+        "self-recording"
+      ],
+      "design_ref": "DESIGN.md §7.2–§7.5"
+    },
+    {
+      "id": "study-plan",
+      "category": "study",
+      "name": "Study plans (ختمة → خطة حفظ/مراجعة/قراءة) with daily portions (أوراد)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/khatma_types: ختمة القراءة · ختمة الحفظ · ختمة تدبر وتعلم · ختمة مراجعة",
+          "sheet_add_khatma.xml / add_khatma_dialog.xml: type, duration (days, default 30), from page–to page, weekly reading days, reminder time",
+          "activity_khatma_details.xml: date range seek bar, progress, 'قراءة الورد الحالى', 'أتممت الورد الحالى', 'مشاركة الورد مع صديق', completed/remaining werds",
+          "khatma_item.xml (progress)",
+          "strings khatma_notification_content, finish_khatma_dialog_content, finish_werd_dialog_content",
+          "db/model/Khatma + Werd, job/KhatmaJob"
+        ],
+        "behavior": "Create a reading/memorizing/study/review plan over a page range and duration, on chosen weekdays. The app splits it into daily portions (werds), reminds you at a set time, tracks progress, and marks each werd done. At the end you can repeat the plan."
+      },
+      "adaptation": "Plans over verses rather than pages. Types: حفظ المتن · مراجعة · قراءة/سماع · دراسة الشرح (read one commentary alongside). A portion never splits a verse and prefers to end at a chapter boundary.",
+      "requirements": [
+        "Create: type, scope (whole matn, part, chapters, or verse range), duration in days OR verses per day, weekdays, reminder time.",
+        "Portion generation: distribute the scope's verses over the active days. Snap boundaries to a chapter end when within ±15% of the target size.",
+        "Plan screen: date range, progress %, current portion ('من البيت a … إلى البيت b', chapter, page), and buttons 'ابدأ الورد' (opens reader/player on the portion) and 'أتممت الورد'. Also completed/remaining portions.",
+        "The study-plan type drives the player: memorization plans open the memorization-test/talqin flow, and listening plans set the نطاق to the portion.",
+        "On completion: dialog إعادة / حذف / خطة مراجعة جديدة.",
+        "Multiple concurrent plans. Stored in user.sqlite. Included in backup-and-sync."
+      ],
+      "data": [
+        "user.sqlite: plans(id, type, from_verse, to_verse, days_json, start_date, end_date, reminder_time)",
+        "plan_portions(plan_id, idx, from_verse, to_verse, done_at)"
+      ],
+      "depends_on": [
+        "reminders"
+      ]
+    },
+    {
+      "id": "reminders",
+      "category": "notifications",
+      "name": "Reminders (التنبيهات): daily study and chapter reminders",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/add_reminder_dialog: تنبية يومى للقراءة · تنبية لقراءة سورة",
+          "reminder_dialog.xml (sura, time, repeat weekdays)",
+          "activity_reminders.xml / reminder_item.xml",
+          "receivers/AutoStart (BOOT_COMPLETED) + TimeChangeReceiver + job/ReminderJob + ResetAlarmJob",
+          "WhiteList screen + array/phones_descriptions (per-OEM battery-optimization instructions), string/huawei_alert_msg"
+        ],
+        "behavior": "Daily reading reminders and per-sura reminders on chosen weekdays at a time. Alarms are rescheduled after reboot or clock change. A troubleshooting guide per phone brand covers battery optimization."
+      },
+      "adaptation": "Daily study reminder (optionally tied to a study plan's portion) and 'review chapter X on these days'. The notification opens the app directly on the portion or chapter.",
+      "requirements": [
+        "Local scheduled notifications (flutter_local_notifications). Exact alarms are optional on Android 12+. Reschedule on boot, timezone and time change.",
+        "Notification action buttons: 'ابدأ' (deep link to the portion) and 'لاحقًا' (snooze 30 min).",
+        "Android reliability help: detect battery optimization and link to the OEM-specific instructions.",
+        "Notification permission requested contextually (Android 13+, iOS)."
+      ],
+      "depends_on": [
+        "notification-settings"
+      ]
+    },
+    {
+      "id": "notification-settings",
+      "category": "notifications",
+      "name": "Notification control center",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "activity_notification_settings.xml: 'إشعارات الورد' (daily werd), 'إشعارات التفسير' (tafsir notifications) switches",
+          "What's new 3.3.8: 'add notification control center'",
+          "notification channels: Audio Playback, Quran Downloads"
+        ],
+        "behavior": "Per-type notification switches and separate channels."
+      },
+      "adaptation": "Separate switches and channels for: study reminders, the daily benefit (daily-benefit), downloads, and playback.",
+      "requirements": [
+        "Android channels: playback (existing app.shatibiyyah.hirz.channel.audio), downloads, reminders, daily benefit.",
+        "Changes take effect immediately (scheduled notifications are cancelled when a switch is turned off)."
+      ]
+    },
+    {
+      "id": "daily-benefit",
+      "category": "notifications",
+      "name": "Daily benefit (فائدة اليوم): a verse and its explanation",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "notification switch 'إشعارات التفسير' / 'استلام إشعارات التفسير'",
+          "fcm/MyFirebaseMessagingService (server push)",
+          "activity_main.xml image carousel (home announcements)"
+        ],
+        "behavior": "Push notifications with tafsir content, plus a home-screen announcements carousel. Server-driven."
+      },
+      "adaptation": "Local only, with no server: each day pick one verse (in order, or from the student's current plan) and notify with its text plus the first lines of the default commentary. The home screen shows the same card.",
+      "requirements": [
+        "Deterministic selection (day index → verse), so it works offline.",
+        "Tapping the notification opens the commentary reader on that verse.",
+        "Off by default."
+      ],
+      "depends_on": [
+        "commentary-reader",
+        "notification-settings"
+      ]
+    },
+    {
+      "id": "matn-completion",
+      "category": "study",
+      "name": "Completion screen when a plan or the whole matn is finished",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "activity QuranDoaa + quran_end.xml ('دعاء ختم القرآن', doaa text with zoom)",
+          "string/khatma_finished, finish_khatma_dialog_content"
+        ],
+        "behavior": "When the khatma ends, show the completion doaa and offer to repeat."
+      },
+      "adaptation": "The Quran khatm doaa is not applicable. Instead: a completion screen when a study plan ends, or when the student finishes listening to or memorizing all 1173 verses. It shows totals and offers a review plan. It can show the poem's own closing verses (الخاتمة, 1160–1173).",
+      "requirements": [
+        "Triggered by study-plan completion, or by chapter progress reaching 100% for all 78 chapters.",
+        "Share-able summary card (share-and-copy)."
+      ]
+    },
+    {
+      "id": "play-scope-shortcuts",
+      "category": "audio",
+      "name": "Play-scope shortcuts: from this verse to chapter end / matn end / custom",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "strings all_quran 'القرآن كاملاً', all_quran_from_here 'القرآن كاملاً من هنا', listen_to 'الاستماع إلى؟', custom_play 'مخصص'",
+          "custom_play_dialog.xml (start sura/ayah, end sura/ayah)",
+          "What's new 3.3.0: 'Add more play options with 2 page view'"
+        ],
+        "behavior": "When starting playback, ask what to listen to: this sura, the whole Quran from here, or a custom start/end."
+      },
+      "adaptation": "Playing from the verse action menu asks 'الاستماع إلى؟': البيت فقط · إلى نهاية الباب · إلى نهاية المتن · نطاق مخصص. Each choice maps onto the existing modes (range / chapter / full, with a start offset).",
+      "requirements": [
+        "'إلى نهاية المتن' needs a range that starts at verse v and ends at 1173 (range mode with to = 1173).",
+        "Remember the last choice, with 'لا تسأل مرة أخرى'."
+      ],
+      "extends": [
+        "playback-modes",
+        "custom-range-input"
+      ],
+      "depends_on": [
+        "verse-action-menu"
+      ]
+    },
+    {
+      "id": "display-preferences",
+      "category": "settings",
+      "name": "Display and device preferences",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "xml/pref_display.xml: screen_on 'إنارة مستمرة للشاشة' (default on), display_oriantation (تلقائي/اعدادات الجهاز/أفقي/رأسى), vertical_scroll 'قلب الصفحات راسياً', double_pages 'عرض الصفحتين المتجاورتين', switch_with_sound_buttons 'تصفح بمفاتيح الصوت', draw_under_cutout 'تفعيل القراءة في كامل الشاشة', select_aya_while_play 'تحديد الآيات مع المقرئ', app_theme غامق/فاتح, primary_color / accent_color",
+          "layout-land/quran_double_image_fragment.xml (two pages side by side)",
+          "fragment_toolbox_view.xml zoom 'تكبير الصفحة', background color picker"
+        ],
+        "behavior": "Keep screen on, orientation lock, vertical or horizontal page flipping, dual-page landscape, volume-key page turns, drawing under the display cutout, toggling the recitation highlight, light/dark app theme, and custom app colors."
+      },
+      "adaptation": "The same preferences, applied to the manuscript viewer and the app chrome.",
+      "requirements": [
+        "Keep screen on while reading or playing (wakelock_plus). Default on.",
+        "Orientation: auto / portrait / landscape. This changes today's hard portrait lock in main.dart.",
+        "Dual-page spread in landscape and on tablets. Two page images, right page = lower page number (RTL book).",
+        "Page flip direction: horizontal swipe (current) or vertical continuous scroll.",
+        "Volume keys turn pages when audio is not playing (Android).",
+        "Draw under the cutout, as an option in immersive mode.",
+        "Toggle 'تظليل البيت مع القارئ'. When off, playback doesn't move the highlight or auto-follow.",
+        "App theme: the current warm dark theme plus a light paper theme. Accent color presets."
+      ],
+      "extends": [
+        "night-mode",
+        "auto-follow",
+        "page-navigation",
+        "theme"
+      ],
+      "depends_on": [
+        "settings-screen"
+      ]
+    },
+    {
+      "id": "settings-screen",
+      "category": "settings",
+      "name": "Settings screen (الإعدادات)",
+      "status": "missing",
+      "priority": "high",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "xml/pref_headers.xml: عضوية المصحف · إدارة التنزيلات · خصائص العرض · التنبيهات · المزامنة · اللغة · عن البرنامج",
+          "settings_activity.xml, sheet_tools_box.xml (quick tools sheet with tabs: view / sounds / more)"
+        ],
+        "behavior": "A full settings hierarchy, plus a quick tools bottom sheet reached from the reader."
+      },
+      "adaptation": "Sections: التلاوة (reciter, spoken titles, pre-roll, speed defaults) · العرض (display-preferences, text size, fonts) · الشرح (default book, follow) · الحفظ (daily limits, test defaults, recordings) · التنبيهات · التنزيلات · النسخ الاحتياطي · اللغة · حول. This replaces the unused settingsOpen state (known_gaps: Settings sheet).",
+      "requirements": [
+        "Quick tools sheet from the reader, alongside the full settings screen.",
+        "Every setting persisted under v2 keys (DESIGN.md §3.5)."
+      ],
+      "design_ref": "DESIGN.md §8 (settings sheet)"
+    },
+    {
+      "id": "ui-language",
+      "category": "i18n",
+      "name": "Interface language: Arabic / English",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/languages: English, عربي",
+          "pref header 'اللغة'",
+          "full English + Arabic string tables"
+        ],
+        "behavior": "Switch the UI between Arabic and English."
+      },
+      "adaptation": "Optional English UI for non-Arabic-speaking students. The matn and the commentaries stay Arabic.",
+      "requirements": [
+        "Move all UI strings to ARB files (flutter gen-l10n). Direction follows the locale. Scan and verse text always RTL."
+      ],
+      "extends": [
+        "arabic-localization"
+      ]
+    },
+    {
+      "id": "backup-and-sync",
+      "category": "sync",
+      "name": "Backup and sync of personal data",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "xml/pref_sync.xml drive_sync_enable 'مزامنة جوجل درايف'",
+          "string/sync_membership_msg: sync bookmarks, notes, khatmas and reminders to Google Drive",
+          "dex: 'Mushaf-Backup', backup/backup.json, gDriveRepository, job/SyncJob, 'upload backup'"
+        ],
+        "behavior": "Back up bookmarks, notes, khatmas and reminders as backup.json in a Google Drive folder and sync across devices. Membership feature."
+      },
+      "adaptation": "Export/import one JSON backup (bookmarks, notes, plans, memorization state, recordings list, settings) to a file or the share sheet. Optional cloud sync (Google Drive app folder / iCloud) later. Everything is keyed by stable IDs, so a backup survives content updates.",
+      "requirements": [
+        "Versioned backup schema. Import merges by ID (newest updated_at wins) with a preview.",
+        "No account required for the file backup."
+      ],
+      "data": [
+        "user.sqlite + prefs v2"
+      ]
+    },
+    {
+      "id": "share-study-portion",
+      "category": "sharing",
+      "name": "Invite a friend / share a study portion (deep links)",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "invite_dialog.xml (from page, to page)",
+          "strings invite_friend, invitation_message, single_page_invite / multi_page_invite",
+          "dex: https://ctd9q.app.goo.gl/?link=http://mushaf.com/invite?from_page=",
+          "activity_khatma_details 'مشاركة الورد مع صديق'",
+          "SplashScreen VIEW intent-filters (deep links)"
+        ],
+        "behavior": "Invite a friend to read pages x–y through a link that opens the app on those pages."
+      },
+      "adaptation": "Share a link to a verse, range, chapter or plan portion: 'shatibiyyah://verse/226', '…/range/226-234', optionally '?commentary=al-wafi'. Opening the link jumps there. Teachers can use this to assign portions.",
+      "requirements": [
+        "Android App Links / iOS Universal Links, with a custom-scheme fallback.",
+        "An unknown or out-of-range link opens the index with a notice."
+      ],
+      "design_ref": "ROADMAP.md C14"
+    },
+    {
+      "id": "onboarding-tour",
+      "category": "onboarding",
+      "name": "First-run feature tour",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "activity_intro.xml + intro_fragment.xml (image + description pager, 'التالي')",
+          "array/intro_descriptions (6 slides: tap page for menu, long-press ayah, multi-select, bookmark ribbon, help)"
+        ],
+        "behavior": "A 6-slide tour on first launch."
+      },
+      "adaptation": "4–6 slides: tap page = show/hide controls · tap verse = listen from it · long-press = verse menu · select a range · ribbon bookmark · commentary and memorization. This also covers the missing immersive hint (known_gaps: Immersive hint; key immersiveHintShown).",
+      "requirements": [
+        "Shown once, replayable from Settings → حول. Skippable.",
+        "It follows the audio-download onboarding (DESIGN.md §6.1), without duplicating it."
+      ]
+    },
+    {
+      "id": "home-screen",
+      "category": "navigation",
+      "name": "Home screen with continue card and tabs",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "activity_main.xml: logo, 'آخر المتصفحات' continue card, tabs (array/mani_tabs: الاجزاء, السور, المرجعيات, الختمات, الملاحظات), 'اضافة ختمة' FAB, settings button, carousel"
+        ],
+        "behavior": "A launch screen with continue reading, indexes, bookmarks, khatmas and notes."
+      },
+      "adaptation": "An optional home screen, 'المكتبة', reachable from the reader's ☰ menu. The reader stays the launch screen. Home shows the continue card, today's plan portion, due reviews, and tabs: الفهرس · المرجعيات · الخطط · الملاحظات · الحفظ.",
+      "requirements": [
+        "Setting 'البدء من': القارئ (default) / المكتبة.",
+        "Each tab reuses the list screens of the corresponding feature."
+      ],
+      "depends_on": [
+        "structured-index",
+        "bookmarks",
+        "verse-notes",
+        "study-plan",
+        "reading-history"
+      ]
+    },
+    {
+      "id": "about-and-support",
+      "category": "support",
+      "name": "About, help and feedback",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "array/about_titles: اصدار التطبيق, اتصل بنا, تقييم, أخبر أصدقائك, صفحة الفيسبوك, حل مشكلة التنبيهات, الأسئلة الشائعة, دليل المستخدم, اصدارات قديمة, سياسة الخصوصية, التراخيص",
+          "activity_common_questions.xml (10 Q&A)",
+          "dialog_rating_* (in-app rating)",
+          "feedback email with device info"
+        ],
+        "behavior": "About screen with contact, rating, sharing the app, FAQ, manual, privacy policy and licenses."
+      },
+      "adaptation": "حول: app version and content-snapshot version, sources and attribution (reciters, the three commentaries with their Quranpedia/edition credits, the manuscript), FAQ, contact/feedback (mailto with version and device info), rate, share app, privacy policy, and open-source licenses.",
+      "requirements": [
+        "Attribution text from commentaries.author_full / edition_note / source_url / license_note and recordings.attribution.",
+        "Flutter's LicensePage for package licenses."
+      ]
+    },
+    {
+      "id": "app-update-and-review",
+      "category": "support",
+      "name": "In-app update prompt and store review request",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "app-update / review Play libraries",
+          "strings update_msg 'يوجد تحديث جديد. هل تريد التحديث؟', update_downloaded",
+          "dialog_rating_overview / dialog_rating_store (rating flow with a feedback branch)"
+        ],
+        "behavior": "Google Play in-app updates and a staged rating prompt."
+      },
+      "adaptation": "Same, using in_app_update (Android) and in_app_review. The review is asked only after positive milestones, such as finishing a chapter or a plan portion.",
+      "requirements": [
+        "Never interrupt playback or a test.",
+        "At most one rating prompt per 90 days."
+      ]
+    },
+    {
+      "id": "media-browser-integration",
+      "category": "audio",
+      "name": "Android Auto / media-browser integration",
+      "status": "missing",
+      "priority": "low",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "AudioService intent-filter android.media.browse.MediaBrowserService + MEDIA_BUTTON"
+        ],
+        "behavior": "Exposes the player to media browsers such as Android Auto and headset buttons."
+      },
+      "adaptation": "Browse by reciter → part → chapter from car or watch media UIs. Play a chapter. Headset next/previous = previous/next verse.",
+      "requirements": [
+        "audio_service MediaBrowser tree built from chapters. Content comes from content.sqlite."
+      ],
+      "extends": [
+        "background-audio"
+      ]
+    },
+    {
+      "id": "rumuz-legend",
+      "category": "reference",
+      "name": "Legend of the Shatibiyyah reader codes (رموز القراء)",
+      "status": "missing",
+      "priority": "medium",
+      "origin": "mushaf",
+      "mushaf_reference": {
+        "evidence": [
+          "tajweed_dialog.xml + tajweed_item.xml (color swatch + rule name)",
+          "arrays hafs_default_tajweed / hafs_mjwaad_tajweed / asbahani_tajweed",
+          "string/tajweed_warning (colors differ in night mode)"
+        ],
+        "behavior": "A legend explaining the color coding of the tajweed mushaf."
+      },
+      "adaptation": "Tajweed colors don't apply to the Shatibiyyah. The analogous need is decoding the poem's code system: the letter codes أبج دهز حطي كلم نصع فضق for the seven readers and their transmitters, the collective codes (ثخذ ظغش) and the word codes (صحبة، صحاب، عم، سما، حق، نفر، حرمي، حصن …). This is a reference screen, reachable from the menu and the commentary reader.",
+      "requirements": [
+        "A table: code → reader(s) → transmitters, grouped. Tapping a reader lists all its codes.",
+        "Future (needs token data): highlight codes inside verse text.",
+        "Content must come from a curated, reviewed editorial input file. It is not in shatibiyyah-data today."
+      ],
+      "data": [
+        "NEW editorial input: inputs/app/rumuz.json (to be authored and reviewed)"
+      ]
+    },
+    {
+      "id": "verse-text-panel",
+      "category": "reading",
+      "name": "Verse text panel under the manuscript",
+      "status": "proposed",
+      "priority": "high",
+      "origin": "shatibiyyah",
+      "rationale": "The scans are hard to read on small screens, and the app never shows the playing verse's text (known_gaps: Current verse text). Mushaf has no equivalent, because its page image is the text.",
+      "requirements": [
+        "Shows the vocalized sadr/ajuz of the active verse between the page and the bottom chrome. Collapsible. Can be shown in immersive mode.",
+        "Buttons: الشرح, ⋯ (verse action menu)."
+      ],
+      "data": [
+        "matn_verses"
+      ],
+      "design_ref": "DESIGN.md §4.1"
+    },
+    {
+      "id": "commentary-compare",
+      "category": "commentary",
+      "name": "Compare the three commentaries side by side",
+      "status": "proposed",
+      "priority": "medium",
+      "origin": "shatibiyyah",
+      "rationale": "Three complete commentaries are aligned to the same 1173 verses. Mushaf only switches between tafsirs one at a time.",
+      "requirements": [
+        "Phone: swipe between books on the same verse. Tablet/desktop: 2–3 columns."
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ],
+      "design_ref": "DESIGN.md §5.4"
+    },
+    {
+      "id": "commentary-search",
+      "category": "search",
+      "name": "Search inside the commentaries",
+      "status": "proposed",
+      "priority": "medium",
+      "origin": "shatibiyyah",
+      "rationale": "Mushaf searches only the Quran text. Students often look for a term, such as النقل or الإمالة, across the explanations.",
+      "requirements": [
+        "A third result group 'في الشروح' with book filter chips. Snippets with highlighted matches. instr() over normalized segments and footnotes."
+      ],
+      "extends": [
+        "search"
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ],
+      "design_ref": "DESIGN.md §5.5"
+    },
+    {
+      "id": "spelling-variants",
+      "category": "commentary",
+      "name": "Spelling variants across editions (اختلاف النسخ)",
+      "status": "proposed",
+      "priority": "low",
+      "origin": "shatibiyyah",
+      "rationale": "shatibiyyah-data stores how each of the three editions prints every verse (3519 witness spellings).",
+      "requirements": [
+        "The canonical verse, then each book's spelling, with word-level differences underlined and the similarity %."
+      ],
+      "data": [
+        "matn_verse_variants"
+      ],
+      "design_ref": "DESIGN.md §5.6"
+    },
+    {
+      "id": "commentary-cross-references",
+      "category": "commentary",
+      "name": "Cross-references between verses in the commentaries",
+      "status": "proposed",
+      "priority": "low",
+      "origin": "shatibiyyah",
+      "rationale": "The data records 10 'quotes' and 4 'references' relations. This is the Shatibiyyah analogue of Mushaf's in-tafsir ayah links.",
+      "requirements": [
+        "Footer in the commentary reader: 'ذُكر هذا البيت أيضًا في شرح البيت …'. Each entry is tappable."
+      ],
+      "data": [
+        "commentary_block_verses.relation_type in ('quotes','references')"
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ]
+    },
+    {
+      "id": "source-and-trust-line",
+      "category": "commentary",
+      "name": "Source, printed page and review status for each explanation",
+      "status": "proposed",
+      "priority": "medium",
+      "origin": "shatibiyyah",
+      "rationale": "Every block has provenance (provider page, URL, printed page) and a review status. Showing it makes the app citable.",
+      "requirements": [
+        "'المصدر: قرآنبيديا ص … · الطبعة ص …' with a link to the reader page. An amber badge on the 6 needs_review blocks."
+      ],
+      "data": [
+        "block_sources",
+        "commentary_blocks.review_status"
+      ],
+      "depends_on": [
+        "commentary-reader"
+      ],
+      "design_ref": "DESIGN.md §5.2"
+    },
+    {
+      "id": "spoken-chapter-titles",
+      "category": "audio",
+      "name": "Play or skip the recited chapter titles",
+      "status": "proposed",
+      "priority": "medium",
+      "origin": "shatibiyyah",
+      "rationale": "Both recordings have 77 reviewed spoken-title cues (chapter_announcements). Skipping them gives continuous verse drills. Playing them helps orientation.",
+      "requirements": [
+        "Setting (default: play). While a title plays, the UI shows the chapter name instead of a verse number."
+      ],
+      "data": [
+        "chapter_announcements"
+      ],
+      "extends": [
+        "playback-modes"
+      ],
+      "design_ref": "DESIGN.md §2.2"
+    },
+    {
+      "id": "memorization-study-modes",
+      "category": "study",
+      "name": "Guided memorization modes and spaced review",
+      "status": "proposed",
+      "priority": "high",
+      "origin": "shatibiyyah",
+      "rationale": "Beyond Mushaf's single test: تلقين (listen N times, then a silent gap to recite), ربط (chaining consecutive verses), and a spaced-repetition review queue driven by test grades.",
+      "requirements": [
+        "Recite gap = verse window × factor (1.0–1.5).",
+        "SM-2-lite scheduler with daily limits. A memorized / learning / new bar per chapter.",
+        "A review session uses memorization-test for each due verse."
+      ],
+      "depends_on": [
+        "memorization-test"
+      ],
+      "design_ref": "DESIGN.md §7.3–§7.5"
+    },
+    {
+      "id": "listening-stats",
+      "category": "study",
+      "name": "Listening and study statistics",
+      "status": "proposed",
+      "priority": "low",
+      "origin": "shatibiyyah",
+      "rationale": "Motivation and self-tracking. Mushaf only tracks khatma progress.",
+      "requirements": [
+        "Daily minutes against a goal, a 7-day chart, a streak, and chapters completed per reciter."
+      ],
+      "data": [
+        "user.sqlite: listen_log"
+      ],
+      "design_ref": "DESIGN.md §7.7"
+    },
+    {
+      "id": "sleep-timer",
+      "category": "audio",
+      "name": "Sleep timer",
+      "status": "proposed",
+      "priority": "low",
+      "origin": "shatibiyyah",
+      "rationale": "Long listening sessions (a chapter or the whole matn). No sleep timer was found in Mushaf's resources.",
+      "requirements": [
+        "15 / 30 / 45 / 60 min, or end of verse / chapter / range. Fade out over the last 5 s."
+      ],
+      "design_ref": "ROADMAP.md B7"
+    },
+    {
+      "id": "repeat-counters-display",
+      "category": "audio",
+      "name": "Visible repeat counters and pause countdown",
+      "status": "proposed",
+      "priority": "medium",
+      "origin": "shatibiyyah",
+      "rationale": "verse-repeat and section-repeat run silently. Students drilling with ×5 or ∞ need to see where they are. Mushaf has no counter UI either (RepeatInfo is internal).",
+      "requirements": [
+        "Chip 'البيت ٢/٥' on the medallion, a section-loop ring, and a countdown ring during inter-verse-pause."
+      ],
+      "extends": [
+        "verse-repeat",
+        "section-repeat",
+        "inter-verse-pause",
+        "now-playing-medallion"
+      ],
+      "design_ref": "DESIGN.md §8"
+    },
+    {
+      "id": "audio-interruptions",
+      "category": "audio",
+      "name": "Audio interruptions and verse-level lock-screen info",
+      "status": "proposed",
+      "priority": "high",
+      "origin": "shatibiyyah",
+      "rationale": "Today the MediaItem is static ('متن الشاطبية'), and call or headphone-unplug handling isn't wired (audio_session is a dependency, but unused for interruptions). Mushaf has notification controls (covered by background-audio), but verse-level metadata is the missing part.",
+      "requirements": [
+        "Pause on calls and on becoming noisy. No auto-resume after a call.",
+        "Update MediaItem per verse: title = chapter, album = 'البيت N', artist = reciter. Lock-screen next/prev = verse."
+      ],
+      "extends": [
+        "background-audio"
+      ],
+      "design_ref": "DESIGN.md §8"
+    }
+  ],
+
+  "persisted_state": {
+    "storage": "SharedPreferences (string values)",
+    "keys": {
+      "shatibiyyah_mode": "chapter | range | full (default chapter)",
+      "shatibiyyah_chapter_idx": "int (default 0)",
+      "shatibiyyah_from": "int 1–1173 (default 1)",
+      "shatibiyyah_to": "int 1–1173 (default 10)",
+      "shatibiyyah_verse_reps": "1|2|3|4|5|10|inf (default 1)",
+      "shatibiyyah_section_reps": "1|2|3|4|5|10|inf (default 1)",
+      "shatibiyyah_speed": "0.5–2 (default 1)",
+      "shatibiyyah_pause": "0|1|2|3|5|10 seconds (default 0)",
+      "shatibiyyah_night": "0|1 (default 0)",
+      "shatibiyyah_brightness": "50–110 (default 85)",
+      "shatibiyyah_showboxes": "0|1 (default 0)",
+      "shatibiyyah_chap_prog": "JSON {chapterIdx: fraction}",
+      "shatibiyyah_last_session": "JSON {verseId, chapterId, chapterName, verseFirst8, pageNum}",
+      "keepControlsVisible": "0|1 (default 0)",
+      "immersiveHintShown": "defined in K, never read or written"
+    }
+  },
+
+  "data_assets": {
+    "assets/data/verses.json": "1173 verse boxes {id, page, x, y, width, height} in 1130×1735 image pixels",
+    "assets/data/timestamps.json": "1173 entries: verse id → start time in seconds",
+    "assets/data/chapters.json": "79 chapters {name, start_verse, end_verse, verse_count, start_time, header_text?, x, y, width, height}; all 79 have header boxes",
+    "assets/data/shatibiyyah.txt": "Poem text, lines 'N - sadr ... ajuz' with Arabic-Indic N; parsed for search and the session snippet",
+    "assets/data/xing-toc.json": "VBR seek table, bundled but unused",
+    "assets/pages/": "94 page WebPs (page001–page094) + page_cover.webp (splash)",
+    "assets/audio/audio.mp3": "Full recitation, ~71 MB",
+    "assets/icons/": "icon.png, icon-192.png, icon-maskable.png",
+    "assets/fonts/": "ScheherazadeNew Regular/Medium/SemiBold/Bold, ReemKufi (variable)"
+  },
+
+  "tests": {
+    "file": "test/widget_test.dart",
+    "covers": ["ar() numerals and decimals", "fmtTime()", "normalize() diacritics/alef/whitespace", "normalizeWithMap() index mapping", "repToStore/repFromStore incl. inf", "parseShatibiyyah sadr/ajuz split"],
+    "not_covered": ["AudioEngine boundary/repeat/pause logic", "SyncController", "PageViewer gestures/hit-testing", "any widget tests"]
+  },
+
+  "known_gaps": [
+    {
+      "area": "iOS background audio",
+      "issue": "ios/Runner/Info.plist has no UIBackgroundModes → audio, so playback likely stops when the app is backgrounded or the screen locks on iOS, despite just_audio_background."
+    },
+    {
+      "area": "Settings sheet",
+      "issue": "AppController has settingsOpen / openSettings / closeSettings, but no widget renders a settings sheet. The PWA had one with night, brightness, and page cache. Night and brightness live in the toolbar instead."
+    },
+    {
+      "area": "Immersive hint",
+      "issue": "The K.immersiveHint key is defined, but no first-run hint is implemented."
+    },
+    {
+      "area": "Audio load error",
+      "issue": "AudioEngine emits onLoadError, but nothing listens, so a failed audio load gives the user no feedback. The 'offline' event named in the header comment does not exist."
+    },
+    {
+      "area": "Chapter header hover",
+      "issue": "chapterHover is never assigned, so the dashed hover outline painter never draws. It was a desktop mouse-hover feature in the PWA."
+    },
+    {
+      "area": "Current verse text",
+      "issue": "Verse text (sadr/ajuz) is loaded but only shown in search results and the session chip. There is no display of the text of the currently playing verse."
+    },
+    {
+      "area": "Unused dependency / asset",
+      "issue": "flutter_riverpod is declared but unused. xing-toc.json is bundled but unused."
+    },
+    {
+      "area": "Naming inconsistency",
+      "issue": "App name differs per platform: Android 'تيسير الشاطبية', iOS 'Shatibiyyah', MaterialApp title 'الشاطبية — حِرز الأماني ووجه التهاني'."
+    },
+    {
+      "area": "Orientation",
+      "issue": "main.dart locks portrait, but iOS Info.plist still lists landscape orientations for iPhone."
+    },
+    {
+      "area": "README",
+      "issue": "README.md is still the default Flutter template."
+    }
+  ],
+
+  "planned_architecture": {
+    "summary": "The missing/proposed features assume the V2 content database: a read-only content.sqlite (verses, chapters, layout regions, commentaries, recordings, timings), a writable user.sqlite for personal data, prefs v2 keyed by stable IDs, and on-demand audio downloads. None of it is implemented yet.",
+    "docs": [
+      "DESIGN.md §2–§3",
+      "~/Documents/Projects/docs/DATABASE_ARCHITECTURE_V2.md §6.5, §10"
+    ]
+  },
+
+  "mushaf_reference": {
+    "app": "Mushaf (المصحف), package com.abdo.quran, developer A.Abdo",
+    "version": "3.3.8 (versionCode 150), minSdk 23, targetSdk 36, Play listing updated 2026-08-08, 5M+ downloads, rating 4.9",
+    "apk_path": "/Users/youssefbahy/Documents/Mushaf_3.3.8_APKPure (XAPK: base com.abdo.quran.apk, config.arm64_v8a.apk, config.mdpi.apk; 'com.abdo.quran.apk 3/' is the unzipped base)",
+    "play_url": "https://play.google.com/store/apps/details?id=com.abdo.quran&hl=en",
+    "stack": "Native Android (Kotlin, Hilt, Realm, Room/AppDatabase, ViewPager2, Media3/ExoPlayer AudioService, WorkManager). Firebase (analytics, crashlytics, messaging), OneSignal, AdMob, Play Billing, Google Drive API.",
+    "method": [
+      "resources.arsc parsed with a custom reader: 777 string/array resources, English + Arabic.",
+      "Binary XML decoded for app layouts (≈130), menus (11), preference screens (pref_display, pref_downloads, pref_headers, pref_sync) and AndroidManifest.xml.",
+      "Dex string tables scanned for app classes (com.abdo.quran.*: 136 top-level classes) and feature keywords.",
+      "Bundled assets inspected: databases ayat.db (text, search, talkback columns), m0–m8_ayainfo.db (per-print ayah rectangles), tafsir_muyassar.db; 13 Quran/UI fonts.",
+      "Google Play listing read in English and Arabic (description, What's new 3.3.0/3.3.8, reviews)."
+    ],
+    "limitations": [
+      "Runtime exploration was not possible: no Android SDK, emulator, adb, apktool or jadx is installed, and the disk has ~3.1 GB free, which is too little for an emulator image. No UI was driven and no screenshots were taken.",
+      "Behaviors are inferred from layouts, strings, preference keys, class names and the store text. Where the mechanics are not evident from resources (e.g. how memorization-test questions are chosen), the entry says 'inferred'.",
+      "Server-driven content (remote config, carousel, push messages) could not be observed.",
+      "Obfuscated code (R8) was not decompiled. Only class and string names were used."
+    ],
+    "screens_found": [
+      "SplashScreen",
+      "IntroActivity (tour)",
+      "MainActivity (home: continue card, tabs الاجزاء/السور/المرجعيات/الختمات/الملاحظات, carousel)",
+      "MainQuranActivity (reader: image/double-image/text fragments, split tafsir, test overlay, play controls)",
+      "QuranToolsBoxBottomSheet (tabs: view, sounds, more)",
+      "QariBottomSheet",
+      "Search (+ sura/juz filter sheets)",
+      "KhatmaDetails, AddKhatmaBottomSheet, WerdsBottomSheet",
+      "RemindersActivity, WhiteList",
+      "SettingsActivity (headers), DisplaySettingActivity, DownloadsActivity, SoundsDownloadActivity, MushafDownloadActivity, TafsirDownloadActivity, NotificationSettingsActivity, MushafSelectFromSetting",
+      "About, CommonQuestions, QuranDoaa",
+      "MembershipBottomSheet"
+    ]
+  },
+
+  "mushaf_feature_map": [
+    {
+      "mushaf_feature": "Scanned printed pages with ayah rectangles",
+      "evidence": "m*_ayainfo.db, quran_image_fragment.xml",
+      "disposition": "covered",
+      "feature_ids": [
+        "manuscript-page-viewer",
+        "show-verse-boxes"
+      ]
+    },
+    {
+      "mushaf_feature": "Highlight ayah while recited, follow page",
+      "evidence": "Play listing; pref select_aya_while_play",
+      "disposition": "covered",
+      "feature_ids": [
+        "active-verse-highlight",
+        "auto-follow"
+      ],
+      "note": "The on/off toggle is added in display-preferences."
+    },
+    {
+      "mushaf_feature": "Tap page to show/hide bottom menu",
+      "evidence": "intro slide 1; quran_page_des",
+      "disposition": "covered",
+      "feature_ids": [
+        "immersive-mode"
+      ]
+    },
+    {
+      "mushaf_feature": "Swipe pages / page zoom",
+      "evidence": "fragment_toolbox_view zoom 'تكبير الصفحة'",
+      "disposition": "covered",
+      "feature_ids": [
+        "page-navigation",
+        "zoom-pan-gestures"
+      ]
+    },
+    {
+      "mushaf_feature": "Night mode",
+      "evidence": "pref night_view",
+      "disposition": "covered",
+      "feature_ids": [
+        "night-mode"
+      ]
+    },
+    {
+      "mushaf_feature": "Transport: previous / stop / next, gapless playback",
+      "evidence": "fragment_toolbox_sounds.xml; Play listing",
+      "disposition": "covered",
+      "feature_ids": [
+        "audio-transport"
+      ]
+    },
+    {
+      "mushaf_feature": "Repeat ayah / repeat range",
+      "evidence": "repeat_ayah 'تكرار الآية', repeat_all 'تكرار المقطع', RepeatInfo",
+      "disposition": "covered",
+      "feature_ids": [
+        "verse-repeat",
+        "section-repeat"
+      ],
+      "note": "A visible counter is proposed in repeat-counters-display."
+    },
+    {
+      "mushaf_feature": "Delay between ayahs",
+      "evidence": "ayat_delay 'فاصل زمني', delay_duration '%s ث'",
+      "disposition": "covered",
+      "feature_ids": [
+        "inter-verse-pause"
+      ]
+    },
+    {
+      "mushaf_feature": "Recitation speed",
+      "evidence": "sound_speed 'سرعة التلاوة', speed_is '%.1f x'",
+      "disposition": "covered",
+      "feature_ids": [
+        "playback-speed"
+      ]
+    },
+    {
+      "mushaf_feature": "Fast-forward / rewind",
+      "evidence": "Arabic Play listing 'إمكانية التقديم والترجيع'",
+      "disposition": "covered",
+      "feature_ids": [
+        "scrubber",
+        "audio-transport"
+      ]
+    },
+    {
+      "mushaf_feature": "Background playback + notification controls",
+      "evidence": "AudioService, FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+      "disposition": "covered",
+      "feature_ids": [
+        "background-audio"
+      ],
+      "note": "Partial: iOS background mode is missing (known_gaps). Verse metadata is proposed in audio-interruptions."
+    },
+    {
+      "mushaf_feature": "Continue from last read",
+      "evidence": "last_read_lay 'متابعة القراءة'",
+      "disposition": "covered",
+      "feature_ids": [
+        "session-resume"
+      ],
+      "note": "Extended by reading-history."
+    },
+    {
+      "mushaf_feature": "Search the text (diacritic-insensitive)",
+      "evidence": "ayat.db text_search; Search activity",
+      "disposition": "covered",
+      "feature_ids": [
+        "search"
+      ],
+      "note": "Filters and counts are missing → search-filters-and-stats."
+    },
+    {
+      "mushaf_feature": "Sura index with name search",
+      "evidence": "fragment_sura.xml",
+      "disposition": "covered",
+      "feature_ids": [
+        "chapter-list"
+      ],
+      "note": "Name search and grouping → structured-index."
+    },
+    {
+      "mushaf_feature": "Custom play range (start/end)",
+      "evidence": "custom_play_dialog.xml",
+      "disposition": "covered",
+      "feature_ids": [
+        "custom-range-input",
+        "playback-modes"
+      ],
+      "note": "The 'from here' shortcuts → play-scope-shortcuts."
+    },
+    {
+      "mushaf_feature": "Long-press ayah action menu",
+      "evidence": "arc_menu.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "verse-action-menu"
+      ]
+    },
+    {
+      "mushaf_feature": "Multi-ayah selection across pages",
+      "evidence": "answers_array[5]",
+      "disposition": "missing",
+      "feature_ids": [
+        "multi-verse-selection"
+      ]
+    },
+    {
+      "mushaf_feature": "Share text / cropped image / page image; copy",
+      "evidence": "share_list",
+      "disposition": "missing",
+      "feature_ids": [
+        "share-and-copy"
+      ]
+    },
+    {
+      "mushaf_feature": "Page & ayah bookmarks with ribbon, color, tag, note",
+      "evidence": "add_bookmark_dialog.xml, bookmark_handle",
+      "disposition": "missing",
+      "feature_ids": [
+        "bookmarks"
+      ]
+    },
+    {
+      "mushaf_feature": "Automatic recent-pages bookmarks",
+      "evidence": "pref auto_last_bookmark",
+      "disposition": "missing",
+      "feature_ids": [
+        "reading-history"
+      ]
+    },
+    {
+      "mushaf_feature": "Ayah notes (hints)",
+      "evidence": "hints_fragment.xml, Hints model",
+      "disposition": "missing",
+      "feature_ids": [
+        "verse-notes"
+      ]
+    },
+    {
+      "mushaf_feature": "Fast jump (page/juz/sura+aya/hizb)",
+      "evidence": "went_dialog.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "quick-jump"
+      ]
+    },
+    {
+      "mushaf_feature": "Juz/quarter index",
+      "evidence": "fragment_goza.xml, goza_item.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "structured-index"
+      ],
+      "note": "Adapted: the poem's parts (مقدمة/أصول/فرش/خاتمة) replace juz/hizb."
+    },
+    {
+      "mushaf_feature": "Page info header, page-side indicators",
+      "evidence": "pref show_page_data, left/right_indicator",
+      "disposition": "missing",
+      "feature_ids": [
+        "page-header-info"
+      ]
+    },
+    {
+      "mushaf_feature": "Juz/hizb boundary toasts",
+      "evidence": "pref hizb_toast",
+      "disposition": "missing",
+      "feature_ids": [
+        "chapter-boundary-toast"
+      ]
+    },
+    {
+      "mushaf_feature": "Search filter by sura/juz, occurrence count, copy/share results",
+      "evidence": "sheet_search_sura_filter.xml, search_result",
+      "disposition": "missing",
+      "feature_ids": [
+        "search-filters-and-stats"
+      ]
+    },
+    {
+      "mushaf_feature": "Tafsir reader (17 books, zoom, copy/share/bookmark, hot links)",
+      "evidence": "tafsir_fragment.xml, tafsir_spinner",
+      "disposition": "missing",
+      "feature_ids": [
+        "commentary-reader",
+        "commentary-cross-references"
+      ],
+      "note": "Adapted to the three Shatibiyyah commentaries."
+    },
+    {
+      "mushaf_feature": "Split screen Quran + tafsir",
+      "evidence": "split_handle, tafsir_split",
+      "disposition": "missing",
+      "feature_ids": [
+        "commentary-split-screen"
+      ]
+    },
+    {
+      "mushaf_feature": "Word meanings / i'rab books",
+      "evidence": "tafsir_download_list",
+      "disposition": "missing",
+      "feature_ids": [
+        "vocabulary-notes"
+      ],
+      "note": "Only الوافي's language segments exist. No i'rab source."
+    },
+    {
+      "mushaf_feature": "Text view with fonts, size, grouping, background",
+      "evidence": "quran_text_menu.xml, pref setting_quran_font",
+      "disposition": "missing",
+      "feature_ids": [
+        "text-mode-reader"
+      ]
+    },
+    {
+      "mushaf_feature": "TalkBack-compatible text mode",
+      "evidence": "pref quran_text_talkback_mode, ayat.text_talkback",
+      "disposition": "missing",
+      "feature_ids": [
+        "screen-reader-support"
+      ]
+    },
+    {
+      "mushaf_feature": "Qari selection by riwaya/type, downloaded-only filter",
+      "evidence": "sheet_qari.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "reciter-catalog"
+      ]
+    },
+    {
+      "mushaf_feature": "Downloads manager (audio, prints, tafsir; resume, verify, storage location)",
+      "evidence": "downloads_activity.xml, QuranDownloadService",
+      "disposition": "missing",
+      "feature_ids": [
+        "audio-downloads"
+      ],
+      "note": "Only audio needs downloading. Commentaries ship in content.sqlite."
+    },
+    {
+      "mushaf_feature": "Record yourself and listen",
+      "evidence": "RecordService, hear_record",
+      "disposition": "missing",
+      "feature_ids": [
+        "self-recording"
+      ]
+    },
+    {
+      "mushaf_feature": "Memorization test (random/custom range, page mask)",
+      "evidence": "hefz_dialog.xml, image_mask",
+      "disposition": "missing",
+      "feature_ids": [
+        "memorization-test"
+      ]
+    },
+    {
+      "mushaf_feature": "Khatma plans with werds, weekdays, reminder, progress, share werd",
+      "evidence": "sheet_add_khatma.xml, activity_khatma_details.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "study-plan",
+        "share-study-portion"
+      ]
+    },
+    {
+      "mushaf_feature": "Reminders (daily, per sura) + OEM battery whitelist guide",
+      "evidence": "reminder_dialog.xml, WhiteList",
+      "disposition": "missing",
+      "feature_ids": [
+        "reminders"
+      ]
+    },
+    {
+      "mushaf_feature": "Notification control center",
+      "evidence": "activity_notification_settings.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "notification-settings"
+      ]
+    },
+    {
+      "mushaf_feature": "Tafsir push notifications, home carousel",
+      "evidence": "notification_tafsir, image_carousel",
+      "disposition": "missing",
+      "feature_ids": [
+        "daily-benefit"
+      ],
+      "note": "Adapted to a local daily verse and commentary."
+    },
+    {
+      "mushaf_feature": "Khatm doaa screen",
+      "evidence": "QuranDoaa, quran_end.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "matn-completion"
+      ],
+      "note": "The doaa is Quran-specific. Adapted to a completion screen."
+    },
+    {
+      "mushaf_feature": "'Listen to?' play options (all from here)",
+      "evidence": "all_quran_from_here, listen_to",
+      "disposition": "missing",
+      "feature_ids": [
+        "play-scope-shortcuts"
+      ]
+    },
+    {
+      "mushaf_feature": "Display prefs: screen on, orientation, vertical scroll, dual page, volume keys, cutout, theme/colors",
+      "evidence": "pref_display.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "display-preferences"
+      ]
+    },
+    {
+      "mushaf_feature": "Settings hierarchy + quick tools sheet",
+      "evidence": "pref_headers.xml, sheet_tools_box.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "settings-screen"
+      ]
+    },
+    {
+      "mushaf_feature": "UI language Arabic/English",
+      "evidence": "array/languages",
+      "disposition": "missing",
+      "feature_ids": [
+        "ui-language"
+      ]
+    },
+    {
+      "mushaf_feature": "Google Drive backup/sync",
+      "evidence": "pref_sync.xml, Mushaf-Backup",
+      "disposition": "missing",
+      "feature_ids": [
+        "backup-and-sync"
+      ]
+    },
+    {
+      "mushaf_feature": "Invite friend to read pages (deep link)",
+      "evidence": "invite_dialog.xml, mushaf.com/invite",
+      "disposition": "missing",
+      "feature_ids": [
+        "share-study-portion"
+      ]
+    },
+    {
+      "mushaf_feature": "Intro tour",
+      "evidence": "activity_intro.xml, intro_descriptions",
+      "disposition": "missing",
+      "feature_ids": [
+        "onboarding-tour"
+      ]
+    },
+    {
+      "mushaf_feature": "Home screen with tabs and continue card",
+      "evidence": "activity_main.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "home-screen"
+      ]
+    },
+    {
+      "mushaf_feature": "About, FAQ, contact, rate, share app, licenses, privacy",
+      "evidence": "about_titles, activity_common_questions.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "about-and-support"
+      ]
+    },
+    {
+      "mushaf_feature": "In-app update + rating flow",
+      "evidence": "app-update/review libs, dialog_rating_*",
+      "disposition": "missing",
+      "feature_ids": [
+        "app-update-and-review"
+      ]
+    },
+    {
+      "mushaf_feature": "Media browser service (Android Auto) + media buttons",
+      "evidence": "MediaBrowserService intent-filter",
+      "disposition": "missing",
+      "feature_ids": [
+        "media-browser-integration"
+      ]
+    },
+    {
+      "mushaf_feature": "Tajweed color legend",
+      "evidence": "tajweed_dialog.xml",
+      "disposition": "missing",
+      "feature_ids": [
+        "rumuz-legend"
+      ],
+      "note": "Adapted: a legend of the poem's reader codes (needs new editorial data)."
+    },
+    {
+      "mushaf_feature": "Multiple mushaf prints (Madinah, Tajweed, Warsh, Qaloon…) + print picker",
+      "evidence": "mushaf_download_titles, MushafSelectFromSetting",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "There is one manuscript layout today (V2 B1–B5). If another scan of the Shatibiyyah is added later, it becomes a second layout."
+    },
+    {
+      "mushaf_feature": "Riwayat (Hafs/Warsh/Qaloon/Shu'bah/Duri/Susi) audio groups",
+      "evidence": "reciter strings",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "The Shatibiyyah is recited as one text. Reciters are grouped by recording, not by riwaya."
+    },
+    {
+      "mushaf_feature": "Translations (English, French)",
+      "evidence": "tafsir_download_list",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "No translations of the Shatibiyyah or its commentaries exist in the data."
+    },
+    {
+      "mushaf_feature": "Makki/Madani labels, juz/hizb/quarter divisions",
+      "evidence": "sura_type_1/2, rob3_of_hizb",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "Replaced by parts and chapters (structured-index)."
+    },
+    {
+      "mushaf_feature": "Download directory choice / SD card / move files",
+      "evidence": "pref setting_file_location, prefs_sdcard_external",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "Scoped storage in the app-support directory is enough for two files. Revisit if more recordings are added."
+    },
+    {
+      "mushaf_feature": "Startup sound",
+      "evidence": "pref intro_sound, raw/splash_sound.amr",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "Not useful for study. Omitted."
+    },
+    {
+      "mushaf_feature": "Membership subscription, ads, remove ads",
+      "evidence": "sheet_membership.xml, Play Billing, AdMob",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "A business decision, not a study feature. Out of scope for this spec."
+    },
+    {
+      "mushaf_feature": "'Our apps', old APK versions download",
+      "evidence": "menu our_app, old_versions_url",
+      "disposition": "not_applicable",
+      "feature_ids": [],
+      "note": "Store-distributed app. Not needed."
+    }
+  ]
+}

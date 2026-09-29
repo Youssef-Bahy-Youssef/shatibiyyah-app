@@ -1,0 +1,49 @@
+name: shatibiyyah
+description: "متن الشاطبية — حِرز الأماني ووجه التهاني"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  just_audio: ^0.10.5
+  just_audio_background: ^0.0.1-beta.17
+  audio_session: ^0.2.3
+  shared_preferences: ^2.5.5
+  flutter_riverpod: ^3.3.2
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/audio/
+    - assets/data/
+    - assets/pages/
+    - assets/icons/
+
+  fonts:
+    # --ff-naskh: "Scheherazade New" — verse text, chapter names, medallion number, chips
+    - family: ScheherazadeNew
+      fonts:
+        - asset: assets/fonts/ScheherazadeNew-Regular.ttf
+        - asset: assets/fonts/ScheherazadeNew-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ScheherazadeNew-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/ScheherazadeNew-Bold.ttf
+          weight: 700
+    # --ff-kufi: "Reem Kufi" — brand h1, tabs, labels, sheet titles (variable weight font)
+    - family: ReemKufi
+      fonts:
+        - asset: assets/fonts/ReemKufi.ttf
