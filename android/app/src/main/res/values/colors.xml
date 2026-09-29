@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espresso, the launch and window background in both themes (features-v3 boot-splash). -->
+    <color name="espresso">#1B1307</color>
+</resources>

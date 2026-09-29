@@ -49,6 +49,7 @@ import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
+import 'ui/shell/boot_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,8 +113,7 @@ class ShatibiyyahApp extends StatelessWidget {
   }
 }
 
-/// Boot sequence — port of app.js main(): load data + verse text in parallel, build the
-/// engine/viewer/sync, then run the splash (≥1200ms) over the cover image.
+/// Boot: open the content and build the reader under the launch splash.
 class _Boot extends StatefulWidget {
   const _Boot();
   @override
@@ -141,83 +141,11 @@ class _BootState extends State<_Boot> {
 
   @override
   Widget build(BuildContext context) {
-    return _Splash(
+    return BootSplash(
       ready: _reader != null || _error,
       child: _reader != null
           ? ReaderScreen(reader: _reader!)
           : (_error ? const _ErrorScreen() : const SizedBox.shrink()),
-    );
-  }
-}
-
-/// Splash — port of index.html inline splash: paper background, cover image, ≥1200ms min,
-/// fade out over 400ms. The cover is always shown on paper (never inverted).
-class _Splash extends StatefulWidget {
-  final bool ready;
-  final Widget child;
-  const _Splash({required this.ready, required this.child});
-  @override
-  State<_Splash> createState() => _SplashState();
-}
-
-class _SplashState extends State<_Splash> {
-  bool _minElapsed = false;
-  bool _gone = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) setState(() => _minElapsed = true);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dismissed = widget.ready && _minElapsed;
-    // Keep `widget.child` (HomeScreen) at a STABLE position in the tree so its State is
-    // never re-created when the splash is removed. Returning the child directly here used
-    // to move it out of the Stack, remounting HomeScreen and running boot() (and the 142MB
-    // audio load) a second time. Now the child always stays at index 0 and only the splash
-    // overlay is added/removed.
-    return Stack(
-      children: [
-        widget.child,
-        if (!(dismissed && _gone))
-          AnimatedOpacity(
-            opacity: dismissed ? 0 : 1,
-            duration: const Duration(milliseconds: 400),
-            onEnd: () {
-              if (dismissed && mounted) setState(() => _gone = true);
-            },
-            child: Container(
-              color: C.colorLight, // --color-light #f4f1eb (paper)
-              alignment: Alignment.center,
-              child: FractionallySizedBox(
-                widthFactor: 0.85,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x884E3613),
-                          blurRadius: 48,
-                          offset: Offset(0, 18),
-                          spreadRadius: -12,
-                        ),
-                      ],
-                    ),
-                    child: Image.asset(
-                      'assets/pages/page_cover.webp',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

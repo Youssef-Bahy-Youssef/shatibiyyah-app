@@ -17,7 +17,7 @@ class TaysirLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mark = CustomPaint(size: Size.square(size), painter: const _LogoPainter());
+    final mark = CustomPaint(size: Size.square(size), painter: const TaysirLogoPainter());
     return Semantics(
       label: 'شعار تيسير الشاطبية',
       image: true,
@@ -40,7 +40,7 @@ class TaysirLogo extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: EdgeInsets.all(size * 0.13),
-                  child: CustomPaint(painter: const _LogoPainter()),
+                  child: CustomPaint(painter: const TaysirLogoPainter()),
                 ),
               ),
       ),
@@ -72,8 +72,8 @@ Path _svg(String d) {
   return path;
 }
 
-class _LogoPainter extends CustomPainter {
-  const _LogoPainter();
+class TaysirLogoPainter extends CustomPainter {
+  const TaysirLogoPainter();
 
   static const _gold = [Color(0xFFFFE3B3), Color(0xFFFFB743), Color(0xFFB36F0E)];
   static final _outerStar = _svg(
