@@ -13,6 +13,8 @@ import '../../data/settings_store.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
+import '../share/share_sheet.dart';
+import '../shell/about_screen.dart';
 import '../widgets/page_viewer.dart' show kMinBrightness, kMaxBrightness;
 import 'reader_controller.dart';
 import 'shamsa.dart';
@@ -234,17 +236,25 @@ class _ToolsSheetState extends State<ToolsSheet> {
 
   // ── المزيد ──
   Widget _moreTab(TaysirColors t) {
-    Widget row(IconData icon, String label, String sub) => ListTile(
+    Widget row(IconData icon, String label, String sub, VoidCallback? onTap) => ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: t.goldText),
-          title: Text(label, style: kufi(size: 15, weight: 600, color: t.text)),
+          leading: Icon(icon, color: onTap == null ? t.muted : t.goldText),
+          title: Text(label, style: kufi(size: 15, weight: 600, color: onTap == null ? t.muted : t.text)),
           subtitle: Text(sub, style: kufi(size: 12, weight: 400, color: t.muted)),
-          enabled: false,
+          enabled: onTap != null,
+          onTap: onTap,
         );
     return Column(children: [
-      row(LucideIcons.share2, 'مشاركة الصفحة', 'صورة أو نص · قريبًا'),
-      row(LucideIcons.download, 'التنزيلات', 'التلاوات · قريبًا'),
-      row(LucideIcons.info, 'حول', 'قريبًا'),
+      row(LucideIcons.share2, 'مشاركة الصفحة', 'صورة الصفحة ${ar(r.page)} من المخطوط', () {
+        Navigator.of(context).pop();
+        sharePage(r.content, r.page);
+      }),
+      row(LucideIcons.download, 'التنزيلات', 'التلاوات · قريبًا', null),
+      row(LucideIcons.info, 'حول', 'الإصدار والتعريف', () {
+        final navigator = Navigator.of(context);
+        navigator.pop();
+        navigator.push(MaterialPageRoute<void>(builder: (_) => const AboutScreen()));
+      }),
     ]);
   }
 }

@@ -1,7 +1,7 @@
 // lib/ui/widgets/verse_menu.dart — the long-press menu of a verse (features-v3: verse-action-menu).
 //
-// «الشرح», «نسخ» and «بداية نطاق», plus «تشغيل من هنا» once a recording is on the
-// device. Bookmark, note and share arrive with P4/P6. The rest of the page
+// «الشرح», «نسخ», «مشاركة» and «بداية نطاق», plus «تشغيل من هنا» once a recording
+// is on the device. Bookmark and note arrive with P6. The rest of the page
 // dims; the card sits below the verse when it fits, otherwise above it, and always
 // inside the screen.
 import 'package:flutter/material.dart';
@@ -53,6 +53,9 @@ class VerseMenu extends StatelessWidget {
   /// «بداية نطاق»: start selecting a run of verses here (hidden when null).
   final void Function(int verse)? onStartRange;
 
+  /// «مشاركة»: open the share sheet for this verse (hidden when null).
+  final void Function(int verse)? onShare;
+
   const VerseMenu({
     super.key,
     required this.listenable,
@@ -63,6 +66,7 @@ class VerseMenu extends StatelessWidget {
     required this.canPlay,
     required this.onPlayFrom,
     this.onStartRange,
+    this.onShare,
   });
 
   static const double _estimatedHeight = 220;
@@ -181,6 +185,11 @@ class VerseMenu extends StatelessWidget {
               ),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 _chip(t, LucideIcons.copy, 'نسخ', copy),
+                if (onShare != null)
+                  _chip(t, LucideIcons.share2, 'مشاركة', () {
+                    onClose();
+                    onShare!(verse);
+                  }),
                 if (onStartRange != null)
                   _chip(t, LucideIcons.textSelect, 'بداية نطاق', () => onStartRange!(verse)),
               ]),

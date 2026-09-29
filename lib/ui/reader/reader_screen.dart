@@ -15,6 +15,7 @@ import '../../utils/arabic.dart';
 import '../../data/matn_repository.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
+import '../share/share_sheet.dart';
 import '../shell/app_drawer.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
@@ -190,6 +191,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     canPlay: () => reader.audioAvailable,
                     onPlayFrom: (v) => showListenSheet(context, reader, v),
                     onStartRange: reader.startSelection,
+                    onShare: (v) => showShareSheet(context, reader.content, v),
                   ),
                 ],
               ),
