@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shatibiyyah/data/app_content.dart';
@@ -14,6 +15,7 @@ import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
+import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
@@ -270,6 +272,83 @@ void main() {
     // On a chapter's last verse «إلى نهاية الباب» would repeat «البيت فقط».
     expect([for (final o in listenOptions(r, 234)) o.title], ['البيت فقط', 'إلى نهاية المتن']);
     await unmount(tester);
+  });
+
+  group('selection', () {
+    testWidgets('«بداية نطاق», then a second verse: the header counts, the bar replaces the player', (tester) async {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
+        return null;
+      });
+      final r = await reader(tester);
+      await show(tester, r);
+      r.openMenu(226);
+      await tester.pump();
+      await tester.tap(find.text('بداية نطاق'));
+      await tester.pump();
+      expect(r.menuVerse, isNull);
+      expect(r.selection, (from: 226, to: 226));
+      expect(r.viewer.selection, (from: 226, to: 226));
+      expect(find.text('المس البيت الأخير لتحديد نطاق يبدأ من ٢٢٦'), findsOneWidget);
+      expect(find.text('بيت واحد محدد'), findsOneWidget);
+
+      r.toggleChrome(); // a tap on the page does not hide the selection's controls
+      expect(r.chromeVisible, isTrue);
+
+      r.tapVerse(229); // sets the end; the reader stays where it was
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(r.selection, (from: 226, to: 229));
+      expect(r.verse, 226);
+      expect(find.text('٤ أبيات محددة'), findsOneWidget);
+      expect(find.text('الأبيات ٢٢٦–٢٢٩ · اضغط بيتًا آخر للتمديد'), findsOneWidget);
+      expect(find.textContaining('المس البيت الأخير'), findsNothing);
+      expect(find.text('تشغيل'), findsNothing); // no recording: no play action
+
+      await tester.tap(find.text('الباب كاملًا'));
+      await tester.pump();
+      expect(r.selection, (from: 226, to: 234));
+      expect(find.text('٩ أبيات محددة'), findsOneWidget);
+
+      await tester.tap(find.text('نسخ'));
+      await tester.pump();
+      expect(copied.single, startsWith('الأبيات ٢٢٦–٢٣٤ — '));
+      expect(copied.single, contains('\n٢٢٧. ${content.matn.verse(227).firstHemistich}\n'));
+      expect(copied.single, endsWith('\n— تيسير الشاطبية'));
+      expect(r.selecting, isFalse);
+      expect(r.viewer.selection, isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('Back clears the selection; with a recording, تشغيل plays the run', (tester) async {
+      final r = await reader(tester, audio: true);
+      await show(tester, r);
+      r.startSelection(228);
+      r.tapVerse(230);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(r.selecting, isFalse);
+      expect(find.byType(ReaderScreen), findsOneWidget);
+
+      r.startSelection(230);
+      r.tapVerse(228); // backwards works too
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(r.selection, (from: 228, to: 230));
+      await tester.tap(find.text('تشغيل'));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect((r.engine!.plan.scope.fromVerse, r.engine!.plan.scope.toVerse), (228, 230));
+      expect(r.selecting, isFalse);
+      expect(r.verse, 228);
+      await unmount(tester);
+    });
+  });
+
+  test('selectedVersesCount agrees with the number', () {
+    expect(
+      [for (final n in [1, 2, 3, 11, 100]) selectedVersesCount(n)],
+      ['بيت واحد محدد', 'بيتان محددان', '٣ أبيات محددة', '١١ بيتًا محددًا', '١٠٠ بيت محدد'],
+    );
   });
 
   group('drawer', () {

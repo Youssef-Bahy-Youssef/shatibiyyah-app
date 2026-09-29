@@ -1,7 +1,7 @@
 // lib/ui/widgets/verse_menu.dart — the long-press menu of a verse (features-v3: verse-action-menu).
 //
-// M1 subset: «الشرح» and «نسخ», plus «تشغيل من هنا» once a recording is on the device.
-// Bookmark, note, share and range selection arrive with P4/P6. The rest of the page
+// «الشرح», «نسخ» and «بداية نطاق», plus «تشغيل من هنا» once a recording is on the
+// device. Bookmark, note and share arrive with P4/P6. The rest of the page
 // dims; the card sits below the verse when it fits, otherwise above it, and always
 // inside the screen.
 import 'package:flutter/material.dart';
@@ -21,6 +21,22 @@ String verseCopyText(AppContent content, int verse) {
   return 'البيت ${ar(verse)} — $chapter\n${v.firstHemistich}\n${v.secondHemistich}\n— تيسير الشاطبية';
 }
 
+/// The same for a run of verses: the range and its first verse's chapter, then each
+/// verse numbered, then the attribution.
+String rangeCopyText(AppContent content, int from, int to) {
+  if (from == to) return verseCopyText(content, from);
+  final chapter = content.matn.chapterOfVerse(from).shortLabel;
+  final lines = ['الأبيات ${ar(from)}–${ar(to)} — $chapter'];
+  for (var n = from; n <= to; n++) {
+    final v = content.matn.verse(n);
+    lines
+      ..add('${ar(n)}. ${v.firstHemistich}')
+      ..add(v.secondHemistich);
+  }
+  lines.add('— تيسير الشاطبية');
+  return lines.join('\n');
+}
+
 /// Hosted by a reader screen: [listenable] notifies when [verse] (the menu's verse,
 /// null = closed) changes; [anchor] is where that verse is drawn on screen.
 class VerseMenu extends StatelessWidget {
@@ -34,6 +50,9 @@ class VerseMenu extends StatelessWidget {
   final bool Function() canPlay;
   final void Function(int verse) onPlayFrom;
 
+  /// «بداية نطاق»: start selecting a run of verses here (hidden when null).
+  final void Function(int verse)? onStartRange;
+
   const VerseMenu({
     super.key,
     required this.listenable,
@@ -43,6 +62,7 @@ class VerseMenu extends StatelessWidget {
     required this.onClose,
     required this.canPlay,
     required this.onPlayFrom,
+    this.onStartRange,
   });
 
   static const double _estimatedHeight = 220;
@@ -159,7 +179,11 @@ class VerseMenu extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                 child: Divider(height: 1, color: t.line),
               ),
-              Wrap(spacing: 8, runSpacing: 8, children: [_chip(t, LucideIcons.copy, 'نسخ', copy)]),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _chip(t, LucideIcons.copy, 'نسخ', copy),
+                if (onStartRange != null)
+                  _chip(t, LucideIcons.textSelect, 'بداية نطاق', () => onStartRange!(verse)),
+              ]),
             ],
           ),
         ),

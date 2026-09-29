@@ -7,6 +7,7 @@
 // cubic(.4,0,1,1), reduced motion: opacity only in 100 ms), so nothing ever moves
 // or covers the page.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme.dart' show kufi, naskh;
@@ -71,11 +72,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: AnimatedBuilder(
             animation: reader,
             // Every child is positioned, so without `expand` the stack is 0×0 and clips them all.
-            // Back closes the verse menu before it leaves the reader (the menu is not a route).
+            // Back closes the verse menu, then the selection, before it leaves the reader
+            // (neither is a route).
             builder: (context, _) => PopScope(
-              canPop: reader.menuVerse == null,
+              canPop: reader.menuVerse == null && !reader.selecting,
               onPopInvokedWithResult: (didPop, _) {
-                if (!didPop) reader.closeMenu();
+                if (didPop) return;
+                if (reader.menuVerse != null) {
+                  reader.closeMenu();
+                } else {
+                  reader.clearSelection();
+                }
               },
               child: Stack(
                 fit: StackFit.expand,
@@ -112,23 +119,39 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     rect: layout.bar,
                     visible: reader.chromeVisible,
                     travel: -6,
-                    child: _TopBar(
-                      reader: reader,
-                      onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
-                      onSearch: widget.onSearch,
-                      onTools: widget.onTools ?? () => showToolsSheet(context, reader),
-                    ),
+                    child: reader.selecting
+                        ? _SelectionHeader(reader: reader)
+                        : _TopBar(
+                            reader: reader,
+                            onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
+                            onSearch: widget.onSearch,
+                            onTools: widget.onTools ?? () => showToolsSheet(context, reader),
+                          ),
                   ),
+                  // While selecting, the player makes way for the selection bar.
                   _Chrome(
                     rect: layout.player,
-                    visible: reader.chromeVisible,
+                    visible: reader.chromeVisible && !reader.selecting,
                     travel: 8,
                     child: _PlayerBar(
                       reader: reader,
                       onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
                     ),
                   ),
-                  if (reader.detached && reader.playing)
+                  _Chrome(
+                    rect: layout.player,
+                    visible: reader.selectionComplete,
+                    travel: 8,
+                    child: _SelectionActions(reader: reader),
+                  ),
+                  if (reader.selecting && !reader.selectionComplete)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: layout.bar.bottom + 8,
+                      child: IgnorePointer(child: Center(child: _SelectionHint(reader: reader))),
+                    ),
+                  if (reader.detached && reader.playing && !reader.selecting)
                     Positioned(
                       left: 0,
                       right: 0,
@@ -143,12 +166,172 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     onClose: reader.closeMenu,
                     canPlay: () => reader.audioAvailable,
                     onPlayFrom: (v) => showListenSheet(context, reader, v),
+                    onStartRange: reader.startSelection,
                   ),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The top bar while selecting: clear, the count and range, and «الباب كاملًا».
+class _SelectionHeader extends StatelessWidget {
+  final ReaderController reader;
+  const _SelectionHeader({required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    final sel = reader.selection!;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: t.panel,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: t.line),
+        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'إلغاء التحديد',
+            onPressed: reader.clearSelection,
+            icon: Icon(LucideIcons.x, size: 22, color: t.text),
+            constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(selectedVersesCount(sel.to - sel.from + 1),
+                    maxLines: 1, style: kufi(size: 16, weight: 600, color: t.goldText)),
+                Text(
+                  sel.from == sel.to
+                      ? 'البيت ${ar(sel.from)}'
+                      : 'الأبيات ${ar(sel.from)}–${ar(sel.to)} · اضغط بيتًا آخر للتمديد',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: kufi(size: 12, weight: 400, color: t.muted),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: OutlinedButton(
+              onPressed: reader.selectChapter,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                side: BorderSide(color: t.line, width: 1.5),
+                shape: const StadiumBorder(),
+              ),
+              child: Text('الباب كاملًا', style: kufi(size: 13, weight: 400, color: t.text)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// «المس البيت الأخير لتحديد نطاق يبدأ من N», until the second verse is tapped.
+class _SelectionHint extends StatelessWidget {
+  final ReaderController reader;
+  const _SelectionHint({required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.panel2,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: t.line),
+      ),
+      child: Text('المس البيت الأخير لتحديد نطاق يبدأ من ${ar(reader.selection!.from)}',
+          style: kufi(size: 12.5, weight: 400, color: t.goldBright)),
+    );
+  }
+}
+
+/// The selection bar over the player's zone: تشغيل (with a recording) · نسخ · إلغاء.
+/// «مرجع» joins with bookmarks (P6).
+class _SelectionActions extends StatelessWidget {
+  final ReaderController reader;
+  const _SelectionActions({required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    final sel = reader.selection;
+    void copy() {
+      if (sel == null) return;
+      Clipboard.setData(ClipboardData(text: rangeCopyText(reader.content, sel.from, sel.to)));
+      reader.clearSelection();
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(
+          sel.from == sel.to ? 'نُسخ البيت ${ar(sel.from)}' : 'نُسخت الأبيات ${ar(sel.from)}–${ar(sel.to)}',
+          style: kufi(size: 14, weight: 500, color: t.text),
+        ),
+        backgroundColor: t.raised,
+        duration: const Duration(seconds: 2),
+      ));
+    }
+
+    Widget action(IconData icon, String label, VoidCallback onTap, {bool primary = false}) => Expanded(
+          child: Semantics(
+            button: true,
+            label: label,
+            excludeSemantics: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onTap,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: primary ? t.gold : t.panel2,
+                      border: primary ? null : Border.all(color: t.line),
+                    ),
+                    child: Icon(icon, size: 22, color: primary ? t.onGold : t.goldText),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(label, style: kufi(size: 12.5, weight: 400, color: t.text)),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      decoration: BoxDecoration(
+        color: t.panel,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: t.line),
+        boxShadow: const [BoxShadow(color: Color(0x52000000), blurRadius: 30, offset: Offset(0, 10))],
+      ),
+      child: Row(
+        children: [
+          if (reader.audioAvailable) action(LucideIcons.play, 'تشغيل', reader.playSelection, primary: true),
+          action(LucideIcons.copy, 'نسخ', copy),
+          action(LucideIcons.x, 'إلغاء', reader.clearSelection),
+        ],
       ),
     );
   }

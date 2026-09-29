@@ -14,6 +14,7 @@ import '../../models/playback_settings.dart' show K, clampd;
 import '../../services/data_service.dart';
 import '../../services/preferences_service.dart';
 import '../../theme.dart';
+import '../design/dashed.dart';
 
 const double _pageW = 1130;
 const double _pageH = 1735;
@@ -72,6 +73,9 @@ class PageViewerController extends ChangeNotifier {
   Rect? prevBox;
   double hiliteStart = 0;
   ({Rect box, double start})? pulse;
+
+  /// A run of selected verses (features-v3 multi-verse-selection), drawn dashed.
+  ({int from, int to})? selection;
 
   // chapter-header overlay
   int? chapterSel;
@@ -322,6 +326,12 @@ class PageViewerController extends ChangeNotifier {
     if (b.page != currentPage) setActiveVerse(id);
     if (reduceMotion) return;
     pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+    _invalidate();
+  }
+
+  void setSelection(({int from, int to})? range) {
+    if (range == selection) return;
+    selection = range;
     _invalidate();
   }
 
@@ -958,6 +968,7 @@ class _HighlightPainter extends CustomPainter {
     final s = c.baseScale;
 
     if (c.showBoxes) _drawAllBoxes(canvas, col, s);
+    if (c.selection != null) _drawSelection(canvas, c.selection!, s);
 
     final p = c.prevBox != null
         ? clampd((now - c.hiliteStart) / _hiliteMs, 0, 1)
@@ -996,6 +1007,25 @@ class _HighlightPainter extends CustomPainter {
         alpha: col.stroke.a * math.min(1, alpha + 0.15),
       );
     canvas.drawRRect(rr, stroke);
+  }
+
+  /// Dashed boxes around the selected verses on this page: accent blue on the page,
+  /// gold on the night page (the prototype's `selC`). The playing verse draws over them.
+  void _drawSelection(Canvas canvas, ({int from, int to}) sel, double s) {
+    final color = c.night ? const Color(0xFFFFAB2E) : const Color(0xFF4314FF);
+    final fill = Paint()..color = color.withValues(alpha: c.night ? 0.16 : 0.10);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = color;
+    for (final id in c.data.versesOnPage(c.currentPage)) {
+      if (id < sel.from || id > sel.to) continue;
+      final b = c.data.getBox(id);
+      if (b == null) continue;
+      final rr = _rrect(b.x * s, b.y * s, b.w * s, b.h * s, 9);
+      canvas.drawRRect(rr, fill);
+      drawDashedRRect(canvas, rr, stroke);
+    }
   }
 
   void _drawAllBoxes(Canvas canvas, _Col col, double s) {

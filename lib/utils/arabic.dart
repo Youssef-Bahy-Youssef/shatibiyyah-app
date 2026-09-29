@@ -49,6 +49,10 @@ String versesCount(int n) => _counted(n, 'بيت واحد', 'بيتان', 'أب�
 /// «باب واحد», «بابان», «٩ أبواب», «١١ بابًا».
 String chaptersCount(int n) => _counted(n, 'باب واحد', 'بابان', 'أبواب', 'بابًا', 'باب');
 
+/// «بيت واحد محدد», «بيتان محددان», «٩ أبيات محددة», «١١ بيتًا محددًا».
+String selectedVersesCount(int n) =>
+    _counted(n, 'بيت واحد محدد', 'بيتان محددان', 'أبيات محددة', 'بيتًا محددًا', 'بيت محدد');
+
 /// ported from app.js: fmtTime(sec)
 String fmtTime(num sec) {
   final s0 = math.max(0, sec.isNaN ? 0 : sec.floor());

@@ -41,6 +41,8 @@ class ReaderController extends ChangeNotifier {
   bool _detached = false;
   bool _chromeVisible = true;
   int? _menuVerse;
+  int? _selectionStart; // «بداية نطاق»
+  int? _selectionEnd; // the verse tapped after it
   EngineState? _engineState;
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -89,6 +91,20 @@ class ReaderController extends ChangeNotifier {
   bool get detached => _detached;
   bool get chromeVisible => _chromeVisible;
   int? get menuVerse => _menuVerse;
+
+  /// Selecting: a start is set; the range exists once a second verse is tapped.
+  bool get selecting => _selectionStart != null;
+
+  /// The selected run, lowest verse first (just the start until a second tap).
+  ({int from, int to})? get selection {
+    final a = _selectionStart;
+    if (a == null) return null;
+    final b = _selectionEnd ?? a;
+    return (from: a < b ? a : b, to: a < b ? b : a);
+  }
+
+  /// Whether the run is complete (the selection bar replaces the player).
+  bool get selectionComplete => _selectionEnd != null;
   int get verseRepetition => _engineState?.verseRepetition ?? 1;
   int get sectionRepetition => _engineState?.sectionRepetition ?? 1;
   bool get inTitle => _engineState?.inTitle ?? false;
@@ -226,9 +242,15 @@ class ReaderController extends ChangeNotifier {
     await tapVerse(target);
   }
 
-  /// A tap on a verse moves playback (or, without audio, the reader) to it.
+  /// A tap on a verse moves playback (or, without audio, the reader) to it. While
+  /// selecting, it sets the end of the run instead (again to extend or shrink it).
   Future<void> tapVerse(int verse) async {
     closeMenu();
+    if (selecting) {
+      _selectionEnd = verse;
+      _showSelection();
+      return;
+    }
     _verse = verse;
     _detached = false;
     viewer.setActiveVerse(verse);
@@ -267,13 +289,53 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── selection (features-v3 multi-verse-selection) ──
+  /// «بداية نطاق»: [verse] starts a run; the next verse tapped ends it.
+  void startSelection(int verse) {
+    _menuVerse = null;
+    _selectionStart = verse;
+    _selectionEnd = null;
+    _chromeVisible = true;
+    _showSelection();
+  }
+
+  /// «الباب كاملًا»: the whole chapter of the run's start.
+  void selectChapter() {
+    final start = _selectionStart;
+    if (start == null) return;
+    final c = content.matn.chapterOfVerse(start);
+    _selectionStart = c.fromVerse;
+    _selectionEnd = c.toVerse;
+    _showSelection();
+  }
+
+  void clearSelection() {
+    if (_selectionStart == null) return;
+    _selectionStart = null;
+    _selectionEnd = null;
+    _showSelection();
+  }
+
+  /// «تشغيل»: play the run, then leave selection.
+  Future<void> playSelection() async {
+    final s = selection;
+    if (s == null) return;
+    clearSelection();
+    await playScope(PlaybackScope(s.from, s.to));
+  }
+
+  void _showSelection() {
+    viewer.setSelection(selection);
+    notifyListeners();
+  }
+
   // ── chrome and menu ──
   void toggleChrome() {
     if (_menuVerse != null) {
       closeMenu();
       return;
     }
-    if (_textMode) return;
+    if (_textMode || selecting) return; // the chrome carries text mode's and selection's controls
     _chromeVisible = !_chromeVisible;
     notifyListeners();
   }

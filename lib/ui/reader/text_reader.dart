@@ -12,6 +12,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../data/matn_repository.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
+import '../../data/settings_store.dart';
+import '../design/dashed.dart';
 import '../design/taysir_colors.dart';
 import 'reader_controller.dart';
 
@@ -169,6 +171,10 @@ class TextReaderState extends State<TextReader> {
 
   Widget _row(TaysirColors t, MatnVerse v, double scale) {
     final on = v.number == _reader.verse;
+    final sel = _reader.selection;
+    final selected = sel != null && sel.from <= v.number && v.number <= sel.to;
+    // The page's selection colours: accent blue on paper, gold on espresso.
+    final selColor = _reader.theme == ReaderTheme.paper ? const Color(0xFF4314FF) : t.gold;
     final badge = 36 * scale.clamp(0.75, 1.5);
     final line = naskh(size: 20 * scale, color: t.text, height: 1.65);
     final key = _rows.putIfAbsent(v.number, GlobalKey.new);
@@ -180,47 +186,53 @@ class TextReaderState extends State<TextReader> {
       onLongPress: () => _reader.openMenu(v.number),
       child: Semantics(
         label: 'البيت ${ar(v.number)}',
-        selected: on,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: on ? t.gold.withValues(alpha: 0.16) : null,
-            borderRadius: BorderRadius.circular(16),
-            // The start-side bar of the prototype's `inset -3px 0 0` (the right edge in RTL).
-            border: on ? Border(right: BorderSide(color: t.gold, width: 3)) : null,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: badge,
-                height: badge,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: on ? t.gold : t.line, width: 1.5),
+        selected: on || selected,
+        child: _maybeDashed(
+          selected ? selColor : null,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: on ? t.gold.withValues(alpha: 0.16) : (selected ? selColor.withValues(alpha: 0.10) : null),
+              borderRadius: BorderRadius.circular(16),
+              // The start-side bar of the prototype's `inset -3px 0 0` (the right edge in RTL).
+              border: on ? Border(right: BorderSide(color: t.gold, width: 3)) : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: badge,
+                  height: badge,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: on ? t.gold : t.line, width: 1.5),
+                  ),
+                  child: Text(ar(v.number),
+                      style: naskh(size: 15 * scale.clamp(0.75, 1.5), weight: FontWeight.w700, color: t.goldText)),
                 ),
-                child: Text(ar(v.number),
-                    style: naskh(size: 15 * scale.clamp(0.75, 1.5), weight: FontWeight.w700, color: t.goldText)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(v.firstHemistich, textAlign: TextAlign.right, style: line),
-                    Padding(
-                      padding: EdgeInsets.only(right: scale > 1.4 ? 24 : 0),
-                      child: Text(v.secondHemistich, textAlign: TextAlign.left, style: line),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(v.firstHemistich, textAlign: TextAlign.right, style: line),
+                      Padding(
+                        padding: EdgeInsets.only(right: scale > 1.4 ? 24 : 0),
+                        child: Text(v.secondHemistich, textAlign: TextAlign.left, style: line),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _maybeDashed(Color? color, Widget child) =>
+      color == null ? child : DashedBorder(color: color, child: child);
 
   Widget _footer(TaysirColors t, MatnRepository matn, int index) {
     Widget go(String label, IconData icon, int to, {required bool iconFirst}) {
