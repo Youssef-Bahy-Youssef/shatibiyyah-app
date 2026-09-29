@@ -21,6 +21,9 @@ import '../../domain/playback_windows.dart';
 import '../design/app_theme.dart';
 import '../widgets/page_viewer.dart';
 
+/// How long a notice such as «بدأ باب جديد» stays (the prototype's toast).
+const Duration kNoticeDuration = Duration(seconds: 2);
+
 class ReaderController extends ChangeNotifier {
   final AppContent content;
   final Recording recording;
@@ -41,6 +44,9 @@ class ReaderController extends ChangeNotifier {
   bool _detached = false;
   bool _chromeVisible = true;
   int? _menuVerse;
+  int? _heading; // the chapter whose heading was tapped (its card is open)
+  String? _notice; // a short notice, e.g. «بدأ باب جديد · …»
+  Timer? _noticeTimer;
   int? _selectionStart; // «بداية نطاق»
   int? _selectionEnd; // the verse tapped after it
   EngineState? _engineState;
@@ -77,6 +83,7 @@ class ReaderController extends ChangeNotifier {
     _subs.add(viewer.onVerseLongPress.listen(openMenu));
     _subs.add(viewer.onPageTap.listen((_) => toggleChrome()));
     _subs.add(viewer.onPageChange.listen((_) => _onPageSwiped()));
+    _subs.add(viewer.onChapterTap.listen(openHeading));
     final e = engine;
     if (e != null) _subs.add(e.states.listen(_onEngineState));
     viewer.setActiveVerse(_verse);
@@ -91,6 +98,12 @@ class ReaderController extends ChangeNotifier {
   bool get detached => _detached;
   bool get chromeVisible => _chromeVisible;
   int? get menuVerse => _menuVerse;
+
+  /// The chapter whose heading card is open (tapped on the page), if any.
+  MatnChapter? get headingChapter => _heading == null ? null : content.matn.chapters[_heading!];
+
+  /// A short notice over the page (shown for [kNoticeDuration]).
+  String? get notice => _notice;
 
   /// Selecting: a start is set; the range exists once a second verse is tapped.
   bool get selecting => _selectionStart != null;
@@ -111,7 +124,8 @@ class ReaderController extends ChangeNotifier {
 
   /// The chapter shown in the top bar: the playing verse's, or the page's when browsing.
   MatnChapter get headerChapter {
-    if (!_detached) return chapter;
+    // Following (or browsing back to the verse's own page): the current verse's chapter.
+    if (!_detached && content.layout.pageOfVerse(_verse) == page) return chapter;
     final onPage = content.layout.versesOnPage(page);
     return onPage.isEmpty ? chapter : content.matn.chapterOfVerse(onPage.first);
   }
@@ -246,6 +260,7 @@ class ReaderController extends ChangeNotifier {
   /// selecting, it sets the end of the run instead (again to extend or shrink it).
   Future<void> tapVerse(int verse) async {
     closeMenu();
+    closeHeading();
     if (selecting) {
       _selectionEnd = verse;
       _showSelection();
@@ -267,6 +282,10 @@ class ReaderController extends ChangeNotifier {
   void _onEngineState(EngineState s) {
     final changed = s.verse != _verse;
     _engineState = s;
+    // Playback itself crossing into a new chapter (a jump sets _verse first, so never here).
+    if (changed && s.playing && content.matn.chapterOfVerse(s.verse).id != chapter.id) {
+      _showNotice('بدأ باب جديد · ${content.matn.chapterOfVerse(s.verse).title}');
+    }
     if (changed) {
       _verse = s.verse;
       if (!_detached) viewer.setActiveVerse(s.verse);
@@ -276,10 +295,8 @@ class ReaderController extends ChangeNotifier {
 
   void _onPageSwiped() {
     // Browsing away while audio plays detaches the view (the chip offers the way back).
-    if (playing && content.layout.pageOfVerse(_verse) != page) {
-      _detached = true;
-      notifyListeners();
-    }
+    if (playing && content.layout.pageOfVerse(_verse) != page) _detached = true;
+    notifyListeners(); // the top bar shows the page on screen and its chapter
   }
 
   /// «عودة إلى البيت N».
@@ -287,6 +304,39 @@ class ReaderController extends ChangeNotifier {
     _detached = false;
     viewer.setActiveVerse(_verse);
     notifyListeners();
+  }
+
+  void _showNotice(String text) {
+    _notice = text;
+    _noticeTimer?.cancel();
+    _noticeTimer = Timer(kNoticeDuration, () {
+      _notice = null;
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  // ── chapter heading (features-v3 chapter-header-tap) ──
+  /// A tap on a chapter heading drawn on the page: outline it and open its card.
+  void openHeading(int chapterIndex) {
+    if (selecting) return;
+    _menuVerse = null;
+    _heading = chapterIndex;
+    viewer.setSelectedChapter(chapterIndex);
+    notifyListeners();
+  }
+
+  void closeHeading() {
+    if (_heading == null) return;
+    _heading = null;
+    viewer.setSelectedChapter(null);
+    notifyListeners();
+  }
+
+  /// «تشغيل الباب»: the chapter from its spoken title.
+  Future<void> playChapter(MatnChapter c) async {
+    closeHeading();
+    await playScope(PlaybackScope(c.fromVerse, c.toVerse, fromChapterTitle: true));
   }
 
   // ── selection (features-v3 multi-verse-selection) ──
@@ -335,6 +385,10 @@ class ReaderController extends ChangeNotifier {
       closeMenu();
       return;
     }
+    if (_heading != null) {
+      closeHeading();
+      return;
+    }
     if (_textMode || selecting) return; // the chrome carries text mode's and selection's controls
     _chromeVisible = !_chromeVisible;
     notifyListeners();
@@ -363,6 +417,7 @@ class ReaderController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _noticeTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }

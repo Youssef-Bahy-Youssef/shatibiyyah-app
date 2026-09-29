@@ -15,10 +15,6 @@ import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import 'shell_page.dart';
 
-/// Wraps a number range so it keeps its order inside Arabic text (FSI … PDI). Next to
-/// numbers the separator is «،»: in Reem Kufi a «·» there reads as the digit «٠».
-String isolatedRange(int from, int to) => '\u2068${ar(from)}–${ar(to)}\u2069';
-
 class IndexScreen extends StatefulWidget {
   final ReaderController reader;
   const IndexScreen({super.key, required this.reader});

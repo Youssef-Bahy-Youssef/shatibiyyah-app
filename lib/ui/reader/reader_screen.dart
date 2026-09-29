@@ -12,6 +12,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
+import '../../data/matn_repository.dart';
+import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../shell/app_drawer.dart';
 import '../widgets/page_viewer.dart';
@@ -75,11 +77,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
             // Back closes the verse menu, then the selection, before it leaves the reader
             // (neither is a route).
             builder: (context, _) => PopScope(
-              canPop: reader.menuVerse == null && !reader.selecting,
+              canPop: reader.menuVerse == null && reader.headingChapter == null && !reader.selecting,
               onPopInvokedWithResult: (didPop, _) {
                 if (didPop) return;
                 if (reader.menuVerse != null) {
                   reader.closeMenu();
+                } else if (reader.headingChapter != null) {
+                  reader.closeHeading();
                 } else {
                   reader.clearSelection();
                 }
@@ -159,6 +163,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       top: layout.player.top - 24,
                       child: Center(child: _ResumeChip(reader: reader)),
                     ),
+                  if (reader.headingChapter != null) ...[
+                    Positioned.fill(
+                      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: reader.closeHeading),
+                    ),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      top: layout.bar.bottom + 10,
+                      child: _HeadingCard(reader: reader, chapter: reader.headingChapter!),
+                    ),
+                  ],
+                  if (reader.notice != null)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: mq.size.height - layout.player.top + 16,
+                      child: IgnorePointer(child: Center(child: _Notice(text: reader.notice!))),
+                    ),
                   VerseMenu(
                     listenable: reader,
                     content: reader.content,
@@ -174,6 +196,102 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The card of a chapter heading tapped on the page: its title, where it is, and
+/// «تشغيل الباب» (with a recording) · «الشرح» (the commentary from its first verse).
+class _HeadingCard extends StatelessWidget {
+  final ReaderController reader;
+  final MatnChapter chapter;
+  const _HeadingCard({required this.reader, required this.chapter});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    final intro = chapter.orderIndex == 0;
+    final range = 'الأبيات ${isolatedRange(chapter.fromVerse, chapter.toVerse)}';
+    final page = reader.content.layout.pageOfVerse(chapter.fromVerse);
+    final meta = intro
+        ? '${chapter.shortLabel}، $range'
+        : 'الباب ${ar(chapter.orderIndex)}، $range، ص ${ar(page)}';
+    return Material(
+      color: t.panel,
+      elevation: 12,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: t.line)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(intro ? chapter.shortLabel : chapter.title,
+                style: naskh(size: 18, weight: FontWeight.w700, color: t.text, height: 1.7)),
+            Text(meta, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (reader.audioAvailable) ...[
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => reader.playChapter(chapter),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: t.gold,
+                        foregroundColor: t.onGold,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: Text('تشغيل الباب', style: kufi(size: 15, weight: 600, color: t.onGold)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                OutlinedButton.icon(
+                  onPressed: () {
+                    reader.closeHeading();
+                    CommentaryScreen.open(context, reader.content, chapter.fromVerse);
+                  },
+                  icon: Icon(LucideIcons.bookOpen, size: 17, color: t.goldText),
+                  label: Text('الشرح', style: kufi(size: 14.5, weight: 400, color: t.text)),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    side: BorderSide(color: t.line),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A short notice (the prototype's toast), e.g. «بدأ باب جديد · …».
+class _Notice extends StatelessWidget {
+  final String text;
+  const _Notice({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: t.panel2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: t.line),
+          boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 30, offset: Offset(0, 10))],
+        ),
+        child: Text(text, textAlign: TextAlign.center, style: kufi(size: 14, weight: 400, color: t.text)),
       ),
     );
   }

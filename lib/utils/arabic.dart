@@ -53,6 +53,10 @@ String chaptersCount(int n) => _counted(n, 'باب واحد', 'بابان', 'أ�
 String selectedVersesCount(int n) =>
     _counted(n, 'بيت واحد محدد', 'بيتان محددان', 'أبيات محددة', 'بيتًا محددًا', 'بيت محدد');
 
+/// Wraps a number range so it keeps its order inside Arabic text (FSI … PDI). Next to
+/// numbers use «،» as the separator: in Reem Kufi a «·» there reads as the digit «٠».
+String isolatedRange(int from, int to) => '\u2068${ar(from)}–${ar(to)}\u2069';
+
 /// ported from app.js: fmtTime(sec)
 String fmtTime(num sec) {
   final s0 = math.max(0, sec.isNaN ? 0 : sec.floor());

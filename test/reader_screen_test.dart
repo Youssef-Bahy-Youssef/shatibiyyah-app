@@ -157,6 +157,18 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('turning the page by hand updates the top bar: page number and its chapter', (tester) async {
+    final r = await reader(tester);
+    await show(tester, r);
+    r.viewer.setPage(21, true);
+    await tester.pump(const Duration(milliseconds: 400));
+    final first = content.layout.versesOnPage(21).first;
+    expect(find.text('الأصول · ص ٢١ من ٩٤'), findsOneWidget);
+    expect(find.text(content.matn.chapterOfVerse(first).shortLabel), findsOneWidget);
+    expect(r.verse, 226); // browsing does not move the reader
+    await unmount(tester);
+  });
+
   group('text mode', () {
     Future<ReaderController> textMode(WidgetTester tester) async {
       final r = await reader(tester);
@@ -348,6 +360,62 @@ void main() {
       [for (final n in [1, 2, 3, 11, 100]) selectedVersesCount(n)],
       ['بيت واحد محدد', 'بيتان محددان', '٣ أبيات محددة', '١١ بيتًا محددًا', '١٠٠ بيت محدد'],
     );
+  });
+
+  group('chapter heading and notices', () {
+    testWidgets('a tap on the heading drawn on the page opens its card; Back closes it', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      final index = content.matn.chapters.indexWhere((c) => c.fromVerse == 226);
+      final box = r.viewer.data.chapterBox(index)!; // on page 19, with verse 226
+      final eff = r.viewer.baseScale * r.viewer.zoom;
+      final at = tester.getTopLeft(find.byType(PageViewer)) +
+          Offset(box.center.dx * eff + r.viewer.tx, box.center.dy * eff + r.viewer.ty);
+      await tester.tapAt(at);
+      await tester.pump();
+      expect(r.headingChapter?.fromVerse, 226);
+      expect(r.viewer.chapterSel, index); // outlined on the page
+      expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
+      expect(find.text('الباب ١١، الأبيات \u2068٢٢٦–٢٣٤\u2069، ص ١٩'), findsOneWidget);
+      expect(find.text('الشرح'), findsOneWidget);
+      expect(find.text('تشغيل الباب'), findsNothing); // no recording
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(r.headingChapter, isNull);
+      expect(r.viewer.chapterSel, isNull);
+      expect(find.byType(ReaderScreen), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('«تشغيل الباب» plays the chapter from its title; crossing into the next chapter says so',
+        (tester) async {
+      final r = await reader(tester, audio: true);
+      await show(tester, r);
+      r.openHeading(content.matn.chapters.indexWhere((c) => c.fromVerse == 226));
+      await tester.pump();
+      await tester.tap(find.text('تشغيل الباب'));
+      await tester.pump(const Duration(milliseconds: 60));
+      final scope = r.engine!.plan.scope;
+      expect((scope.fromVerse, scope.toVerse, scope.fromChapterTitle), (226, 234, true));
+      expect(r.headingChapter, isNull);
+
+      r.engine!.plan.scope = const PlaybackScope(226, 254);
+      r.engine!.jumpTo(235); // as if playback went on past 234
+      await tester.pump();
+      expect(r.verse, 235);
+      expect(find.text('بدأ باب جديد · ${content.matn.chapterOfVerse(235).title}'), findsOneWidget);
+      // The engine's listener was attached inside runAsync (see reader()), so the notice's
+      // timer runs on the real clock.
+      await tester.runAsync(() => Future<void>.delayed(kNoticeDuration + const Duration(milliseconds: 100)));
+      await tester.pump();
+      expect(find.textContaining('بدأ باب جديد'), findsNothing);
+
+      r.tapVerse(226); // the student's own jump is not announced
+      await tester.pump();
+      expect(find.textContaining('بدأ باب جديد'), findsNothing);
+      await unmount(tester);
+    });
   });
 
   group('drawer', () {
