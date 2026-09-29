@@ -41,26 +41,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
-import 'dart:io';
-
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-
-import 'app_controller.dart';
-import 'data/app_content.dart';
-import 'data/legacy_adapter.dart';
-import 'data/legacy_prefs.dart';
-import 'data/recording_repository.dart';
-import 'services/audio_service.dart';
-import 'services/preferences_service.dart';
-import 'services/sync_service.dart';
+import 'app/reader_boot.dart';
 import 'theme.dart';
 import 'ui/design/taysir_colors.dart';
-import 'ui/home_screen.dart';
-import 'ui/widgets/page_viewer.dart';
+import 'ui/reader/reader_controller.dart';
+import 'ui/reader/reader_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -127,7 +114,7 @@ class _Boot extends StatefulWidget {
 }
 
 class _BootState extends State<_Boot> {
-  AppController? _app;
+  ReaderController? _reader;
   bool _error = false;
 
   @override
@@ -138,48 +125,19 @@ class _BootState extends State<_Boot> {
 
   Future<void> _init() async {
     try {
-      final content = await AppContent.open();
-      final prefs = await Prefs.create();
-      migrateLegacyPrefs(prefs, content.matn);
-      final recording = content.recordings.defaultRecording;
-      final data = legacyData(content, await content.windowsFor(recording));
-      final verseText = legacyVerseText(content);
-      final player = AudioPlayer();
-      final audio = AudioEngine(player, data, prefs);
-      final viewer = PageViewerController(data, prefs);
-      final sync = SyncController(audio, viewer, data);
-      final app = AppController(
-        content: content,
-        recording: recording,
-        audioFilePath: await _localAudio(recording),
-        data: data,
-        verseText: verseText,
-        audio: audio,
-        viewer: viewer,
-        sync: sync,
-        prefs: prefs,
-      );
-      if (mounted) setState(() => _app = app);
+      final reader = await bootReader();
+      if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
   }
 
-  /// The recording's file if it is on the device and complete (the download manager's
-  /// target; side-loaded in development). Nothing is bundled.
-  Future<String?> _localAudio(Recording recording) async {
-    final support = await getApplicationSupportDirectory();
-    final file = File(p.join(support.path, RecordingRepository.localFileName(recording)));
-    if (await file.exists() && await file.length() == recording.audioBytes) return file.path;
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return _Splash(
-      ready: _app != null || _error,
-      child: _app != null
-          ? HomeScreen(app: _app!)
+      ready: _reader != null || _error,
+      child: _reader != null
+          ? ReaderScreen(reader: _reader!)
           : (_error ? const _ErrorScreen() : const SizedBox.shrink()),
     );
   }

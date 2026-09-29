@@ -107,7 +107,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         PickerSheet(app: app),
-        VerseMenu(app: app),
+        VerseMenu(
+          listenable: app,
+          content: app.content,
+          verse: () => app.menuVerse,
+          anchor: app.viewer.viewRectOfVerse,
+          onClose: app.closeVerseMenu,
+          canPlay: () => app.audioAvailable,
+          onPlayFrom: (v) => app.sync.jumpToVerse(v, play: true),
+        ),
       ],
     );
   }
@@ -203,7 +211,15 @@ class _HomeScreenState extends State<HomeScreen> {
         // full-screen verse search overlay
         SearchOverlay(app: app),
         // long-press verse menu (on top of everything)
-        VerseMenu(app: app),
+        VerseMenu(
+          listenable: app,
+          content: app.content,
+          verse: () => app.menuVerse,
+          anchor: app.viewer.viewRectOfVerse,
+          onClose: app.closeVerseMenu,
+          canPlay: () => app.audioAvailable,
+          onPlayFrom: (v) => app.sync.jumpToVerse(v, play: true),
+        ),
       ],
     );
   }

@@ -295,20 +295,16 @@ class PageViewerController extends ChangeNotifier {
     final box = data.getBox(id);
     if (box == null) return;
     final pageChanged = box.page != currentPage;
-    final wasZoomed = zoom > 1.05;
-
     activeId = id;
     prevBox = reduceMotion ? null : activeBox;
     activeBox = Rect.fromLTWH(box.x, box.y, box.w, box.h);
     hiliteStart = _now();
 
     if (pageChanged) {
+      // v3: a page turn shows the whole new page; the view only zooms by the
+      // student's own pinch or double-tap (the old 1.5× "cinematic turn" is gone).
       _loadPage(box.page);
-      if (wasZoomed) {
-        _cinematicTurn(activeBox!);
-      } else {
-        resetView(false);
-      }
+      resetView(false);
     } else {
       _followActive(activeBox!);
     }
@@ -349,23 +345,6 @@ class PageViewerController extends ChangeNotifier {
       _centerOnBox(box, animate: true, respectVisible: true);
     } else if (baseH * zoom > viewH + 1) {
       _centerOnBox(box, zoom: zoom, animate: true, respectVisible: true);
-    }
-  }
-
-  // ported: _cinematicTurn(box)
-  int _cineToken = 0;
-  void _cinematicTurn(Rect box) {
-    final token = ++_cineToken;
-    resetView(true);
-    void after() {
-      if (token != _cineToken) return;
-      _centerOnBox(box, zoom: 1.5, animate: true, dur: 360);
-    }
-
-    if (reduceMotion) {
-      after();
-    } else {
-      Timer(const Duration(milliseconds: 400), after);
     }
   }
 

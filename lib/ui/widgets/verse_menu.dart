@@ -8,36 +8,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../app_controller.dart';
+import '../../data/app_content.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 
 /// The copy format of features-v3 (share-and-copy): number, chapter, both halves, attribution.
-String verseCopyText(AppController app, int verse) {
-  final v = app.content.matn.verse(verse);
-  final chapter = app.content.matn.chapterOfVerse(verse).shortLabel;
+String verseCopyText(AppContent content, int verse) {
+  final v = content.matn.verse(verse);
+  final chapter = content.matn.chapterOfVerse(verse).shortLabel;
   return 'البيت ${ar(verse)} — $chapter\n${v.firstHemistich}\n${v.secondHemistich}\n— تيسير الشاطبية';
 }
 
+/// Hosted by a reader screen: [listenable] notifies when [verse] (the menu's verse,
+/// null = closed) changes; [anchor] is where that verse is drawn on screen.
 class VerseMenu extends StatelessWidget {
-  final AppController app;
-  const VerseMenu({super.key, required this.app});
+  final Listenable listenable;
+  final AppContent content;
+  final int? Function() verse;
+  final Rect? Function(int verse) anchor;
+  final VoidCallback onClose;
+
+  /// «تشغيل من هنا»: shown only when [canPlay] says a recording is on the device.
+  final bool Function() canPlay;
+  final void Function(int verse) onPlayFrom;
+
+  const VerseMenu({
+    super.key,
+    required this.listenable,
+    required this.content,
+    required this.verse,
+    required this.anchor,
+    required this.onClose,
+    required this.canPlay,
+    required this.onPlayFrom,
+  });
 
   static const double _estimatedHeight = 220;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: app,
+      animation: listenable,
       builder: (context, _) {
-        final verse = app.menuVerse;
+        final verse = this.verse();
         if (verse == null) return const SizedBox.shrink();
         final t = TaysirColors.of(context);
         final size = MediaQuery.of(context).size;
         final pad = MediaQuery.of(context).padding;
-        final rect = app.viewer.viewRectOfVerse(verse);
+        final rect = anchor(verse);
         double top;
         if (rect == null) {
           top = size.height - pad.bottom - _estimatedHeight - 24;
@@ -51,7 +71,7 @@ class VerseMenu extends StatelessWidget {
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: app.closeVerseMenu,
+                onTap: onClose,
                 child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
               ),
             ),
@@ -75,15 +95,15 @@ class VerseMenu extends StatelessWidget {
   }
 
   Widget _card(BuildContext context, TaysirColors t, int verse) {
-    final sadr = app.content.matn.verse(verse).firstHemistich;
+    final sadr = content.matn.verse(verse).firstHemistich;
     void explain() {
-      app.closeVerseMenu();
-      CommentaryScreen.open(context, app.content, verse);
+      onClose();
+      CommentaryScreen.open(context, content, verse);
     }
 
     void copy() {
-      Clipboard.setData(ClipboardData(text: verseCopyText(app, verse)));
-      app.closeVerseMenu();
+      Clipboard.setData(ClipboardData(text: verseCopyText(content, verse)));
+      onClose();
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text('تم نسخ البيت مع الإسناد', style: kufi(size: 14, weight: 500, color: t.text)),
             backgroundColor: t.raised, duration: const Duration(seconds: 2)),
@@ -91,8 +111,8 @@ class VerseMenu extends StatelessWidget {
     }
 
     void playFromHere() {
-      app.closeVerseMenu();
-      app.sync.jumpToVerse(verse, play: true);
+      onClose();
+      onPlayFrom(verse);
     }
 
     return Directionality(
@@ -124,7 +144,7 @@ class VerseMenu extends StatelessWidget {
                   IconButton(
                     tooltip: 'إغلاق',
                     icon: Icon(LucideIcons.x, size: 21, color: t.muted),
-                    onPressed: app.closeVerseMenu,
+                    onPressed: onClose,
                   ),
                 ],
               ),
@@ -132,7 +152,7 @@ class VerseMenu extends StatelessWidget {
               Row(
                 children: [
                   _action(t, LucideIcons.bookOpen, 'الشرح', explain, primary: true),
-                  if (app.audioAvailable) _action(t, LucideIcons.play, 'تشغيل من هنا', playFromHere),
+                  if (canPlay()) _action(t, LucideIcons.play, 'تشغيل من هنا', playFromHere),
                 ],
               ),
               Padding(
