@@ -10,9 +10,11 @@ import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/domain/playback_windows.dart';
 
-/// Plays in 20 ms ticks while `playing`; records every seek.
+/// Plays in 20 ms ticks while `playing`; records every seek. [outsidePause] and
+/// [outsidePlay] act like the lock-screen buttons or an interruption.
 class FakeAudio implements AudioPort {
   final _positions = StreamController<int>.broadcast(sync: true);
+  final _playingChanges = StreamController<bool>.broadcast(sync: true);
   final seeks = <int>[];
   int _position = 0;
   bool _playing = false;
@@ -24,6 +26,17 @@ class FakeAudio implements AudioPort {
   int get currentPositionMs => _position;
   @override
   bool get playing => _playing;
+  @override
+  Stream<bool> get playingChanges => _playingChanges.stream;
+
+  void _set(bool on) {
+    if (_playing == on) return;
+    _playing = on;
+    _playingChanges.add(on);
+  }
+
+  void outsidePause() => _set(false);
+  void outsidePlay() => play();
 
   @override
   Future<void> seek(int ms) async {
@@ -33,7 +46,7 @@ class FakeAudio implements AudioPort {
 
   @override
   Future<void> play() async {
-    _playing = true;
+    _set(true);
     _ticker ??= Timer.periodic(const Duration(milliseconds: 20), (_) {
       if (!_playing) return;
       _position += 20;
@@ -42,7 +55,7 @@ class FakeAudio implements AudioPort {
   }
 
   @override
-  Future<void> pause() async => _playing = false;
+  Future<void> pause() async => _set(false);
 
   @override
   Future<void> setSpeed(double speed) async {}
@@ -81,6 +94,7 @@ void main() {
       async.elapse(const Duration(milliseconds: 1260)); // 750 → 2000 plus a little
       expect(engine.state.inGap, isTrue);
       expect(audio.playing, isFalse);
+      expect(engine.state.playing, isTrue); // the student is still listening through the gap
       final pausedAt = audio.currentPositionMs;
       async.elapse(const Duration(milliseconds: 520));
       expect(engine.state.inGap, isFalse);
@@ -137,6 +151,84 @@ void main() {
       expect(engine.state.verse, 1);
       expect(engine.state.verseRepetition, 2);
       audio.dispose();
+    });
+  });
+
+  group('the player changed from outside (lock screen, a call, headphones)', () {
+    PlaybackEngine engineOn(FakeAudio audio, {int gapMs = 0}) =>
+        PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 5), PlaybackSettings(gapMs: gapMs)));
+
+    test('an outside pause is a pause: the state says so and nothing advances', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio);
+        final states = <EngineState>[];
+        engine.states.listen(states.add);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 600)); // in verse 1
+        audio.outsidePause();
+        async.flushMicrotasks();
+        expect(engine.state.playing, isFalse);
+        expect(states.last.playing, isFalse); // the UI heard about it
+        final at = audio.currentPositionMs;
+        async.elapse(const Duration(seconds: 3));
+        expect(audio.currentPositionMs, at);
+        expect(engine.state.verse, 1);
+        audio.dispose();
+      });
+    });
+
+    test('an outside play resumes where it stood and plays on', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final completed = <int>[];
+        final engine = PlaybackEngine(
+            audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()),
+            onVerseCompleted: completed.add);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 600));
+        audio.outsidePause();
+        async.elapse(const Duration(seconds: 1));
+        audio.outsidePlay();
+        async.elapse(const Duration(seconds: 6));
+        expect(engine.state.playing, isFalse);
+        expect(engine.state.finished, isTrue);
+        expect(completed, [1, 2, 3, 4, 5]);
+        expect(audio.seeks, [750]); // no jump back
+        audio.dispose();
+      });
+    });
+
+    test('an outside pause during the gap keeps it paused; an outside play skips the gap', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio, gapMs: 1000);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 1260)); // verse 1 done, in the gap
+        expect(engine.state.inGap, isTrue);
+        audio.outsidePlay();
+        async.flushMicrotasks();
+        expect(engine.state.inGap, isFalse);
+        expect(engine.state.verse, 2);
+        expect(engine.state.playing, isTrue);
+        audio.dispose();
+      });
+    });
+
+    test('an outside play after the end starts the scope again', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio);
+        engine.play();
+        async.elapse(const Duration(seconds: 6));
+        expect(engine.state.finished, isTrue);
+        audio.outsidePlay();
+        async.elapse(const Duration(milliseconds: 100));
+        expect(engine.state.finished, isFalse);
+        expect(engine.state.verse, 1);
+        expect(engine.state.playing, isTrue);
+        audio.dispose();
+      });
     });
   });
 }

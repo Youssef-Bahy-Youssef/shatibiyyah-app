@@ -35,6 +35,8 @@ class _SilentAudio implements AudioPort {
   @override
   bool get playing => _playing;
   @override
+  Stream<bool> get playingChanges => const Stream.empty();
+  @override
   Future<void> seek(int ms) async {}
   @override
   Future<void> play() async => _playing = true;

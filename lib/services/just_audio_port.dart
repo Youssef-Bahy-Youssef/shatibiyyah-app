@@ -26,6 +26,9 @@ class JustAudioPort implements AudioPort {
   bool get playing => player.playing;
 
   @override
+  Stream<bool> get playingChanges => player.playingStream;
+
+  @override
   Future<void> seek(int ms) => player.seek(Duration(milliseconds: ms));
 
   /// just_audio's play() future completes only when playback stops, so it is not
@@ -40,6 +43,9 @@ class JustAudioPort implements AudioPort {
 
   @override
   Future<void> setSpeed(double speed) => player.setSpeed(speed);
+
+  /// For ducking under a short interruption (1 = full volume).
+  Future<void> setVolume(double volume) => player.setVolume(volume);
 
   Future<void> dispose() => player.dispose();
 }

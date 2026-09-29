@@ -9,6 +9,11 @@
 // Every command bumps a generation token. Anything still pending from an older
 // generation — a seek completing late, a silence timer, a boundary reached just
 // as the user pressed «next» — is dropped, so quick taps never jump back (AUD-20).
+//
+// «Playing» is the student's intent, not the player's state: it stays true through
+// the silent gap between verses. When the player stops or starts without the engine
+// asking (the lock-screen buttons, a call, headphones unplugged), the engine takes
+// that as a pause or a resume, so the UI and the gap timers never run on alone.
 import 'dart:async';
 
 import 'playback_plan.dart';
@@ -19,6 +24,10 @@ abstract class AudioPort {
   Stream<int> get positionMs; // frequent position updates while playing
   int get currentPositionMs;
   bool get playing;
+
+  /// Every change of [playing], including ones the engine did not ask for (the
+  /// lock-screen buttons, an interruption, headphones unplugged).
+  Stream<bool> get playingChanges;
   Future<void> seek(int ms);
   Future<void> play();
   Future<void> pause();
@@ -61,6 +70,8 @@ class PlaybackEngine {
 
   final _state = StreamController<EngineState>.broadcast();
   StreamSubscription<int>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
+  bool _active = false; // the student wants playback (true through gaps)
   Timer? _gapTimer;
   PlanAction? _current;
   int _generation = 0;
@@ -69,6 +80,7 @@ class PlaybackEngine {
 
   PlaybackEngine(this.audio, this.plan, {this.onVerseCompleted, this.boundaryLeadMs = 40}) {
     _positionSub = audio.positionMs.listen(_onPosition);
+    _playingSub = audio.playingChanges.listen((_) => _onPlayerChanged());
   }
 
   Stream<EngineState> get states => _state.stream;
@@ -85,20 +97,38 @@ class PlaybackEngine {
 
   Future<void> pause() async {
     _generation++;
+    _active = false;
     _gapTimer?.cancel();
     await audio.pause();
     _emit();
   }
 
-  /// Resume the current action where the player stands.
+  /// Resume the current action where the player stands; after the end of the
+  /// scope, start it again.
   Future<void> resume() async {
     final current = _current;
     if (current is PlayRange) {
       _generation++;
+      _active = true;
       await audio.play();
       _emit();
-    } else if (current is Silence || current == null) {
+    } else if (current is Finished) {
+      await _run(plan.start());
+    } else {
       await _run(plan.jumpTo(plan.verse));
+    }
+  }
+
+  /// The player changed on its own. It is judged by where it stands now, not by
+  /// the event, so a late event about the engine's own pause or play is harmless.
+  void _onPlayerChanged() {
+    final nowPlaying = audio.playing;
+    if (!nowPlaying && _active && _current is PlayRange) {
+      pause(); // stopped from outside: the student is no longer listening
+    } else if (nowPlaying && !_active) {
+      resume(); // started from outside (the lock screen)
+    } else if (nowPlaying && _current is Silence) {
+      _run(plan.advance()); // «play» pressed during the gap between verses: skip the gap
     }
   }
 
@@ -106,6 +136,7 @@ class PlaybackEngine {
     final generation = ++_generation;
     _gapTimer?.cancel();
     _current = action;
+    _active = action is! Finished;
     switch (action) {
       case PlayRange():
         _playedInWindowMs = 0;
@@ -149,7 +180,7 @@ class PlaybackEngine {
     return EngineState(
       verse: plan.verse,
       inTitle: current is PlayRange && current.titleEndMs != null && position < current.titleEndMs!,
-      playing: audio.playing,
+      playing: _active,
       inGap: current is Silence,
       verseRepetition: plan.verseRepetition,
       sectionRepetition: plan.sectionRepetition,
@@ -165,6 +196,7 @@ class PlaybackEngine {
     _generation++;
     _gapTimer?.cancel();
     await _positionSub?.cancel();
+    await _playingSub?.cancel();
     await _state.close();
   }
 }

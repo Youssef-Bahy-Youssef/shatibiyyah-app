@@ -16,6 +16,7 @@ import '../data/user_store.dart';
 import '../domain/playback_engine.dart';
 import '../domain/playback_plan.dart';
 import '../models/playback_settings.dart' show K;
+import '../services/audio_focus.dart';
 import '../services/just_audio_port.dart';
 import '../services/preferences_service.dart';
 import '../ui/reader/reader_controller.dart';
@@ -41,12 +42,19 @@ Future<ReaderController> bootReader() async {
   PlaybackEngine? engine;
   final file = File(p.join(support.path, RecordingRepository.localFileName(recording)));
   if (await file.exists() && await file.length() == recording.audioBytes) {
-    final port = JustAudioPort(AudioPlayer());
+    // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
+    final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
     await port.load(
       file.path,
       MediaItem(id: recording.id, title: 'تيسير الشاطبية', album: 'تيسير الشاطبية', artist: recording.reciterName),
     );
-    engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording));
+    final e = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording));
+    engine = e;
+    try {
+      await AudioFocus.attach(isPlaying: () => e.state.playing, pause: e.pause, setVolume: port.setVolume);
+    } catch (_) {
+      // Without a session the app still plays; it only loses the interruption policy.
+    }
   }
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
