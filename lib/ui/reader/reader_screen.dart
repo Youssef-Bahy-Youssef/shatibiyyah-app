@@ -17,18 +17,33 @@ import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
 import 'reader_controller.dart';
 import 'shamsa.dart';
+import 'text_reader.dart';
 import 'tools_sheet.dart';
 
 const _showCurve = Cubic(.2, 0, 0, 1);
 const _hideCurve = Cubic(.4, 0, 1, 1);
 
-class ReaderScreen extends StatelessWidget {
+class ReaderScreen extends StatefulWidget {
   final ReaderController reader;
   final VoidCallback? onMenu;
   final VoidCallback? onSearch;
   final VoidCallback? onTools;
 
   const ReaderScreen({super.key, required this.reader, this.onMenu, this.onSearch, this.onTools});
+
+  @override
+  State<ReaderScreen> createState() => _ReaderScreenState();
+}
+
+class _ReaderScreenState extends State<ReaderScreen> {
+  final _text = GlobalKey<TextReaderState>();
+
+  ReaderController get reader => widget.reader;
+
+  /// Where the verse menu points: the verse's row in text mode, its box on the page otherwise.
+  Rect? _anchor(int verse, ReaderLayout layout) => reader.textMode
+      ? _text.currentState?.rowRect(verse)
+      : reader.viewer.viewRectOfVerse(verse)?.shift(layout.page.topLeft);
 
   @override
   Widget build(BuildContext context) {
@@ -56,12 +71,21 @@ class ReaderScreen extends StatelessWidget {
               children: [
                 Positioned.fromRect(
                   rect: layout.page,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: PageViewer(controller: reader.viewer),
+                  // Kept mounted in text mode so the page is where it was when the student returns.
+                  child: Offstage(
+                    offstage: reader.textMode,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: PageViewer(controller: reader.viewer),
+                    ),
                   ),
                 ),
-                if (!reader.chromeVisible)
+                if (reader.textMode)
+                  Positioned.fromRect(
+                    rect: layout.textZone,
+                    child: TextReader(key: _text, reader: reader),
+                  ),
+                if (!reader.chromeVisible && !reader.textMode)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -79,9 +103,9 @@ class ReaderScreen extends StatelessWidget {
                   travel: -6,
                   child: _TopBar(
                     reader: reader,
-                    onMenu: onMenu,
-                    onSearch: onSearch,
-                    onTools: onTools ?? () => showToolsSheet(context, reader),
+                    onMenu: widget.onMenu,
+                    onSearch: widget.onSearch,
+                    onTools: widget.onTools ?? () => showToolsSheet(context, reader),
                   ),
                 ),
                 _Chrome(
@@ -104,7 +128,7 @@ class ReaderScreen extends StatelessWidget {
                   listenable: reader,
                   content: reader.content,
                   verse: () => reader.menuVerse,
-                  anchor: (v) => reader.viewer.viewRectOfVerse(v)?.shift(layout.page.topLeft),
+                  anchor: (v) => _anchor(v, layout),
                   onClose: reader.closeMenu,
                   canPlay: () => reader.audioAvailable,
                   onPlayFrom: reader.tapVerse,

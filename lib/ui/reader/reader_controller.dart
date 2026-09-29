@@ -36,6 +36,8 @@ class ReaderController extends ChangeNotifier {
   double _speed = 1;
 
   int _verse;
+  bool _textMode = false;
+  double _textScale = 1;
   bool _detached = false;
   bool _chromeVisible = true;
   int? _menuVerse;
@@ -63,6 +65,8 @@ class ReaderController extends ChangeNotifier {
         playTitles: s.playTitles,
       );
       _speed = s.speedFor(recording.id);
+      _textMode = s.textMode;
+      _textScale = s.textScale;
       appTheme.value = s.theme;
     }
     engine?.plan.settings = _settings;
@@ -100,8 +104,8 @@ class ReaderController extends ChangeNotifier {
   PlaybackSettings get settings => _settings;
   double get speed => _speed;
   ReaderTheme get theme => appTheme.value;
-  bool get textMode => store?.textMode ?? false;
-  double get textScale => store?.textScale ?? 1;
+  bool get textMode => _textMode;
+  double get textScale => _textScale;
   bool get night => viewer.night;
   int get brightness => viewer.brightnessPct;
 
@@ -144,13 +148,18 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Text mode keeps the top bar and the player on screen: there is no page to uncover.
   void setTextMode(bool on) {
+    _textMode = on;
     store?.textMode = on;
+    _menuVerse = null;
+    if (on) _chromeVisible = true;
     notifyListeners();
   }
 
   void setTextScale(double v) {
-    store?.textScale = v;
+    _textScale = v.clamp(0.75, 2).toDouble();
+    store?.textScale = _textScale;
     notifyListeners();
   }
 
@@ -260,6 +269,7 @@ class ReaderController extends ChangeNotifier {
       closeMenu();
       return;
     }
+    if (_textMode) return;
     _chromeVisible = !_chromeVisible;
     notifyListeners();
   }

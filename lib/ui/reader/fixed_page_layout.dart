@@ -34,6 +34,10 @@ class ReaderLayout {
 
   const ReaderLayout(this.page, this.bar, this.player);
 
+  /// Text mode's zone: everything between the reserved bar and player zones.
+  Rect get textZone => Rect.fromLTRB(
+      0, bar.bottom + ReaderTokens.zoneGap, bar.width, player.top - ReaderTokens.zoneGap);
+
   factory ReaderLayout.compute(Size screen, EdgeInsets safe) {
     final topZone = safe.top + ReaderTokens.barGap + ReaderTokens.barHeight + ReaderTokens.zoneGap;
     final bottomZone = safe.bottom + ReaderTokens.playerHeight + ReaderTokens.zoneGap;

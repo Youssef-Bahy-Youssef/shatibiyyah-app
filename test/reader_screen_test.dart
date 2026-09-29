@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -125,5 +126,82 @@ void main() {
     expect(r.menuVerse, isNull);
     expect(r.chromeVisible, isTrue);
     await unmount(tester);
+  });
+
+  group('text mode', () {
+    Future<ReaderController> textMode(WidgetTester tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      r.setTextMode(true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      return r;
+    }
+
+    String sadr(int v) => content.matn.verse(v).firstHemistich;
+
+    testWidgets('shows the chapter as rows in place of the page; the chrome stays', (tester) async {
+      final r = await textMode(tester);
+      expect(find.text('الباب ١١ · ٩ أبيات'), findsOneWidget);
+      expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
+      expect(find.text(sadr(226)), findsOneWidget);
+      expect(find.text(content.matn.verse(226).secondHemistich), findsOneWidget);
+      expect(find.byType(PageViewer), findsNothing); // offstage, still mounted
+      expect(find.byType(PageViewer, skipOffstage: false), findsOneWidget);
+      r.toggleChrome();
+      await tester.pump();
+      expect(r.chromeVisible, isTrue);
+      await unmount(tester);
+    });
+
+    testWidgets('a tap moves the reader, a double tap opens the menu at the row', (tester) async {
+      final r = await textMode(tester);
+      await tester.ensureVisible(find.text(sadr(229)));
+      await tester.pump();
+      await tester.tap(find.text(sadr(229)));
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 20));
+      expect(r.verse, 229);
+      expect(r.menuVerse, isNull);
+
+      await tester.ensureVisible(find.text(sadr(230)));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text(sadr(230)));
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(find.text(sadr(230)));
+      await tester.pump();
+      expect(r.menuVerse, 230);
+      expect(r.verse, 229); // opening the menu does not move the reader
+      expect(find.text('البيت ٢٣٠'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('font size steps by a quarter within 0.75×–2×', (tester) async {
+      final r = await textMode(tester);
+      expect(find.text('١×'), findsOneWidget);
+      await tester.tap(find.text('أ+'));
+      await tester.pump();
+      expect(r.textScale, 1.25);
+      expect(find.text('١٫٢٥×'), findsOneWidget);
+      r.setTextScale(0.75);
+      await tester.pump();
+      await tester.tap(find.text('أ−')); // disabled at the minimum
+      await tester.pump();
+      expect(r.textScale, 0.75);
+      await unmount(tester);
+    });
+
+    testWidgets('the chapter buttons browse; the reader moving brings the view back', (tester) async {
+      final r = await textMode(tester);
+      await tester.scrollUntilVisible(find.text('الباب التالي'), 200);
+      await tester.tap(find.text('الباب التالي'));
+      await tester.pump();
+      expect(find.text('الباب ١٢ · ٢٠ بيتًا'), findsOneWidget);
+      expect(r.verse, 226); // browsing does not move the reader
+      r.tapVerse(228);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('الباب ١١ · ٩ أبيات'), findsOneWidget);
+      await unmount(tester);
+    });
   });
 }

@@ -31,6 +31,17 @@ String ar(num n) {
   return b.toString();
 }
 
+/// «بيت واحد», «بيتان», «٩ أبيات», «١١ بيتًا», «١٠١ بيت»: a verse count with the noun
+/// agreeing with the number.
+String versesCount(int n) {
+  if (n == 1) return 'بيت واحد';
+  if (n == 2) return 'بيتان';
+  final r = n % 100;
+  if (r >= 3 && r <= 10) return '${ar(n)} أبيات';
+  if (r >= 11) return '${ar(n)} بيتًا';
+  return '${ar(n)} بيت'; // 100, 101, 102, 200 …
+}
+
 /// ported from app.js: fmtTime(sec)
 String fmtTime(num sec) {
   final s0 = math.max(0, sec.isNaN ? 0 : sec.floor());
