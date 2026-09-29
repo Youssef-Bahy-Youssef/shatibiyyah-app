@@ -50,7 +50,9 @@ class ReaderScreen extends StatelessWidget {
           ),
           child: AnimatedBuilder(
             animation: reader,
+            // Every child is positioned, so without `expand` the stack is 0×0 and clips them all.
             builder: (context, _) => Stack(
+              fit: StackFit.expand,
               children: [
                 Positioned.fromRect(
                   rect: layout.page,

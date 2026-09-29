@@ -72,6 +72,15 @@ void main() {
   testWidgets('the page rect is the spec example and never moves when the chrome toggles', (tester) async {
     final r = await reader(tester);
     await show(tester, r);
+    // The stack holding the page and chrome must fill the screen: at 0×0 its clip hid
+    // everything on a device while every rect below still measured right.
+    final stack = find
+        .ancestor(
+          of: find.byType(PageViewer),
+          matching: find.descendant(of: find.byType(ReaderScreen), matching: find.byType(Stack)),
+        )
+        .last;
+    expect(tester.getSize(stack), const Size(390, 844));
     final page = tester.getRect(find.byType(PageViewer));
     expect(page.left, closeTo(8, 0.5));
     expect(page.top, closeTo(124.9, 0.5));
