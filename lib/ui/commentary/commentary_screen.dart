@@ -290,8 +290,7 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
           ),
         ),
       if (to - from + 1 > 3)
-        Text('و${ar(to - from - 2)} أبيات أخرى في هذا الشرح',
-            style: kufi(size: 12.5, weight: 400, color: t.muted)),
+        Text(_moreVerses(to - from - 2), style: kufi(size: 12.5, weight: 400, color: t.muted)),
     ];
   }
 
@@ -311,13 +310,20 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
         ),
       );
 
+  // No `alignment` on the Container: that would stretch the pill to the full width.
   Widget _headingPill(TaysirColors t, String heading) => Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         decoration: BoxDecoration(color: t.gold.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(999)),
         child: Text(heading, style: kufi(size: 13.5, weight: 600, color: t.goldText)),
       );
+
+  /// «وبيت آخر» / «وبيتان آخران» / «و٣ أبيات أخرى» / «و١١ بيتًا آخر».
+  static String _moreVerses(int n) => switch (n) {
+        1 => 'وبيت آخر في هذا الشرح',
+        2 => 'وبيتان آخران في هذا الشرح',
+        <= 10 => 'و${ar(n)} أبيات أخرى في هذا الشرح',
+        _ => 'و${ar(n)} بيتًا آخر في هذا الشرح',
+      };
 
   Widget _paragraph(TaysirColors t, CommentaryParagraph paragraph) {
     final base = naskh(size: 19, height: 1.95, color: t.text);
