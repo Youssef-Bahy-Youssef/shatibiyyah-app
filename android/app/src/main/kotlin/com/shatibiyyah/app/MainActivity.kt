@@ -6,7 +6,7 @@ import android.os.StatFs
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-// just_audio_background / audio_service requires the host Activity to extend
+// audio_service (the lock screen) requires the host Activity to extend
 // AudioServiceActivity so the background media service binds to the correct FlutterEngine.
 import com.ryanheise.audioservice.AudioServiceActivity
 

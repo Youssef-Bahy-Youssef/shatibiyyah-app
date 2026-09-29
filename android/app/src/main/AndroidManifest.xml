@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- just_audio_background: background playback + media-button controls -->
+    <!-- audio_service (lib/services/lock_screen.dart): background playback + media-button controls -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
@@ -34,7 +34,7 @@
             </intent-filter>
         </activity>
 
-        <!-- just_audio_background media service + media-button receiver -->
+        <!-- audio_service media service + media-button receiver -->
         <service android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true" tools:ignore="Instantiatable">

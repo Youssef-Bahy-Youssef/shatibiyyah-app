@@ -9,7 +9,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 
 import '../data/app_content.dart';
 import '../data/recording_repository.dart';
@@ -158,15 +157,12 @@ class AudioLibrary extends ChangeNotifier {
   }
 }
 
-/// The app's engine: just_audio (own interruption policy), lock-screen metadata,
-/// listening progress recorded per verse.
+/// The app's engine: just_audio (own interruption policy), listening progress
+/// recorded per verse.
 EngineFactory justAudioEngine(UserStore? user) => (recording, filePath, plan) async {
       // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
       final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
-      await port.load(
-        filePath,
-        MediaItem(id: recording.id, title: 'تيسير الشاطبية', album: 'تيسير الشاطبية', artist: recording.reciterName),
-      );
+      await port.load(filePath);
       final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording));
       AudioFocus? focus;
       try {

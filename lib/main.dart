@@ -8,9 +8,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
 
 import 'app/reader_boot.dart';
+import 'services/lock_screen.dart';
 import 'theme.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
@@ -18,15 +19,21 @@ import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
 import 'ui/shell/boot_splash.dart';
 
+/// The lock-screen handler, when the platform service started.
+LockScreenHandler? lockScreen;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Lock-screen / background-audio support. Never let an init failure here blank the
-  // whole app — the in-app player works regardless.
+  // Lock screen, notification and headset buttons. Never let an init failure here
+  // blank the whole app — the in-app player works regardless.
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'app.shatibiyyah.hirz.channel.audio',
-      androidNotificationChannelName: 'تيسير الشاطبية',
-      androidNotificationOngoing: true,
+    lockScreen = await AudioService.init(
+      builder: LockScreenHandler.new,
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'app.shatibiyyah.hirz.channel.audio',
+        androidNotificationChannelName: 'تيسير الشاطبية',
+        androidNotificationOngoing: true,
+      ),
     );
   } catch (_) {}
   SystemChrome.setPreferredOrientations([
@@ -100,6 +107,7 @@ class _BootState extends State<_Boot> {
   Future<void> _init() async {
     try {
       final reader = await bootReader();
+      lockScreen?.attach(reader);
       if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);
