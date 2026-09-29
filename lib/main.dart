@@ -101,8 +101,11 @@ class ShatibiyyahApp extends StatelessWidget {
           highlightColor: Colors.transparent,
           extensions: [colorsFor(theme)],
         ),
-        builder: (context, child) =>
-            Directionality(textDirection: TextDirection.rtl, child: child!),
+        // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+          child: Directionality(textDirection: TextDirection.rtl, child: child!),
+        ),
         home: const _Boot(),
       ),
     );
