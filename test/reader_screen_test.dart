@@ -2,7 +2,6 @@
 // the player show what the spec says; the verse menu opens from a long-press.
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';

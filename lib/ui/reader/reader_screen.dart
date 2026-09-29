@@ -138,12 +138,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
                     ),
                   ),
-                  _Chrome(
-                    rect: layout.player,
-                    visible: reader.selectionComplete,
-                    travel: 8,
-                    child: _SelectionActions(reader: reader),
-                  ),
+                  if (reader.selecting)
+                    _Chrome(
+                      rect: layout.player,
+                      visible: reader.selectionComplete,
+                      travel: 8,
+                      child: _SelectionActions(reader: reader),
+                    ),
                   if (reader.selecting && !reader.selectionComplete)
                     Positioned(
                       left: 0,
