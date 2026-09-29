@@ -11,6 +11,7 @@ import 'content_store.dart';
 import 'layout_repository.dart';
 import 'matn_repository.dart';
 import 'recording_repository.dart';
+import 'rumuz_repository.dart';
 
 class AppContent {
   final ContentStore store;
@@ -18,8 +19,9 @@ class AppContent {
   final LayoutRepository layout;
   final CommentaryRepository books;
   final RecordingRepository recordings;
+  final RumuzRepository rumuz;
 
-  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings);
+  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz);
 
   /// Opens the bundled snapshot (installing it on first run) and loads the repositories.
   static Future<AppContent> open({
@@ -38,6 +40,7 @@ class AppContent {
       await LayoutRepository.load(store.db),
       await CommentaryRepository.load(store.db),
       await RecordingRepository.load(store.db),
+      await RumuzRepository.load(store.db),
     );
   }
 

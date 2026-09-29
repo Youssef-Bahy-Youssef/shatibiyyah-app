@@ -23,6 +23,7 @@ import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
+import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -157,6 +158,46 @@ void main() {
         await expectLater(find.byType(ReaderScreen), matchesGoldenFile('goldens/$name.png'));
         await tester.pumpWidget(const SizedBox());
         await tester.pump(const Duration(seconds: 3)); // let notices and animations end
+      });
+    }
+  }
+
+  // «رموز القراء»: the letters tab as it opens, and the words tab.
+  for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
+    for (final tab in [null, 'الكلمات']) {
+      final name = 'rumuz_${tab == null ? 'letters' : 'words'}_${theme.name}_390x844';
+      testWidgets(name, (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        addTearDown(tester.view.reset);
+        SharedPreferences.setMockInitialValues({});
+        late ReaderController r;
+        await tester.runAsync(() async {
+          final prefs = await Prefs.create();
+          final recording = content.recordings.defaultRecording;
+          final windows = await content.windowsFor(recording);
+          r = ReaderController(
+            content: content,
+            recording: recording,
+            viewer: PageViewerController(legacyData(content, windows), prefs),
+            initialVerse: 226,
+          );
+        });
+        await tester.pumpWidget(MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
+            fontFamily: 'ScheherazadeNew',
+            extensions: [colorsFor(theme)],
+          ),
+          builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+          home: RumuzScreen(reader: r),
+        ));
+        if (tab != null) await tester.tap(find.text(tab));
+        await tester.pumpAndSettle();
+        await expectLater(find.byType(RumuzScreen), matchesGoldenFile('goldens/$name.png'));
       });
     }
   }

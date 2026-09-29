@@ -14,7 +14,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 /// The snapshot schema this build of the app understands.
-const int kContentSchemaVersion = 1;
+/// 2: readers and rumuz (migration 009).
+const int kContentSchemaVersion = 2;
 
 const String kContentAsset = 'assets/content/content.sqlite';
 const String kManifestAsset = 'assets/content/content.json';

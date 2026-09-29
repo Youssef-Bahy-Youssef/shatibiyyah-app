@@ -2,7 +2,7 @@
 //
 // One entry per destination, in drawer order. The reader is the root; each
 // destination is pushed over it. Destinations of later phases open a «قريبًا»
-// page until they are built: reminders and settings (P7), «رموز القراء» (P6).
+// page until they are built: reminders and settings (P7).
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -11,6 +11,7 @@ import '../ui/shell/about_screen.dart';
 import '../ui/shell/downloads_screen.dart';
 import '../ui/shell/home_screen.dart';
 import '../ui/shell/index_screen.dart';
+import '../ui/shell/rumuz_screen.dart';
 import '../ui/shell/shell_page.dart';
 
 enum AppRoute {
@@ -29,6 +30,7 @@ enum AppRoute {
   Widget build(ReaderController reader) => switch (this) {
     home => HomeScreen(reader: reader),
     contents => IndexScreen(reader: reader),
+    rumuz => RumuzScreen(reader: reader),
     downloads when reader.library != null => DownloadsScreen(library: reader.library!),
     about => AboutScreen(reader: reader),
     _ => ComingSoonScreen(title: label, icon: icon),
