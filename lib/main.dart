@@ -61,7 +61,7 @@ Future<void> main() async {
   try {
     await JustAudioBackground.init(
       androidNotificationChannelId: 'app.shatibiyyah.hirz.channel.audio',
-      androidNotificationChannelName: 'متن الشاطبية',
+      androidNotificationChannelName: 'تيسير الشاطبية',
       androidNotificationOngoing: true,
     );
   } catch (_) {}
@@ -78,7 +78,8 @@ class ShatibiyyahApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'الشاطبية — حِرز الأماني ووجه التهاني',      debugShowCheckedModeBanner: false,
+      title: 'تيسير الشاطبية',
+      debugShowCheckedModeBanner: false,
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar')],
       localizationsDelegates: const [

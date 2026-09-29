@@ -7,7 +7,8 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Release signing config from android/keystore.properties (the existing release keystore).
+// Release signing from android/keystore.properties (git-ignored). For Play, this must be the
+// Play App Signing *upload* key, not the old shatibiyyah-release.keystore.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 if (keystorePropertiesFile.exists()) {
@@ -27,7 +28,7 @@ android {
     defaultConfig {
         applicationId = "com.shatibiyyah.app"
         minSdk = flutter.minSdkVersion // required by just_audio_background / audio_service
-        targetSdk = 34
+        targetSdk = 36 // Android 16; Play's target-API requirement for new apps
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
