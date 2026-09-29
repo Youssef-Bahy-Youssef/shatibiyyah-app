@@ -5,6 +5,8 @@
 // synced-style fields (uuid, updated_at, deleted_at tombstones) are there from the
 // start so backup/restore can merge rather than overwrite (migration plan U-03).
 // Schema changes are numbered migrations applied in order by PRAGMA user_version.
+import 'dart:math';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -46,6 +48,47 @@ const List<String> kUserMigrations = [
   ''',
 ];
 
+/// The six bookmark colours (features-v3 bookmarks), in the schema's words.
+enum BookmarkColor { gold, green, orange, blue, rose, sand }
+
+/// The three bookmark tags: «حفظ», «مراجعة», «إشكال».
+enum BookmarkTag { hifz, muraja, ishkal }
+
+class Bookmark {
+  final String uuid;
+  final int fromVerse;
+  final int? toVerse; // null: a single verse
+  final BookmarkColor color;
+  final BookmarkTag tag;
+  final DateTime updatedAt;
+  const Bookmark(this.uuid, this.fromVerse, this.toVerse, this.color, this.tag, this.updatedAt);
+
+  int get lastVerse => toVerse ?? fromVerse;
+  bool covers(int verse) => fromVerse <= verse && verse <= lastVerse;
+}
+
+class Note {
+  final String uuid;
+  final int verse;
+  final String body;
+  final DateTime updatedAt;
+  const Note(this.uuid, this.verse, this.body, this.updatedAt);
+}
+
+String _verseId(int verse) => 'verse:shatibiyyah:$verse';
+int _verseNumber(String id) => int.parse(id.split(':').last);
+
+final Random _random = Random.secure();
+
+/// A random (version 4) UUID, so rows merge across devices on restore.
+String newUuid() {
+  final b = List<int>.generate(16, (_) => _random.nextInt(256));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+  return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
+}
+
 class UserStore {
   final Database db;
   UserStore._(this.db);
@@ -85,6 +128,90 @@ class UserStore {
         for (final r in await db.rawQuery('SELECT DISTINCT matn_verse_id FROM verse_listens'))
           int.parse((r['matn_verse_id'] as String).split(':').last),
       };
+
+  // ── bookmarks (features-v3 bookmarks) ──
+  // One live bookmark per verse or range; deleting sets deleted_at (a tombstone).
+
+  /// Live bookmarks, the most recently changed first.
+  Future<List<Bookmark>> bookmarks() async => [
+        for (final r in await db.rawQuery(
+            'SELECT uuid, from_verse_id, to_verse_id, color, tag, updated_at FROM bookmarks '
+            'WHERE deleted_at IS NULL ORDER BY updated_at DESC'))
+          Bookmark(
+            r['uuid'] as String,
+            _verseNumber(r['from_verse_id'] as String),
+            r['to_verse_id'] == null ? null : _verseNumber(r['to_verse_id'] as String),
+            BookmarkColor.values.byName(r['color'] as String),
+            BookmarkTag.values.byName(r['tag'] as String),
+            DateTime.fromMillisecondsSinceEpoch(r['updated_at'] as int),
+          ),
+      ];
+
+  /// Creates or updates the bookmark on [from] (…[to] for a run of verses).
+  Future<void> saveBookmark(int from, {int? to, required BookmarkColor color, required BookmarkTag tag, DateTime? at}) async {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    final toId = to == null || to == from ? null : _verseId(to);
+    final updated = await db.rawUpdate(
+      "UPDATE bookmarks SET color = ?, tag = ?, updated_at = ? "
+      "WHERE from_verse_id = ? AND ifnull(to_verse_id, '') = ifnull(?, '') AND deleted_at IS NULL",
+      [color.name, tag.name, now, _verseId(from), toId],
+    );
+    if (updated == 0) {
+      await db.insert('bookmarks', {
+        'uuid': newUuid(),
+        'from_verse_id': _verseId(from),
+        'to_verse_id': toId,
+        'color': color.name,
+        'tag': tag.name,
+        'created_at': now,
+        'updated_at': now,
+      });
+    }
+  }
+
+  Future<void> deleteBookmark(int from, {int? to, DateTime? at}) {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    return db.rawUpdate(
+      "UPDATE bookmarks SET deleted_at = ?, updated_at = ? "
+      "WHERE from_verse_id = ? AND ifnull(to_verse_id, '') = ifnull(?, '') AND deleted_at IS NULL",
+      [now, now, _verseId(from), to == null || to == from ? null : _verseId(to)],
+    );
+  }
+
+  // ── notes (features-v3 verse-notes): one per verse; saving an empty one deletes it ──
+
+  /// Live notes, the most recently changed first.
+  Future<List<Note>> notes() async => [
+        for (final r in await db.rawQuery(
+            'SELECT uuid, matn_verse_id, body, updated_at FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC'))
+          Note(r['uuid'] as String, _verseNumber(r['matn_verse_id'] as String), r['body'] as String,
+              DateTime.fromMillisecondsSinceEpoch(r['updated_at'] as int)),
+      ];
+
+  Future<void> saveNote(int verse, String body, {DateTime? at}) async {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    final text = body.trim();
+    if (text.isEmpty) {
+      await db.rawUpdate(
+        'UPDATE notes SET deleted_at = ?, updated_at = ? WHERE matn_verse_id = ? AND deleted_at IS NULL',
+        [now, now, _verseId(verse)],
+      );
+      return;
+    }
+    final updated = await db.rawUpdate(
+      'UPDATE notes SET body = ?, updated_at = ? WHERE matn_verse_id = ? AND deleted_at IS NULL',
+      [text, now, _verseId(verse)],
+    );
+    if (updated == 0) {
+      await db.insert('notes', {
+        'uuid': newUuid(),
+        'matn_verse_id': _verseId(verse),
+        'body': text,
+        'created_at': now,
+        'updated_at': now,
+      });
+    }
+  }
 
   Future<void> close() => db.close();
 }

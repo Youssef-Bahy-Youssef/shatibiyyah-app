@@ -18,6 +18,7 @@ import '../../data/user_store.dart';
 import '../../domain/playback_engine.dart';
 import '../../domain/playback_plan.dart';
 import '../../app/audio_library.dart';
+import '../../app/personal_data.dart';
 import '../design/app_theme.dart';
 import '../widgets/page_viewer.dart';
 
@@ -32,6 +33,17 @@ class ReaderController extends ChangeNotifier {
 
   /// The recordings: which is chosen, which are on the device, downloads (set at boot).
   AudioLibrary? library;
+
+  /// Bookmarks and notes (set at boot; null in tests that do not need them). The
+  /// reader redraws when they change (ribbons in text mode, the menu's icons).
+  PersonalData? get personal => _personal;
+  set personal(PersonalData? p) {
+    _personal?.removeListener(notifyListeners);
+    _personal = p;
+    p?.addListener(notifyListeners);
+  }
+
+  PersonalData? _personal;
 
   Recording _recording;
   PlaybackEngine? _engine; // null until the recording is on the device
@@ -310,7 +322,7 @@ class ReaderController extends ChangeNotifier {
     _engineState = s;
     // Playback itself crossing into a new chapter (a jump sets _verse first, so never here).
     if (changed && s.playing && content.matn.chapterOfVerse(s.verse).id != chapter.id) {
-      _showNotice('بدأ باب جديد · ${content.matn.chapterOfVerse(s.verse).title}');
+      showNotice('بدأ باب جديد · ${content.matn.chapterOfVerse(s.verse).title}');
     }
     if (changed) {
       _verse = s.verse;
@@ -332,7 +344,8 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _showNotice(String text) {
+  /// Shows a short notice over the page (e.g. «حُفظ المرجع على البيت N»).
+  void showNotice(String text) {
     _notice = text;
     _noticeTimer?.cancel();
     _noticeTimer = Timer(kNoticeDuration, () {

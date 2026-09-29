@@ -77,6 +77,9 @@ class PageViewerController extends ChangeNotifier {
   /// A run of selected verses (features-v3 multi-verse-selection), drawn dashed.
   ({int from, int to})? selection;
 
+  /// Bookmark ribbons: verse → colour (features-v3 bookmarks).
+  Map<int, Color> ribbons = const {};
+
   // chapter-header overlay
   int? chapterSel;
   int? chapterHover;
@@ -326,6 +329,11 @@ class PageViewerController extends ChangeNotifier {
     if (b.page != currentPage) setActiveVerse(id);
     if (reduceMotion) return;
     pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+    _invalidate();
+  }
+
+  void setRibbons(Map<int, Color> marks) {
+    ribbons = marks;
     _invalidate();
   }
 
@@ -969,6 +977,7 @@ class _HighlightPainter extends CustomPainter {
 
     if (c.showBoxes) _drawAllBoxes(canvas, col, s);
     if (c.selection != null) _drawSelection(canvas, c.selection!, s);
+    if (c.ribbons.isNotEmpty) _drawRibbons(canvas, s);
 
     final p = c.prevBox != null
         ? clampd((now - c.hiliteStart) / _hiliteMs, 0, 1)
@@ -1025,6 +1034,26 @@ class _HighlightPainter extends CustomPainter {
       final rr = _rrect(b.x * s, b.y * s, b.w * s, b.h * s, 9);
       canvas.drawRRect(rr, fill);
       drawDashedRRect(canvas, rr, stroke);
+    }
+  }
+
+  /// A small ribbon just outside the start (right) edge of each bookmarked verse's
+  /// box, clear of the verse number, as in the prototype: 10 × 20 with a notch.
+  void _drawRibbons(Canvas canvas, double s) {
+    for (final id in c.data.versesOnPage(c.currentPage)) {
+      final color = c.ribbons[id];
+      if (color == null) continue;
+      final b = c.data.getBox(id);
+      if (b == null) continue;
+      final x = (b.x + b.w) * s - 1, y = b.y * s - 4;
+      final path = Path()
+        ..moveTo(x, y)
+        ..lineTo(x + 10, y)
+        ..lineTo(x + 10, y + 20)
+        ..lineTo(x + 5, y + 15)
+        ..lineTo(x, y + 20)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color);
     }
   }
 

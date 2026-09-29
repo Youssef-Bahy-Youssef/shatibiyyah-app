@@ -1,7 +1,7 @@
 // lib/ui/widgets/verse_menu.dart — the long-press menu of a verse (features-v3: verse-action-menu).
 //
-// «الشرح», «نسخ», «مشاركة» and «بداية نطاق», plus «تشغيل من هنا» once a recording
-// is on the device. Bookmark and note arrive with P6. The rest of the page
+// Primary: «الشرح», «تشغيل من هنا» (once a recording is on the device), «مرجع».
+// Secondary: «نسخ», «مشاركة», «ملاحظة», «بداية نطاق». The rest of the page
 // dims; the card sits below the verse when it fits, otherwise above it, and always
 // inside the screen.
 import 'package:flutter/material.dart';
@@ -56,6 +56,12 @@ class VerseMenu extends StatelessWidget {
   /// «مشاركة»: open the share sheet for this verse (hidden when null).
   final void Function(int verse)? onShare;
 
+  /// «مرجع» and «ملاحظة» (hidden when null); [bookmarked] / [hasNote] mark them as set.
+  final void Function(int verse)? onBookmark;
+  final void Function(int verse)? onNote;
+  final bool Function(int verse)? bookmarked;
+  final bool Function(int verse)? hasNote;
+
   const VerseMenu({
     super.key,
     required this.listenable,
@@ -67,6 +73,10 @@ class VerseMenu extends StatelessWidget {
     required this.onPlayFrom,
     this.onStartRange,
     this.onShare,
+    this.onBookmark,
+    this.onNote,
+    this.bookmarked,
+    this.hasNote,
   });
 
   static const double _estimatedHeight = 220;
@@ -177,6 +187,16 @@ class VerseMenu extends StatelessWidget {
                 children: [
                   _action(t, LucideIcons.bookOpen, 'الشرح', explain, primary: true),
                   if (canPlay()) _action(t, LucideIcons.play, 'تشغيل من هنا', playFromHere),
+                  if (onBookmark != null)
+                    _action(
+                      t,
+                      (bookmarked?.call(verse) ?? false) ? LucideIcons.bookmarkCheck : LucideIcons.bookmarkPlus,
+                      'مرجع',
+                      () {
+                        onClose();
+                        onBookmark!(verse);
+                      },
+                    ),
                 ],
               ),
               Padding(
@@ -189,6 +209,12 @@ class VerseMenu extends StatelessWidget {
                   _chip(t, LucideIcons.share2, 'مشاركة', () {
                     onClose();
                     onShare!(verse);
+                  }),
+                if (onNote != null)
+                  _chip(t, (hasNote?.call(verse) ?? false) ? LucideIcons.notebookPen : LucideIcons.stickyNote, 'ملاحظة',
+                      () {
+                    onClose();
+                    onNote!(verse);
                   }),
                 if (onStartRange != null)
                   _chip(t, LucideIcons.textSelect, 'بداية نطاق', () => onStartRange!(verse)),

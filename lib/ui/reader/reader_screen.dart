@@ -19,6 +19,7 @@ import '../search/search_screen.dart';
 import '../share/share_sheet.dart';
 import '../shell/app_drawer.dart';
 import '../shell/downloads_screen.dart';
+import '../study/study_sheets.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
@@ -196,6 +197,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     onPlayFrom: (v) => showListenSheet(context, reader, v),
                     onStartRange: reader.startSelection,
                     onShare: (v) => showShareSheet(context, reader.content, v),
+                    onBookmark: reader.personal == null
+                        ? null
+                        : (v) => showBookmarkSheet(context,
+                            personal: reader.personal!, content: reader.content, from: v, onDone: reader.showNotice),
+                    onNote: reader.personal == null
+                        ? null
+                        : (v) => showNoteSheet(context,
+                            personal: reader.personal!, content: reader.content, verse: v, onDone: reader.showNotice),
+                    bookmarked: (v) => reader.personal?.bookmarkAt(v) != null,
+                    hasNote: (v) => reader.personal?.noteFor(v) != null,
                   ),
                 ],
               ),
@@ -389,8 +400,7 @@ class _SelectionHint extends StatelessWidget {
   }
 }
 
-/// The selection bar over the player's zone: تشغيل (with a recording) · نسخ · إلغاء.
-/// «مرجع» joins with bookmarks (P6).
+/// The selection bar over the player's zone: تشغيل (with a recording) · نسخ · مرجع · إلغاء.
 class _SelectionActions extends StatelessWidget {
   final ReaderController reader;
   const _SelectionActions({required this.reader});
@@ -455,6 +465,16 @@ class _SelectionActions extends StatelessWidget {
         children: [
           if (reader.audioAvailable) action(LucideIcons.play, 'تشغيل', reader.playSelection, primary: true),
           action(LucideIcons.copy, 'نسخ', copy),
+          if (reader.personal != null && sel != null)
+            action(LucideIcons.bookmarkPlus, 'مرجع', () {
+              reader.clearSelection();
+              showBookmarkSheet(context,
+                  personal: reader.personal!,
+                  content: reader.content,
+                  from: sel.from,
+                  to: sel.to == sel.from ? null : sel.to,
+                  onDone: reader.showNotice);
+            }),
           action(LucideIcons.x, 'إلغاء', reader.clearSelection),
         ],
       ),

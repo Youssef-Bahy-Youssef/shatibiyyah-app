@@ -171,6 +171,7 @@ class TextReaderState extends State<TextReader> {
 
   Widget _row(TaysirColors t, MatnVerse v, double scale) {
     final on = v.number == _reader.verse;
+    final ribbon = _reader.personal?.ribbons[v.number];
     final sel = _reader.selection;
     final selected = sel != null && sel.from <= v.number && v.number <= sel.to;
     // The page's selection colours: accent blue on paper, gold on espresso.
@@ -223,6 +224,16 @@ class TextReaderState extends State<TextReader> {
                     ],
                   ),
                 ),
+                if (ribbon != null) ...[
+                  const SizedBox(width: 8),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Semantics(
+                      label: 'مرجع',
+                      child: CustomPaint(size: const Size(10, 20), painter: _Ribbon(ribbon)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -281,4 +292,28 @@ class TextReaderState extends State<TextReader> {
       ),
     );
   }
+}
+
+/// The bookmark ribbon of a row (the prototype's 10 × 20 notched tab).
+class _Ribbon extends CustomPainter {
+  final Color color;
+  const _Ribbon(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, 0)
+        ..lineTo(w, 0)
+        ..lineTo(w, h)
+        ..lineTo(w / 2, h * 0.75)
+        ..lineTo(0, h)
+        ..close(),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_Ribbon old) => old.color != color;
 }

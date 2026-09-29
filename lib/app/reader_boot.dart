@@ -16,6 +16,7 @@ import '../services/preferences_service.dart';
 import '../ui/reader/reader_controller.dart';
 import '../ui/widgets/page_viewer.dart';
 import 'audio_library.dart';
+import 'personal_data.dart';
 
 /// The verse the reader was on (restored at launch).
 const String kSessionVerse = 'v2.session.verse';
@@ -58,6 +59,12 @@ Future<ReaderController> bootReader() async {
     initialVerse: initial,
   );
   library.attach(reader);
+  final personal = PersonalData(user);
+  await personal.load();
+  reader.personal = personal;
+  void ribbons() => viewer.setRibbons(personal.ribbons);
+  personal.addListener(ribbons);
+  ribbons();
   var saved = initial;
   reader.addListener(() {
     if (reader.verse != saved) {

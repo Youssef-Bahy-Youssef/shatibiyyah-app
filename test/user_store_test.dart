@@ -64,4 +64,54 @@ void main() {
     store = await UserStore.open(directory: dir.path, factory: databaseFactoryFfi);
     expect(await store.listenedVerses(), {1});
   });
+
+  group('bookmarks', () {
+    test('save creates, save again updates, delete leaves a tombstone', () async {
+      await store.saveBookmark(229, color: BookmarkColor.gold, tag: BookmarkTag.hifz, at: DateTime(2026, 1, 1));
+      await store.saveBookmark(229, color: BookmarkColor.rose, tag: BookmarkTag.ishkal, at: DateTime(2026, 1, 2));
+      var all = await store.bookmarks();
+      expect(all, hasLength(1));
+      expect((all.single.fromVerse, all.single.toVerse, all.single.color, all.single.tag),
+          (229, null, BookmarkColor.rose, BookmarkTag.ishkal));
+
+      await store.deleteBookmark(229);
+      expect(await store.bookmarks(), isEmpty);
+      final rows = await store.db.rawQuery('SELECT deleted_at FROM bookmarks');
+      expect(rows.single['deleted_at'], isNotNull); // kept for merging on restore
+
+      await store.saveBookmark(229, color: BookmarkColor.gold, tag: BookmarkTag.hifz);
+      all = await store.bookmarks();
+      expect(all.single.color, BookmarkColor.gold);
+    });
+
+    test('a range is its own bookmark; the newest change comes first', () async {
+      await store.saveBookmark(226, to: 234, color: BookmarkColor.blue, tag: BookmarkTag.muraja, at: DateTime(2026, 1, 1));
+      await store.saveBookmark(226, color: BookmarkColor.green, tag: BookmarkTag.hifz, at: DateTime(2026, 1, 2));
+      final all = await store.bookmarks();
+      expect(all.map((b) => (b.fromVerse, b.toVerse)), [(226, null), (226, 234)]);
+      expect(all.last.covers(230), isTrue);
+      expect(all.first.covers(230), isFalse);
+      await store.deleteBookmark(226, to: 234);
+      expect((await store.bookmarks()).single.toVerse, isNull);
+    });
+
+    test('uuids are random version-4', () {
+      final a = newUuid(), b = newUuid();
+      expect(a, isNot(b));
+      expect(a, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+    });
+  });
+
+  group('notes', () {
+    test('one note per verse: save, edit, and an empty save deletes', () async {
+      await store.saveNote(229, '  انظر الوافي  ', at: DateTime(2026, 1, 1));
+      await store.saveNote(229, 'انظر إبراز المعاني', at: DateTime(2026, 1, 2));
+      var all = await store.notes();
+      expect(all.single.verse, 229);
+      expect(all.single.body, 'انظر إبراز المعاني');
+      await store.saveNote(229, '   ');
+      expect(await store.notes(), isEmpty);
+      expect((await store.db.rawQuery('SELECT deleted_at FROM notes')).single['deleted_at'], isNotNull);
+    });
+  });
 }
