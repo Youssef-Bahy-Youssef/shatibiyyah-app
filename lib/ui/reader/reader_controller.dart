@@ -64,6 +64,8 @@ class ReaderController extends ChangeNotifier {
   int? _selectionStart; // «بداية نطاق»
   int? _selectionEnd; // the verse tapped after it
   EngineState? _engineState;
+  DateTime? _listenStart; // when the current listening session began (for «السجل»)
+  int _listenFrom = 1;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   ReaderController({
@@ -115,6 +117,7 @@ class ReaderController extends ChangeNotifier {
   /// stays, the repeat counters start again (features-v3 reciter-catalog). The
   /// previous engine belongs to [library], which has already stopped it.
   Future<void> setAudio(Recording recording, PlaybackEngine? engine) async {
+    if (playing) _endListening(_verse);
     await _engineSub?.cancel();
     _engineSub = null;
     _recording = recording;
@@ -318,6 +321,7 @@ class ReaderController extends ChangeNotifier {
 
   // ── following playback ──
   void _onEngineState(EngineState s) {
+    _trackListening(s);
     final changed = s.verse != _verse;
     _engineState = s;
     // Playback itself crossing into a new chapter (a jump sets _verse first, so never here).
@@ -353,6 +357,24 @@ class ReaderController extends ChangeNotifier {
       notifyListeners();
     });
     notifyListeners();
+  }
+
+  /// A session starts when playback starts and is logged when it stops.
+  void _trackListening(EngineState s) {
+    final was = _engineState?.playing ?? false;
+    if (s.playing && !was) {
+      _listenStart = DateTime.now();
+      _listenFrom = s.verse;
+    } else if (!s.playing && was) {
+      _endListening(s.verse);
+    }
+  }
+
+  void _endListening(int lastVerse) {
+    final start = _listenStart;
+    _listenStart = null;
+    if (start == null) return;
+    personal?.logListening(_recording.id, _listenFrom, lastVerse, DateTime.now().difference(start));
   }
 
   // ── chapter heading (features-v3 chapter-header-tap) ──

@@ -13,6 +13,7 @@ import '../models/playback_settings.dart' show K;
 import '../services/device_storage.dart';
 import '../services/download_manager.dart';
 import '../services/preferences_service.dart';
+import '../ui/commentary/commentary_screen.dart';
 import '../ui/reader/reader_controller.dart';
 import '../ui/widgets/page_viewer.dart';
 import 'audio_library.dart';
@@ -62,6 +63,7 @@ Future<ReaderController> bootReader() async {
   final personal = PersonalData(user);
   await personal.load();
   reader.personal = personal;
+  CommentaryScreen.onRead = personal.logCommentary;
   void ribbons() => viewer.setRibbons(personal.ribbons);
   personal.addListener(ribbons);
   ribbons();

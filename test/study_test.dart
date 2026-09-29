@@ -12,9 +12,11 @@ import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
+import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
+import 'package:shatibiyyah/ui/shell/home_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -139,5 +141,67 @@ void main() {
     expect(personal.bookmarkAt(226, to: 230), isNotNull);
     expect(r.selecting, isFalse);
     await unmount(tester);
+  });
+
+  testWidgets('home: continue card, then bookmarks, notes and history, each opening its verse', (tester) async {
+    final (r, personal) = await open(tester);
+    await tester.runAsync(() async {
+      await personal.saveBookmark(229, color: BookmarkColor.green, tag: BookmarkTag.muraja);
+      await personal.saveNote(230, 'قارن بالوافي');
+      await personal.logListening('recording:x', 226, 229, const Duration(seconds: 5)); // too short: not kept
+      await personal.logListening('recording:x', 226, 229, const Duration(minutes: 12));
+      await personal.logCommentary(content.books.defaultBook.id, 226, 226);
+    });
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
+    ));
+    await tester.pump();
+    expect(find.text('تابع من حيث توقفت'), findsOneWidget);
+    expect(find.text('البيت ٢٢٦، ص ١٩'), findsOneWidget);
+    expect(find.text('المراجع (١)'), findsOneWidget);
+    expect(find.text('الملاحظات (١)'), findsOneWidget);
+    expect(find.text('مراجعة'), findsOneWidget); // the tag
+
+    await tester.tap(find.text('الملاحظات (١)'));
+    await tester.pump();
+    expect(find.text('قارن بالوافي'), findsOneWidget);
+
+    await tester.tap(find.text('السجل'));
+    await tester.pump();
+    expect(find.text('استماع الأبيات \u2068٢٢٦–٢٢٩\u2069'), findsOneWidget); // once: the 5 s one was dropped
+    expect(find.textContaining(minutesCount(12)), findsOneWidget);
+    expect(find.text('شرح البيت ٢٢٦'), findsOneWidget);
+
+    await tester.tap(find.text('المراجع (١)'));
+    await tester.pump();
+    await tester.tap(find.text('البيت ٢٢٩'));
+    await tester.pump();
+    expect(r.verse, 229);
+    await unmount(tester);
+  });
+
+  testWidgets('home: empty states say how to add', (tester) async {
+    final (r, _) = await open(tester);
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      home: HomeScreen(reader: r),
+    ));
+    await tester.pump();
+    expect(find.text('لا مراجع بعد'), findsOneWidget);
+    await tester.tap(find.text('السجل'));
+    await tester.pump();
+    expect(find.text('لا سجل بعد'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  test('minutes and days in Arabic', () {
+    expect([for (final n in [1, 2, 3, 12]) minutesCount(n)], ['دقيقة واحدة', 'دقيقتان', '٣ دقائق', '١٢ دقيقة']);
+    final now = DateTime(2026, 9, 30, 12);
+    expect(dayLabel(DateTime(2026, 9, 30, 9), now: now), 'اليوم');
+    expect(dayLabel(DateTime(2026, 9, 29, 23), now: now), 'أمس');
+    expect(dayLabel(DateTime(2026, 9, 25), now: now), 'الجمعة');
+    expect(dayLabel(DateTime(2026, 9, 1), now: now), '\u2066١/٩\u2069');
+    expect(clockTime(DateTime(2026, 9, 30, 9, 5)), '\u2066٩:٠٥\u2069');
   });
 }

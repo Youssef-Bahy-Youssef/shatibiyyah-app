@@ -67,6 +67,20 @@ class Bookmark {
   bool covers(int verse) => fromVerse <= verse && verse <= lastVerse;
 }
 
+enum ActivityKind { listen, commentary }
+
+/// One line of «السجل»: a listening session or a commentary passage read.
+class Activity {
+  final ActivityKind kind;
+  final DateTime at;
+  final int fromVerse;
+  final int toVerse;
+  final String? recordingId;
+  final String? commentaryId;
+  final int? seconds;
+  const Activity(this.kind, this.at, this.fromVerse, this.toVerse, {this.recordingId, this.commentaryId, this.seconds});
+}
+
 class Note {
   final String uuid;
   final int verse;
@@ -212,6 +226,56 @@ class UserStore {
       });
     }
   }
+
+  // ── history (features-v3 reading-history) ──
+
+  /// A listening session: [from]…[to] with [recordingId], [seconds] long.
+  Future<void> logListening(String recordingId, int from, int to, int seconds, {DateTime? at}) => db.insert('activity_log', {
+        'uuid': newUuid(),
+        'at': (at ?? DateTime.now()).millisecondsSinceEpoch,
+        'kind': 'listen',
+        'from_verse_id': _verseId(from),
+        'to_verse_id': _verseId(to),
+        'recording_id': recordingId,
+        'seconds': seconds,
+      });
+
+  /// A commentary passage read. The same passage again within [coalesce] is one
+  /// entry (turning tabs, coming back to it), so the history stays readable.
+  Future<void> logCommentary(String commentaryId, int from, int to,
+      {DateTime? at, Duration coalesce = const Duration(minutes: 10)}) async {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    final recent = await db.rawQuery(
+      "SELECT 1 FROM activity_log WHERE kind = 'commentary' AND commentary_id = ? AND from_verse_id = ? AND at >= ? LIMIT 1",
+      [commentaryId, _verseId(from), now - coalesce.inMilliseconds],
+    );
+    if (recent.isNotEmpty) return;
+    await db.insert('activity_log', {
+      'uuid': newUuid(),
+      'at': now,
+      'kind': 'commentary',
+      'from_verse_id': _verseId(from),
+      'to_verse_id': _verseId(to),
+      'commentary_id': commentaryId,
+    });
+  }
+
+  /// The most recent activity first.
+  Future<List<Activity>> activity({int limit = 50}) async => [
+        for (final r in await db.rawQuery(
+            'SELECT kind, at, from_verse_id, to_verse_id, recording_id, commentary_id, seconds FROM activity_log '
+            'ORDER BY at DESC LIMIT ?',
+            [limit]))
+          Activity(
+            ActivityKind.values.byName(r['kind'] as String),
+            DateTime.fromMillisecondsSinceEpoch(r['at'] as int),
+            _verseNumber(r['from_verse_id'] as String),
+            _verseNumber((r['to_verse_id'] ?? r['from_verse_id']) as String),
+            recordingId: r['recording_id'] as String?,
+            commentaryId: r['commentary_id'] as String?,
+            seconds: r['seconds'] as int?,
+          ),
+      ];
 
   Future<void> close() => db.close();
 }

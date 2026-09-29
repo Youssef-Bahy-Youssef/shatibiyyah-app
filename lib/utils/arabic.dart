@@ -2,6 +2,8 @@
 // ported from app.js: AR(), fmtTime(), normDigits()
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart' show DateUtils;
+
 const String _arDigits = '٠١٢٣٤٥٦٧٨٩';
 
 /// ported from app.js:
@@ -69,6 +71,27 @@ String durationHms(int ms) {
   final s = (ms + 500) ~/ 1000;
   String two(int n) => n < 10 ? '٠${ar(n)}' : ar(n);
   return '\u2066${ar(s ~/ 3600)}:${two(s % 3600 ~/ 60)}:${two(s % 60)}\u2069';
+}
+
+/// «دقيقة واحدة», «دقيقتان», «٣ دقائق», «١٢ دقيقة».
+String minutesCount(int n) => _counted(n, 'دقيقة واحدة', 'دقيقتان', 'دقائق', 'دقيقة', 'دقيقة');
+
+const List<String> _weekdays = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+
+/// «اليوم», «أمس», the weekday within the last week, else «١٢/٩» (day/month).
+String dayLabel(DateTime at, {DateTime? now}) {
+  final today = DateUtils.dateOnly(now ?? DateTime.now());
+  final days = today.difference(DateUtils.dateOnly(at)).inDays;
+  if (days <= 0) return 'اليوم';
+  if (days == 1) return 'أمس';
+  if (days < 7) return _weekdays[at.weekday - 1];
+  return '\u2066${ar(at.day)}/${ar(at.month)}\u2069';
+}
+
+/// «٩:٣٠» (24-hour), left to right like a clock.
+String clockTime(DateTime at) {
+  final m = at.minute < 10 ? '٠${ar(at.minute)}' : ar(at.minute);
+  return '\u2066${ar(at.hour)}:$m\u2069';
 }
 
 /// ported from app.js: fmtTime(sec)

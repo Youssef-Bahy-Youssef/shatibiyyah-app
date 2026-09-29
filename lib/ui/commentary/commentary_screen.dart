@@ -23,6 +23,9 @@ class CommentaryScreen extends StatefulWidget {
   final String? bookId; // default: the default book
   const CommentaryScreen({super.key, required this.content, required this.verse, this.bookId});
 
+  /// Told each passage shown, for «السجل» (set at boot; features-v3 reading-history).
+  static void Function(String bookId, int fromVerse, int toVerse)? onRead;
+
   static Future<void> open(BuildContext context, AppContent content, int verse, {String? bookId}) =>
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => CommentaryScreen(content: content, verse: verse, bookId: bookId),
@@ -80,6 +83,8 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
       if (ref.fromVerse != null && (_verse < ref.fromVerse! || _verse > ref.toVerse!)) _verse = ref.fromVerse!;
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    final from = ref.fromVerse;
+    if (from != null) CommentaryScreen.onRead?.call(ref.bookId, from, ref.toVerse ?? from);
   }
 
   Future<void> _step(int direction) async {

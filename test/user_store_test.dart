@@ -114,4 +114,23 @@ void main() {
       expect((await store.db.rawQuery('SELECT deleted_at FROM notes')).single['deleted_at'], isNotNull);
     });
   });
+
+  group('history', () {
+    test('listening sessions and commentary reads, newest first; a re-read soon after is one entry', () async {
+      await store.logListening('recording:a', 226, 229, 720, at: DateTime(2026, 1, 1, 9, 30));
+      await store.logCommentary('commentary:wafi', 226, 226, at: DateTime(2026, 1, 1, 9, 10));
+      await store.logCommentary('commentary:wafi', 226, 226, at: DateTime(2026, 1, 1, 9, 15)); // same passage
+      await store.logCommentary('commentary:ibraz', 226, 227, at: DateTime(2026, 1, 1, 9, 16));
+      final all = await store.activity();
+      expect(all.map((a) => (a.kind, a.fromVerse, a.toVerse)), [
+        (ActivityKind.listen, 226, 229),
+        (ActivityKind.commentary, 226, 227),
+        (ActivityKind.commentary, 226, 226),
+      ]);
+      expect(all.first.seconds, 720);
+      expect(all.first.recordingId, 'recording:a');
+      await store.logCommentary('commentary:wafi', 226, 226, at: DateTime(2026, 1, 1, 9, 40)); // later: new entry
+      expect(await store.activity(), hasLength(4));
+    });
+  });
 }
