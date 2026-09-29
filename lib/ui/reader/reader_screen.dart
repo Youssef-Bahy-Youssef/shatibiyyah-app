@@ -16,6 +16,7 @@ import '../shell/app_drawer.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
+import 'listen_sheet.dart';
 import 'reader_controller.dart';
 import 'shamsa.dart';
 import 'text_reader.dart';
@@ -141,7 +142,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     anchor: (v) => _anchor(v, layout),
                     onClose: reader.closeMenu,
                     canPlay: () => reader.audioAvailable,
-                    onPlayFrom: reader.tapVerse,
+                    onPlayFrom: (v) => showListenSheet(context, reader, v),
                   ),
                 ],
               ),

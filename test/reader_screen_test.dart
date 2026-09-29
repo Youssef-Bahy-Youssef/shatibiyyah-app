@@ -1,5 +1,6 @@
 // The v3 reader shell: the page never moves when the chrome toggles; the top bar and
 // the player show what the spec says; the verse menu opens from a long-press.
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,14 +10,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
+import 'package:shatibiyyah/domain/playback_engine.dart';
+import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/shell/about_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+/// An audio port that plays nothing: enough for the reader to offer playback.
+class SilentAudio implements AudioPort {
+  bool _playing = false;
+  @override
+  Stream<int> get positionMs => const Stream.empty();
+  @override
+  int get currentPositionMs => 0;
+  @override
+  bool get playing => _playing;
+  @override
+  Future<void> seek(int ms) async {}
+  @override
+  Future<void> play() async => _playing = true;
+  @override
+  Future<void> pause() async => _playing = false;
+  @override
+  Future<void> setSpeed(double speed) async {}
+}
 
 void main() {
   sqfliteFfiInit();
@@ -37,7 +60,7 @@ void main() {
     await support.delete(recursive: true);
   });
 
-  Future<ReaderController> reader(WidgetTester tester, {int verse = 226}) async {
+  Future<ReaderController> reader(WidgetTester tester, {int verse = 226, bool audio = false}) async {
     SharedPreferences.setMockInitialValues({});
     late ReaderController r;
     await tester.runAsync(() async {
@@ -49,6 +72,9 @@ void main() {
         recording: recording,
         windows: windows,
         viewer: PageViewerController(legacyData(content, windows), prefs),
+        engine: audio
+            ? PlaybackEngine(SilentAudio(), PlaybackPlan(windows, PlaybackScope(verse, verse), const PlaybackSettings()))
+            : null,
         initialVerse: verse,
       );
     });
@@ -216,6 +242,33 @@ void main() {
     await tester.pump();
     expect(r.menuVerse, isNull);
     expect(find.byType(ReaderScreen), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('«تشغيل من هنا» asks how far: the verse, the chapter or the poem', (tester) async {
+    final r = await reader(tester, audio: true);
+    await show(tester, r);
+    r.openMenu(229);
+    await tester.pump();
+    await tester.tap(find.text('تشغيل من هنا'));
+    await tester.pumpAndSettle();
+    expect(r.menuVerse, isNull);
+    expect(find.text('الاستماع إلى؟'), findsOneWidget);
+    expect(find.text('البيت ٢٢٩'), findsOneWidget);
+    expect(find.text('من ٢٢٩ إلى ٢٣٤'), findsOneWidget);
+    expect(find.text('من ٢٢٩ إلى ١١٧٣'), findsOneWidget);
+
+    await tester.tap(find.text('إلى نهاية الباب'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 60)); // the playing shamsa never settles
+    }
+    expect(find.text('الاستماع إلى؟'), findsNothing);
+    expect((r.engine!.plan.scope.fromVerse, r.engine!.plan.scope.toVerse), (229, 234));
+    expect(r.verse, 229);
+    expect(r.engine!.audio.playing, isTrue);
+
+    // On a chapter's last verse «إلى نهاية الباب» would repeat «البيت فقط».
+    expect([for (final o in listenOptions(r, 234)) o.title], ['البيت فقط', 'إلى نهاية المتن']);
     await unmount(tester);
   });
 

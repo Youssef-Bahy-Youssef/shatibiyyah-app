@@ -201,8 +201,12 @@ class ReaderController extends ChangeNotifier {
   Future<void> playScope(PlaybackScope scope) async {
     final e = engine;
     if (e == null) return;
-    e.plan.scope = scope;
+    _menuVerse = null;
+    _verse = scope.fromVerse;
     _detached = false;
+    viewer.setActiveVerse(_verse);
+    e.plan.scope = scope;
+    notifyListeners();
     await e.play(scope.fromVerse);
   }
 
