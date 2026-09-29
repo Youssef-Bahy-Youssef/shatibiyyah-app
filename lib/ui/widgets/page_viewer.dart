@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../../models/playback_settings.dart' show K, clampd;
 import '../../services/data_service.dart';
@@ -24,6 +25,9 @@ const double _tapSlop = 10;
 const double _swipeMin = 55;
 const int _dblMs = 300;
 const double _dblSlop = 34;
+
+/// Hold time before a verse's action menu opens (features-v3: 450 ms).
+const int kLongPressMs = 450;
 
 // page-viewer.js COLORS / CHAPTER_COLORS
 class _Col {
@@ -78,12 +82,16 @@ class PageViewerController extends ChangeNotifier {
 
   // ── event streams (mirror addEventListener) ──
   final _verseTap = StreamController<int>.broadcast();
+  final _verseLongPress = StreamController<int>.broadcast();
   final _pageChange = StreamController<int>.broadcast();
   final _chapterTap = StreamController<int>.broadcast();
   final _pageTap = StreamController<void>.broadcast();
   final _viewPref = StreamController<ViewPrefs>.broadcast();
   final _openSearch = StreamController<void>.broadcast();
   Stream<int> get onVerseTap => _verseTap.stream;
+
+  /// A verse held for [kLongPressMs] without moving: opens its action menu.
+  Stream<int> get onVerseLongPress => _verseLongPress.stream;
   Stream<int> get onPageChange => _pageChange.stream;
   Stream<int> get onChapterTap => _chapterTap.stream;
   Stream<void> get onPageTap => _pageTap.stream;
@@ -408,6 +416,15 @@ class PageViewerController extends ChangeNotifier {
 
   void emitOpenSearch() => _emit(_openSearch);
 
+  /// Where verse [id] is drawn, in the viewer's local coordinates, or null when it
+  /// is not on the page being shown.
+  Rect? viewRectOfVerse(int id) {
+    final b = data.getBox(id);
+    if (b == null || b.page != currentPage) return null;
+    final eff = baseScale * zoom;
+    return Rect.fromLTWH(b.x * eff + tx, b.y * eff + ty, b.w * eff, b.h * eff);
+  }
+
   // ── hit-testing (ported: _imageCoords / _hitVerse / _hitChapter / _handleTap) ──
   ({double ix, double iy}) _imageCoords(Offset local) {
     // screen = image·baseScale·zoom + (tx,ty)  ⇒  image = (local-(tx,ty))/(baseScale·zoom)
@@ -490,6 +507,32 @@ class PageViewerController extends ChangeNotifier {
   ({double dist0, double z0, double sx, double sy})? _pinch;
   double _lastX = 0, _lastY = 0, _lastMoveT = 0, _vx = 0, _vy = 0;
   ({double t, double x, double y}) _lastTap = (t: 0, x: 0, y: 0);
+  Timer? _longPressTimer;
+  bool _longPressed = false;
+
+  void _cancelLongPress() {
+    _longPressTimer?.cancel();
+    _longPressTimer = null;
+  }
+
+  void _armLongPress(Offset local) {
+    _cancelLongPress();
+    _longPressed = false;
+    _longPressTimer = Timer(const Duration(milliseconds: kLongPressMs), () {
+      if (_moved || _pts.length != 1) return;
+      final p = _imageCoords(local);
+      final hit = _hitVerse(p.ix, p.iy);
+      if (hit == null) return;
+      _longPressed = true;
+      final b = data.getBox(hit);
+      if (b != null) {
+        pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+        _invalidate();
+      }
+      HapticFeedback.selectionClick();
+      _verseLongPress.add(hit);
+    });
+  }
 
   Offset _centroid() {
     double sx = 0, sy = 0;
@@ -519,7 +562,9 @@ class PageViewerController extends ChangeNotifier {
       _panTx = tx;
       _panTy = ty;
       _vx = _vy = 0;
+      _armLongPress(local);
     } else if (_pts.length == 2) {
+      _cancelLongPress();
       _mode = 'pinch';
       _moved = true;
       final c = _centroid();
@@ -552,7 +597,10 @@ class PageViewerController extends ChangeNotifier {
     if (_pts.length != 1) return;
     final dx = local.dx - _startX;
     final dy = local.dy - _startY;
-    if (!_moved && (Offset(dx, dy)).distance > _tapSlop) _moved = true;
+    if (!_moved && (Offset(dx, dy)).distance > _tapSlop) {
+      _moved = true;
+      _cancelLongPress();
+    }
     if (!_moved) return;
 
     final zoomed = zoom > 1.02;
@@ -589,6 +637,13 @@ class PageViewerController extends ChangeNotifier {
     final had = _pts.containsKey(id);
     _pts.remove(id);
     if (!had) return;
+    _cancelLongPress();
+    if (_longPressed) {
+      // The hold already opened the menu; the release is not a tap.
+      _longPressed = false;
+      _mode = null;
+      return;
+    }
 
     if (_mode == 'pinch') {
       if (zoom < 1.02) resetView(true);
@@ -644,6 +699,8 @@ class PageViewerController extends ChangeNotifier {
   }
 
   void pointerCancel(int id) {
+    _cancelLongPress();
+    _longPressed = false;
     _pts.remove(id);
     if (_pts.isEmpty) _mode = null;
   }
@@ -684,7 +741,9 @@ class PageViewerController extends ChangeNotifier {
     _xform?.dispose();
     _overlay?.dispose();
     _momentum?.dispose();
+    _cancelLongPress();
     _verseTap.close();
+    _verseLongPress.close();
     _pageChange.close();
     _chapterTap.close();
     _pageTap.close();

@@ -58,6 +58,7 @@ import 'services/audio_service.dart';
 import 'services/preferences_service.dart';
 import 'services/sync_service.dart';
 import 'theme.dart';
+import 'ui/design/taysir_colors.dart';
 import 'ui/home_screen.dart';
 import 'ui/widgets/page_viewer.dart';
 
@@ -108,6 +109,7 @@ class ShatibiyyahApp extends StatelessWidget {
         ),
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
+        extensions: const [TaysirColors.dark],
       ),
       builder: (context, child) =>
           Directionality(textDirection: TextDirection.rtl, child: child!),

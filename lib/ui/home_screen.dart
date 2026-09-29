@@ -15,6 +15,7 @@ import 'widgets/page_chrome.dart';
 import 'widgets/page_viewer.dart';
 import 'widgets/range_selector.dart';
 import 'widgets/sync_controls.dart';
+import 'widgets/verse_menu.dart';
 import 'widgets/verse_text_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -106,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         PickerSheet(app: app),
+        VerseMenu(app: app),
       ],
     );
   }
@@ -200,6 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
         PickerSheet(app: app),
         // full-screen verse search overlay
         SearchOverlay(app: app),
+        // long-press verse menu (on top of everything)
+        VerseMenu(app: app),
       ],
     );
   }

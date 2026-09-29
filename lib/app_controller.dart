@@ -67,6 +67,21 @@ class AppController extends ChangeNotifier {
   bool pickerOpen = false;
   SheetType pickerType = SheetType.pause;
 
+  // ── verse action menu (long-press) ──
+  int? menuVerse;
+
+  void openVerseMenu(int verse) {
+    clearChapterSelection();
+    menuVerse = verse;
+    notifyListeners();
+  }
+
+  void closeVerseMenu() {
+    if (menuVerse == null) return;
+    menuVerse = null;
+    notifyListeners();
+  }
+
   // ── clickable chapter headers ──
   int? selectedChapter; // chapterAction band
 
@@ -163,6 +178,7 @@ class AppController extends ChangeNotifier {
       ),
     );
     _subs.add(viewer.onVerseTap.listen((_) => clearChapterSelection()));
+    _subs.add(viewer.onVerseLongPress.listen(openVerseMenu));
     _subs.add(viewer.onPageTap.listen((_) => _onPageTap()));
     _subs.add(viewer.onOpenSearch.listen((_) => openSearchOverlay()));
     _subs.add(viewer.onViewPref.listen((_) => notifyListeners()));
@@ -579,6 +595,7 @@ class AppController extends ChangeNotifier {
   }
 
   bool _anyPanelOpen() =>
+      menuVerse != null ||
       consoleExpanded ||
       rangeSheetOpen ||
       searchOverlayOpen ||
