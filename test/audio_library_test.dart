@@ -18,6 +18,7 @@ import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
+import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -214,5 +215,76 @@ void main() {
     expect(reader.recording.slug, 'abdulhamid-alqaryu-1');
     expect(reader.verse, 229);
     expect(find.byType(DownloadsScreen), findsOneWidget);
+  });
+
+  group('first run', () {
+    Future<(AudioLibrary, Prefs)> openTour(WidgetTester tester, {bool replay = false}) async {
+      late AudioLibrary library;
+      late Prefs prefs;
+      await tester.runAsync(() async {
+        (library, _, _, _) = await setUpLibrary();
+        prefs = library.prefs;
+      });
+      await host(
+        tester,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => TourScreen.open(context, content: content, library: library, prefs: prefs, replay: replay),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      return (library, prefs);
+    }
+
+    testWidgets('three cards, «تخطَّ» on each; then the reciter; «ابدأ التلاوة» ends the first run', (tester) async {
+      final (_, prefs) = await openTour(tester);
+      expect(find.text('المخطوط أولًا'), findsOneWidget);
+      expect(find.text('تخطَّ'), findsOneWidget);
+      await tester.tap(find.text('التالي'));
+      await tester.pump();
+      expect(find.text('كل شيء حول البيت'), findsOneWidget);
+      await tester.tap(find.text('التالي'));
+      await tester.pump();
+      expect(find.text('الشروح الثلاثة على جهازك'), findsOneWidget);
+      expect(find.textContaining('اختبار'), findsNothing);
+      await tester.tap(find.text('اختر القارئ'));
+      await tester.pump();
+      expect(find.text('اختر القارئ'), findsOneWidget); // the pick screen's title
+      expect(find.text('ابدأ التلاوة'), findsOneWidget); // Atiq is on the device
+      expect(tourDone(prefs), isFalse);
+      await tester.tap(find.text('ابدأ التلاوة'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TourScreen), findsNothing);
+      expect(tourDone(prefs), isTrue);
+    });
+
+    testWidgets('a reciter not on the device: «تنزيل … والبدء» or «لاحقًا»', (tester) async {
+      final (library, prefs) = await openTour(tester);
+      await tester.tap(find.text('تخطَّ'));
+      await tester.pump();
+      await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
+      await settle(tester);
+      expect(find.text('تنزيل ٢٥٢ م.ب والبدء'), findsOneWidget);
+      await tester.tap(find.text('لاحقًا، ابدأ بالقراءة'));
+      await tester.pumpAndSettle();
+      expect(tourDone(prefs), isTrue);
+      expect(library.current.slug, 'abdulhamid-alqaryu-1');
+    });
+
+    testWidgets('replayed from «حول»: the cards only, ending with «تم»', (tester) async {
+      await openTour(tester, replay: true);
+      await tester.tap(find.text('التالي'));
+      await tester.pump();
+      await tester.tap(find.text('التالي'));
+      await tester.pump();
+      await tester.tap(find.text('تم'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TourScreen), findsNothing);
+    });
   });
 }

@@ -267,7 +267,7 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
                   Text('يبقى البيت الحالي عند التبديل', style: kufi(size: 12.5, weight: 400, color: t.muted)),
                   const SizedBox(height: 12),
                   for (final r in library.recordings) ...[
-                    _ReciterOption(
+                    ReciterOption(
                       library: library,
                       recording: r,
                       onPick: () async {
@@ -304,11 +304,11 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
       },
     );
 
-class _ReciterOption extends StatelessWidget {
+class ReciterOption extends StatelessWidget {
   final AudioLibrary library;
   final Recording recording;
   final VoidCallback onPick;
-  const _ReciterOption({required this.library, required this.recording, required this.onPick});
+  const ReciterOption({super.key, required this.library, required this.recording, required this.onPick});
 
   @override
   Widget build(BuildContext context) {

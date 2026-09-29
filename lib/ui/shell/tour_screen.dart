@@ -1,0 +1,302 @@
+// lib/ui/shell/tour_screen.dart — first run: the tour, then «اختر القارئ»
+// (features-v3 onboarding-tour, reciter-catalog).
+//
+// Three short cards over the real page (page 19, not an illustration): the
+// manuscript with the playing verse; a verse held for its menu; the three books on
+// the device. «تخطَّ» is always there, and «حول» can replay the tour. No
+// permission is asked here. Card 3 is «الشروح الثلاثة على جهازك» (plan rev. 3: the
+// prototype's third card hinted at the quiz, which v2 drops).
+//
+// Then the reciter: the pages and books already work; pick a voice, and either
+// download it and start (the download goes on while reading) or «لاحقًا».
+import 'package:flutter/material.dart';
+
+import '../../app/audio_library.dart';
+import '../../data/app_content.dart';
+import '../../services/preferences_service.dart';
+import '../../theme.dart' show kufi, naskh;
+import '../../utils/arabic.dart';
+import '../design/taysir_colors.dart';
+import '../design/taysir_logo.dart';
+import 'downloads_screen.dart' show ReciterOption;
+
+/// Set once the first run is over (tour and pick seen or skipped).
+const String kTourDonePref = 'v2.tour.done';
+
+bool tourDone(Prefs prefs) => prefs.getString(kTourDonePref) == '1';
+
+const _cards = [
+  (
+    title: 'المخطوط أولًا',
+    text: 'صفحات الشاطبية كما كُتبت، والبيت الذي يُتلى مظلَّل. المس الصفحة لإخفاء كل شيء.',
+    verse: 226,
+    held: false,
+  ),
+  (
+    title: 'كل شيء حول البيت',
+    text: 'اضغط مطوّلًا على بيت لتقرأ شرحه، أو تسمعه من موضعه، أو تنسخه وتشاركه.',
+    verse: 229,
+    held: true,
+  ),
+  (
+    title: 'الشروح الثلاثة على جهازك',
+    text: 'الوافي وإبراز المعاني وسراج القارئ مع الصفحات والنص، تعمل دون اتصال. التلاوة وحدها تُنزَّل مرة واحدة.',
+    verse: null,
+    held: false,
+  ),
+];
+
+class TourScreen extends StatefulWidget {
+  final AppContent content;
+  final AudioLibrary? library;
+  final Prefs prefs;
+
+  /// Replayed from «حول»: the reciter step is skipped.
+  final bool replay;
+  const TourScreen({super.key, required this.content, required this.library, required this.prefs, this.replay = false});
+
+  static Future<void> open(BuildContext context, {required AppContent content, AudioLibrary? library, required Prefs prefs, bool replay = false}) =>
+      Navigator.of(context).push(MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => TourScreen(content: content, library: library, prefs: prefs, replay: replay),
+      ));
+
+  @override
+  State<TourScreen> createState() => _TourScreenState();
+}
+
+class _TourScreenState extends State<TourScreen> {
+  int _card = 0;
+  bool _picking = false;
+
+  void _finish() {
+    widget.prefs.setString(kTourDonePref, '1');
+    Navigator.of(context).pop();
+  }
+
+  void _next() {
+    if (_card < _cards.length - 1) {
+      setState(() => _card++);
+    } else {
+      _toPick();
+    }
+  }
+
+  void _toPick() {
+    if (widget.replay || widget.library == null) {
+      _finish();
+    } else {
+      setState(() => _picking = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: t.bg,
+        body: SafeArea(
+          child: _picking ? _PickReciter(library: widget.library!, onDone: _finish) : _tour(t),
+        ),
+      ),
+    );
+  }
+
+  Widget _tour(TaysirColors t) {
+    final card = _cards[_card];
+    final last = _card == _cards.length - 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          child: Row(
+            children: [
+              const TaysirLogo(size: 34),
+              const SizedBox(width: 10),
+              Text('${ar(_card + 1)} من ${ar(_cards.length)}', style: kufi(size: 13, weight: 400, color: t.muted)),
+              const Spacer(),
+              TextButton(
+                onPressed: _toPick,
+                child: Text('تخطَّ', style: kufi(size: 14, weight: 500, color: t.goldText)),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: _MiniPage(content: widget.content, verse: card.verse, held: card.held),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(card.title, style: kufi(size: 24, weight: 600, color: t.text, height: 1.35)),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 100,
+                child: Text(card.text, style: naskh(size: 19, color: t.dim, height: 1.8)),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Row(
+            children: [
+              for (var i = 0; i < _cards.length; i++) ...[
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: i == _card ? 22 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: i == _card ? t.gold : t.line,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              const Spacer(),
+              FilledButton(
+                onPressed: _next,
+                style: FilledButton.styleFrom(
+                  backgroundColor: t.gold,
+                  minimumSize: const Size(140, 52),
+                  shape: const StadiumBorder(),
+                ),
+                child: Text(last && !widget.replay ? 'اختر القارئ' : (last ? 'تم' : 'التالي'),
+                    style: kufi(size: 16, weight: 600, color: t.onGold)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The real page 19, small, with a verse highlighted as playing or as held.
+class _MiniPage extends StatelessWidget {
+  final AppContent content;
+  final int? verse;
+  final bool held;
+  const _MiniPage({required this.content, required this.verse, required this.held});
+
+  @override
+  Widget build(BuildContext context) {
+    const page = 19;
+    return AspectRatio(
+      aspectRatio: 1130 / 1735,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [BoxShadow(color: Color(0x59000000), blurRadius: 50, offset: Offset(0, 20))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset('assets/pages/page${page.toString().padLeft(3, '0')}.webp', fit: BoxFit.fill),
+              if (verse != null)
+                CustomPaint(painter: _VerseMark(content.layout.verseRegion(verse!).rect, held: held)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerseMark extends CustomPainter {
+  final Rect box; // in scan pixels (1130 × 1735)
+  final bool held;
+  const _VerseMark(this.box, {required this.held});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 1130;
+    final rect = Rect.fromLTRB(box.left * k - 4, box.top * k - 4, box.right * k + 4, box.bottom * k + 4);
+    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(6));
+    if (held) {
+      // The rest of the page dims around the held verse, as under the verse menu.
+      canvas.drawDRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.zero),
+        rr,
+        Paint()..color = const Color(0x80140D05),
+      );
+    }
+    canvas.drawRRect(rr, Paint()..color = const Color(0xFFFFAB2E).withValues(alpha: held ? 0.18 : 0.32));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = held ? 2.5 : 2
+        ..color = const Color(0xFFFFAB2E),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_VerseMark old) => old.box != box || old.held != held;
+}
+
+/// «اختر القارئ»: the pages and books already work; choose a voice.
+class _PickReciter extends StatelessWidget {
+  final AudioLibrary library;
+  final VoidCallback onDone;
+  const _PickReciter({required this.library, required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    return AnimatedBuilder(
+      animation: library,
+      builder: (context, _) {
+        final r = library.current;
+        final onDevice = library.isOnDevice(r);
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+          children: [
+            Text('اختر القارئ', style: kufi(size: 24, weight: 600, color: t.text)),
+            const SizedBox(height: 6),
+            Text('تعمل الصفحات والشروح الآن دون تنزيل. اختر صوتًا تسمعه مع كل بيت.',
+                style: naskh(size: 18, color: t.dim, height: 1.7)),
+            const SizedBox(height: 16),
+            for (final rec in library.recordings) ...[
+              ReciterOption(library: library, recording: rec, onPick: () => library.choose(rec)),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                if (!onDevice) library.download(r); // goes on while reading
+                onDone();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: t.gold,
+                minimumSize: const Size.fromHeight(52),
+                shape: const StadiumBorder(),
+              ),
+              child: Text(onDevice ? 'ابدأ التلاوة' : 'تنزيل ${megabytes(r.localBytes)} والبدء',
+                  style: kufi(size: 16, weight: 600, color: t.onGold)),
+            ),
+            if (!onDevice) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onDone,
+                child: Text('لاحقًا، ابدأ بالقراءة', style: kufi(size: 14.5, weight: 500, color: t.goldText)),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}

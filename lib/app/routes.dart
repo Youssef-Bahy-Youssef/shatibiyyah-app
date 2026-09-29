@@ -28,7 +28,7 @@ enum AppRoute {
   Widget build(ReaderController reader) => switch (this) {
     contents => IndexScreen(reader: reader),
     downloads when reader.library != null => DownloadsScreen(library: reader.library!),
-    about => const AboutScreen(),
+    about => AboutScreen(reader: reader),
     _ => ComingSoonScreen(title: label, icon: icon),
   };
 }

@@ -18,6 +18,7 @@ import 'ui/design/app_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
 import 'ui/shell/boot_splash.dart';
+import 'ui/shell/tour_screen.dart';
 
 /// The lock-screen handler, when the platform service started.
 LockScreenHandler? lockScreen;
@@ -114,10 +115,19 @@ class _BootState extends State<_Boot> {
     }
   }
 
+  /// The first time only: the tour, then «اختر القارئ» (features-v3 onboarding-tour).
+  void _firstRun() {
+    final reader = _reader;
+    final prefs = reader?.store?.prefs;
+    if (reader == null || prefs == null || tourDone(prefs)) return;
+    TourScreen.open(context, content: reader.content, library: reader.library, prefs: prefs);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BootSplash(
       ready: _reader != null || _error,
+      onGone: _firstRun,
       child: _reader != null
           ? ReaderScreen(reader: _reader!)
           : (_error ? const _ErrorScreen() : const SizedBox.shrink()),

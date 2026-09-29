@@ -1,12 +1,14 @@
 // lib/ui/shell/about_screen.dart — «حول» (features-v3 about-and-support): the app
-// icon, name, the poem's title, version and a one-line description. «أرسل ملاحظة»
-// waits for a support address and «أعد الجولة» for the tour (P5).
+// icon, name, the poem's title, version, a one-line description and «أعد الجولة».
+// «أرسل ملاحظة» waits for a support address.
 import 'package:flutter/material.dart';
 
 import '../../theme.dart' show kufi, naskh;
 import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
+import '../reader/reader_controller.dart';
 import 'shell_page.dart';
+import 'tour_screen.dart';
 
 /// The app version shown to users; test/app_version_test.dart keeps it equal to pubspec's.
 const String kAppVersion = '1.0.0';
@@ -22,7 +24,9 @@ String versionLabel(String version) {
 }
 
 class AboutScreen extends StatelessWidget {
-  const AboutScreen({super.key});
+  /// For «أعد الجولة» (null: no replay, e.g. in tests).
+  final ReaderController? reader;
+  const AboutScreen({super.key, this.reader});
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +59,26 @@ class AboutScreen extends StatelessWidget {
             textAlign: TextAlign.center,
             style: kufi(size: 15, weight: 400, color: t.dim, height: 1.7),
           ),
+          if (reader?.store != null) ...[
+            const SizedBox(height: 24),
+            Center(
+              child: OutlinedButton(
+                onPressed: () => TourScreen.open(
+                  context,
+                  content: reader!.content,
+                  library: reader!.library,
+                  prefs: reader!.store!.prefs,
+                  replay: true,
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  side: BorderSide(color: t.line),
+                  shape: const StadiumBorder(),
+                ),
+                child: Text('أعد الجولة', style: kufi(size: 14.5, weight: 500, color: t.text)),
+              ),
+            ),
+          ],
         ],
       ),
     );

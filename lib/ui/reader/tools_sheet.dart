@@ -304,7 +304,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
       row(LucideIcons.info, 'حول', 'الإصدار والتعريف', () {
         final navigator = Navigator.of(context);
         navigator.pop();
-        navigator.push(MaterialPageRoute<void>(builder: (_) => const AboutScreen()));
+        navigator.push(MaterialPageRoute<void>(builder: (_) => AboutScreen(reader: r)));
       }),
     ]);
   }

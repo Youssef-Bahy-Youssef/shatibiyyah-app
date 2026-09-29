@@ -23,7 +23,10 @@ class BootSplash extends StatefulWidget {
   /// Whether whatever the splash covers has finished loading.
   final bool ready;
   final Widget child;
-  const BootSplash({super.key, required this.ready, required this.child});
+
+  /// Called once the splash has faded out (e.g. to open the first-run tour).
+  final VoidCallback? onGone;
+  const BootSplash({super.key, required this.ready, required this.child, this.onGone});
 
   @override
   State<BootSplash> createState() => _BootSplashState();
@@ -67,7 +70,10 @@ class _BootSplashState extends State<BootSplash> {
             opacity: leaving ? 0 : 1,
             duration: kSplashFade,
             onEnd: () {
-              if (leaving && mounted) setState(() => _gone = true);
+              if (leaving && mounted) {
+                setState(() => _gone = true);
+                widget.onGone?.call();
+              }
             },
             child: IgnorePointer(
               ignoring: leaving,
