@@ -13,6 +13,8 @@ import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
+import 'package:shatibiyyah/ui/shell/about_screen.dart';
+import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -142,7 +144,7 @@ void main() {
 
     testWidgets('shows the chapter as rows in place of the page; the chrome stays', (tester) async {
       final r = await textMode(tester);
-      expect(find.text('الباب ١١ · ٩ أبيات'), findsOneWidget);
+      expect(find.text('الباب ١١، ٩ أبيات'), findsOneWidget);
       expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
       expect(find.text(sadr(226)), findsOneWidget);
       expect(find.text(content.matn.verse(226).secondHemistich), findsOneWidget);
@@ -195,13 +197,82 @@ void main() {
       await tester.scrollUntilVisible(find.text('الباب التالي'), 200);
       await tester.tap(find.text('الباب التالي'));
       await tester.pump();
-      expect(find.text('الباب ١٢ · ٢٠ بيتًا'), findsOneWidget);
+      expect(find.text('الباب ١٢، ٢٠ بيتًا'), findsOneWidget);
       expect(r.verse, 226); // browsing does not move the reader
       r.tapVerse(228);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('الباب ١١ · ٩ أبيات'), findsOneWidget);
+      expect(find.text('الباب ١١، ٩ أبيات'), findsOneWidget);
       await unmount(tester);
     });
+  });
+
+  testWidgets('Back closes the verse menu and stays in the reader', (tester) async {
+    final r = await reader(tester);
+    await show(tester, r);
+    r.openMenu(229);
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(r.menuVerse, isNull);
+    expect(find.byType(ReaderScreen), findsOneWidget);
+    await unmount(tester);
+  });
+
+  group('drawer', () {
+    testWidgets('☰ opens the seven destinations; the index opens a chapter in the reader', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      await tester.tap(find.byTooltip('القائمة'));
+      await tester.pumpAndSettle();
+      for (final label in ['الرئيسية والمكتبة', 'الفهرس', 'التنزيلات', 'التنبيهات', 'الإعدادات', 'رموز القراء', 'حول']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+
+      await tester.tap(find.text('الفهرس'));
+      await tester.pumpAndSettle();
+      expect(find.byType(IndexScreen), findsOneWidget);
+      expect(find.text('الأبيات \u2068٩٥–٤٤٤\u2069، ٢٨ بابًا'), findsOneWidget);
+      final list = find.descendant(of: find.byType(IndexScreen), matching: find.byType(Scrollable)).first;
+      await tester.scrollUntilVisible(find.text('الحالي'), 300, scrollable: list);
+      expect(find.text('الحالي'), findsOneWidget); // verse 226's chapter, in الأصول
+
+      await tester.drag(list, const Offset(0, 5000)); // back to the part chips
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('فرش الحروف'));
+      await tester.pumpAndSettle();
+      final first = content.matn.chapters.firstWhere((c) => c.partId == content.matn.parts[2].id);
+      await tester.tap(find.text(first.shortLabel));
+      await tester.pumpAndSettle();
+      expect(find.byType(IndexScreen), findsNothing);
+      expect(r.verse, first.fromVerse);
+      await unmount(tester);
+    });
+
+    testWidgets('a later-phase destination opens «قريبًا»; حول shows the version', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      await tester.tap(find.byTooltip('القائمة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('الإعدادات'));
+      await tester.pumpAndSettle();
+      expect(find.text('قريبًا في تحديث قادم'), findsOneWidget);
+      await tester.tap(find.byTooltip('رجوع'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('القائمة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('حول'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AboutScreen), findsOneWidget);
+      expect(find.text(versionLabel(kAppVersion)), findsOneWidget);
+      await unmount(tester);
+    });
+  });
+
+  test('the version shown in «حول» is pubspec\'s', () {
+    final line = File('pubspec.yaml').readAsLinesSync().firstWhere((l) => l.startsWith('version:'));
+    expect(line.split(':').last.trim().split('+').first, kAppVersion);
+    expect(versionLabel('2.0.1'), 'الإصدار ٢٫٠٫١');
   });
 }

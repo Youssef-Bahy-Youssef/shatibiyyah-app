@@ -12,6 +12,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
+import '../shell/app_drawer.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
@@ -37,6 +38,7 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   final _text = GlobalKey<TextReaderState>();
+  final _scaffold = GlobalKey<ScaffoldState>();
 
   ReaderController get reader => widget.reader;
 
@@ -53,7 +55,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        key: _scaffold,
         backgroundColor: t.bg,
+        drawer: AppDrawer(reader: reader),
         body: DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
@@ -66,74 +70,81 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: AnimatedBuilder(
             animation: reader,
             // Every child is positioned, so without `expand` the stack is 0×0 and clips them all.
-            builder: (context, _) => Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fromRect(
-                  rect: layout.page,
-                  // Kept mounted in text mode so the page is where it was when the student returns.
-                  child: Offstage(
-                    offstage: reader.textMode,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: PageViewer(controller: reader.viewer),
-                    ),
-                  ),
-                ),
-                if (reader.textMode)
+            // Back closes the verse menu before it leaves the reader (the menu is not a route).
+            builder: (context, _) => PopScope(
+              canPop: reader.menuVerse == null,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) reader.closeMenu();
+              },
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
                   Positioned.fromRect(
-                    rect: layout.textZone,
-                    child: TextReader(key: _text, reader: reader),
-                  ),
-                if (!reader.chromeVisible && !reader.textMode)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: mq.padding.bottom + 12,
-                    child: IgnorePointer(
-                      child: Center(
-                        child: Text(ar(reader.page),
-                            style: naskh(size: 13, color: t.muted.withValues(alpha: 0.7))),
+                    rect: layout.page,
+                    // Kept mounted in text mode so the page is where it was when the student returns.
+                    child: Offstage(
+                      offstage: reader.textMode,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: PageViewer(controller: reader.viewer),
                       ),
                     ),
                   ),
-                _Chrome(
-                  rect: layout.bar,
-                  visible: reader.chromeVisible,
-                  travel: -6,
-                  child: _TopBar(
-                    reader: reader,
-                    onMenu: widget.onMenu,
-                    onSearch: widget.onSearch,
-                    onTools: widget.onTools ?? () => showToolsSheet(context, reader),
+                  if (reader.textMode)
+                    Positioned.fromRect(
+                      rect: layout.textZone,
+                      child: TextReader(key: _text, reader: reader),
+                    ),
+                  if (!reader.chromeVisible && !reader.textMode)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: mq.padding.bottom + 12,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Text(ar(reader.page),
+                              style: naskh(size: 13, color: t.muted.withValues(alpha: 0.7))),
+                        ),
+                      ),
+                    ),
+                  _Chrome(
+                    rect: layout.bar,
+                    visible: reader.chromeVisible,
+                    travel: -6,
+                    child: _TopBar(
+                      reader: reader,
+                      onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
+                      onSearch: widget.onSearch,
+                      onTools: widget.onTools ?? () => showToolsSheet(context, reader),
+                    ),
                   ),
-                ),
-                _Chrome(
-                  rect: layout.player,
-                  visible: reader.chromeVisible,
-                  travel: 8,
-                  child: _PlayerBar(
-                    reader: reader,
-                    onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
+                  _Chrome(
+                    rect: layout.player,
+                    visible: reader.chromeVisible,
+                    travel: 8,
+                    child: _PlayerBar(
+                      reader: reader,
+                      onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
+                    ),
                   ),
-                ),
-                if (reader.detached && reader.playing)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: layout.player.top - 24,
-                    child: Center(child: _ResumeChip(reader: reader)),
+                  if (reader.detached && reader.playing)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: layout.player.top - 24,
+                      child: Center(child: _ResumeChip(reader: reader)),
+                    ),
+                  VerseMenu(
+                    listenable: reader,
+                    content: reader.content,
+                    verse: () => reader.menuVerse,
+                    anchor: (v) => _anchor(v, layout),
+                    onClose: reader.closeMenu,
+                    canPlay: () => reader.audioAvailable,
+                    onPlayFrom: reader.tapVerse,
                   ),
-                VerseMenu(
-                  listenable: reader,
-                  content: reader.content,
-                  verse: () => reader.menuVerse,
-                  anchor: (v) => _anchor(v, layout),
-                  onClose: reader.closeMenu,
-                  canPlay: () => reader.audioAvailable,
-                  onPlayFrom: reader.tapVerse,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -217,7 +228,7 @@ class _TopBar extends StatelessWidget {
                 ),
                 SizedBox(
                   height: 15,
-                  child: Text('${part.title} · ص ${ar(reader.page)} من ${ar(pages)}',
+                  child: Text(reader.textMode ? 'العرض النصي' : '${part.title} · ص ${ar(reader.page)} من ${ar(pages)}',
                       maxLines: 1, style: kufi(size: 11.5, weight: 400, color: t.muted, height: 1.3)),
                 ),
               ],

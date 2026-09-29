@@ -145,7 +145,7 @@ class TextReaderState extends State<TextReader> {
       padding: const EdgeInsets.fromLTRB(0, 10, 0, 8),
       child: Column(
         children: [
-          Text('$where · ${versesCount(chapter.verseCount)}', style: kufi(size: 12, weight: 400, color: t.muted)),
+          Text('$where، ${versesCount(chapter.verseCount)}', style: kufi(size: 12, weight: 400, color: t.muted)),
           Text(title,
               textAlign: TextAlign.center,
               style: naskh(size: 22, weight: FontWeight.w700, color: t.goldText, height: 1.7)),

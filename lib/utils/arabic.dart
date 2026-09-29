@@ -31,16 +31,23 @@ String ar(num n) {
   return b.toString();
 }
 
-/// «بيت واحد», «بيتان», «٩ أبيات», «١١ بيتًا», «١٠١ بيت»: a verse count with the noun
-/// agreeing with the number.
-String versesCount(int n) {
-  if (n == 1) return 'بيت واحد';
-  if (n == 2) return 'بيتان';
+/// A count with its noun agreeing with the number: [one] «بيت واحد», [two] «بيتان»,
+/// [plural] for 3–10 «أبيات», [accusative] for 11–99 «بيتًا», [singular] otherwise
+/// (100, 101, 102 …).
+String _counted(int n, String one, String two, String plural, String accusative, String singular) {
+  if (n == 1) return one;
+  if (n == 2) return two;
   final r = n % 100;
-  if (r >= 3 && r <= 10) return '${ar(n)} أبيات';
-  if (r >= 11) return '${ar(n)} بيتًا';
-  return '${ar(n)} بيت'; // 100, 101, 102, 200 …
+  if (r >= 3 && r <= 10) return '${ar(n)} $plural';
+  if (r >= 11) return '${ar(n)} $accusative';
+  return '${ar(n)} $singular';
 }
+
+/// «بيت واحد», «بيتان», «٩ أبيات», «١١ بيتًا», «١٠١ بيت».
+String versesCount(int n) => _counted(n, 'بيت واحد', 'بيتان', 'أبيات', 'بيتًا', 'بيت');
+
+/// «باب واحد», «بابان», «٩ أبواب», «١١ بابًا».
+String chaptersCount(int n) => _counted(n, 'باب واحد', 'بابان', 'أبواب', 'بابًا', 'باب');
 
 /// ported from app.js: fmtTime(sec)
 String fmtTime(num sec) {
