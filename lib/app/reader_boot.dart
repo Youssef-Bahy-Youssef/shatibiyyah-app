@@ -11,6 +11,7 @@ import '../data/app_content.dart';
 import '../data/legacy_adapter.dart';
 import '../data/legacy_prefs.dart';
 import '../data/recording_repository.dart';
+import '../data/settings_store.dart';
 import '../data/user_store.dart';
 import '../domain/playback_engine.dart';
 import '../domain/playback_plan.dart';
@@ -56,7 +57,7 @@ Future<ReaderController> bootReader() async {
     viewer: viewer,
     engine: engine,
     user: user,
-    settings: plan.settings,
+    store: SettingsStore(prefs),
     initialVerse: initial,
   );
   var saved = initial;

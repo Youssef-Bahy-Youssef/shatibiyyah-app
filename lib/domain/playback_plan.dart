@@ -49,6 +49,25 @@ class PlaybackSettings {
     this.playTitles = true,
     this.preRollMs = 250,
   });
+
+  static const _keep = Object();
+
+  /// A copy with some fields replaced. Repeats are nullable (null = ∞), so an
+  /// omitted argument is told apart from an explicit null.
+  PlaybackSettings copyWith({
+    Object? verseRepeats = _keep,
+    Object? sectionRepeats = _keep,
+    int? gapMs,
+    bool? playTitles,
+    int? preRollMs,
+  }) =>
+      PlaybackSettings(
+        verseRepeats: identical(verseRepeats, _keep) ? this.verseRepeats : verseRepeats as int?,
+        sectionRepeats: identical(sectionRepeats, _keep) ? this.sectionRepeats : sectionRepeats as int?,
+        gapMs: gapMs ?? this.gapMs,
+        playTitles: playTitles ?? this.playTitles,
+        preRollMs: preRollMs ?? this.preRollMs,
+      );
 }
 
 sealed class PlanAction {

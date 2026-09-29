@@ -26,6 +26,10 @@ const double _swipeMin = 55;
 const int _dblMs = 300;
 const double _dblSlop = 34;
 
+/// Night-mode page brightness range (features-v3 night-mode: 40–100 %).
+const int kMinBrightness = 40;
+const int kMaxBrightness = 100;
+
 /// Hold time before a verse's action menu opens (features-v3: 450 ms).
 const int kLongPressMs = 450;
 
@@ -110,8 +114,8 @@ class PageViewerController extends ChangeNotifier {
     night = prefs.getLS(K.night, '0') == '1';
     brightnessPct = clampd(
       (int.tryParse(prefs.getLS(K.bright, '85')) ?? 85).toDouble(),
-      50,
-      110,
+      kMinBrightness.toDouble(),
+      kMaxBrightness.toDouble(),
     ).toInt();
     showBoxes = prefs.getLS(K.boxes, '0') == '1';
   }
@@ -376,7 +380,7 @@ class PageViewerController extends ChangeNotifier {
   }
 
   void setBrightness(int pct, {bool persist = true}) {
-    brightnessPct = clampd(pct.toDouble(), 50, 110).toInt();
+    brightnessPct = clampd(pct.toDouble(), kMinBrightness.toDouble(), kMaxBrightness.toDouble()).toInt();
     if (persist) prefs.setLS(K.bright, brightnessPct.toString());
     notifyListeners();
     _emitPref();

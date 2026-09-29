@@ -17,6 +17,7 @@ import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
 import 'reader_controller.dart';
 import 'shamsa.dart';
+import 'tools_sheet.dart';
 
 const _showCurve = Cubic(.2, 0, 0, 1);
 const _hideCurve = Cubic(.4, 0, 1, 1);
@@ -74,13 +75,21 @@ class ReaderScreen extends StatelessWidget {
                   rect: layout.bar,
                   visible: reader.chromeVisible,
                   travel: -6,
-                  child: _TopBar(reader: reader, onMenu: onMenu, onSearch: onSearch, onTools: onTools),
+                  child: _TopBar(
+                    reader: reader,
+                    onMenu: onMenu,
+                    onSearch: onSearch,
+                    onTools: onTools ?? () => showToolsSheet(context, reader),
+                  ),
                 ),
                 _Chrome(
                   rect: layout.player,
                   visible: reader.chromeVisible,
                   travel: 8,
-                  child: _PlayerBar(reader: reader, onOpen: onTools),
+                  child: _PlayerBar(
+                    reader: reader,
+                    onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
+                  ),
                 ),
                 if (reader.detached && reader.playing)
                   Positioned(

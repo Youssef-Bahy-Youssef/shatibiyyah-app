@@ -45,7 +45,8 @@ import 'package:just_audio_background/just_audio_background.dart';
 
 import 'app/reader_boot.dart';
 import 'theme.dart';
-import 'ui/design/taysir_colors.dart';
+import 'data/settings_store.dart';
+import 'ui/design/app_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
 
@@ -72,35 +73,38 @@ class ShatibiyyahApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'تيسير الشاطبية',
-      debugShowCheckedModeBanner: false,
-      locale: const Locale('ar'),
-      supportedLocales: const [Locale('ar')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: C.ink,
-        fontFamily: kFontNaskh,
-        colorScheme: const ColorScheme.dark(
-          surface: C.ink,
-          primary: C.gold,
-          secondary: C.goldBright,
-          onPrimary: C.onGold,
-          error: C.danger,
+    return ValueListenableBuilder<ReaderTheme>(
+      valueListenable: appTheme,
+      builder: (context, theme, _) => MaterialApp(
+        title: 'تيسير الشاطبية',
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('ar'),
+        supportedLocales: const [Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: C.ink,
+          fontFamily: kFontNaskh,
+          colorScheme: const ColorScheme.dark(
+            surface: C.ink,
+            primary: C.gold,
+            secondary: C.goldBright,
+            onPrimary: C.onGold,
+            error: C.danger,
+          ),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          extensions: [colorsFor(theme)],
         ),
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        extensions: const [TaysirColors.dark],
+        builder: (context, child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: const _Boot(),
       ),
-      builder: (context, child) =>
-          Directionality(textDirection: TextDirection.rtl, child: child!),
-      home: const _Boot(),
     );
   }
 }

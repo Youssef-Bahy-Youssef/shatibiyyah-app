@@ -13,10 +13,12 @@ import 'package:flutter/foundation.dart';
 import '../../data/app_content.dart';
 import '../../data/matn_repository.dart';
 import '../../data/recording_repository.dart';
+import '../../data/settings_store.dart';
 import '../../data/user_store.dart';
 import '../../domain/playback_engine.dart';
 import '../../domain/playback_plan.dart';
 import '../../domain/playback_windows.dart';
+import '../design/app_theme.dart';
 import '../widgets/page_viewer.dart';
 
 class ReaderController extends ChangeNotifier {
@@ -25,11 +27,13 @@ class ReaderController extends ChangeNotifier {
   final PlaybackWindows windows;
   final PageViewerController viewer;
   final UserStore? user;
+  final SettingsStore? store;
 
   /// Null until the recording is on the device.
   final PlaybackEngine? engine;
 
-  PlaybackSettings settings;
+  PlaybackSettings _settings;
+  double _speed = 1;
 
   int _verse;
   bool _detached = false;
@@ -45,9 +49,24 @@ class ReaderController extends ChangeNotifier {
     required this.viewer,
     this.engine,
     this.user,
-    this.settings = const PlaybackSettings(),
+    this.store,
+    PlaybackSettings initialSettings = const PlaybackSettings(),
     int initialVerse = 1,
-  }) : _verse = initialVerse {
+  })  : _verse = initialVerse,
+        _settings = initialSettings {
+    final s = store;
+    if (s != null) {
+      _settings = _settings.copyWith(
+        verseRepeats: s.verseRepeats,
+        sectionRepeats: s.sectionRepeats,
+        gapMs: s.gapMs,
+        playTitles: s.playTitles,
+      );
+      _speed = s.speedFor(recording.id);
+      appTheme.value = s.theme;
+    }
+    engine?.plan.settings = _settings;
+    engine?.audio.setSpeed(_speed);
     _subs.add(viewer.onVerseTap.listen(tapVerse));
     _subs.add(viewer.onVerseLongPress.listen(openMenu));
     _subs.add(viewer.onPageTap.listen((_) => toggleChrome()));
@@ -75,6 +94,74 @@ class ReaderController extends ChangeNotifier {
     if (!_detached) return chapter;
     final onPage = content.layout.versesOnPage(page);
     return onPage.isEmpty ? chapter : content.matn.chapterOfVerse(onPage.first);
+  }
+
+  // ── settings (tools sheet) ──
+  PlaybackSettings get settings => _settings;
+  double get speed => _speed;
+  ReaderTheme get theme => appTheme.value;
+  bool get textMode => store?.textMode ?? false;
+  double get textScale => store?.textScale ?? 1;
+  bool get night => viewer.night;
+  int get brightness => viewer.brightnessPct;
+
+  void _apply(PlaybackSettings s) {
+    _settings = s;
+    engine?.plan.settings = s;
+    notifyListeners();
+  }
+
+  void setVerseRepeats(int? n) {
+    store?.verseRepeats = n;
+    _apply(_settings.copyWith(verseRepeats: n));
+  }
+
+  void setSectionRepeats(int? n) {
+    store?.sectionRepeats = n;
+    _apply(_settings.copyWith(sectionRepeats: n));
+  }
+
+  void setGap(int ms) {
+    store?.gapMs = ms;
+    _apply(_settings.copyWith(gapMs: ms));
+  }
+
+  void setPlayTitles(bool on) {
+    store?.playTitles = on;
+    _apply(_settings.copyWith(playTitles: on));
+  }
+
+  void setSpeed(double v) {
+    _speed = v;
+    store?.setSpeedFor(recording.id, v);
+    engine?.audio.setSpeed(v);
+    notifyListeners();
+  }
+
+  void setTheme(ReaderTheme t) {
+    store?.theme = t;
+    appTheme.value = t;
+    notifyListeners();
+  }
+
+  void setTextMode(bool on) {
+    store?.textMode = on;
+    notifyListeners();
+  }
+
+  void setTextScale(double v) {
+    store?.textScale = v;
+    notifyListeners();
+  }
+
+  void setNight(bool on) {
+    viewer.setNightMode(on);
+    notifyListeners();
+  }
+
+  void setBrightness(int pct) {
+    viewer.setBrightness(pct);
+    notifyListeners();
   }
 
   // ── transport ──
@@ -108,6 +195,14 @@ class ReaderController extends ChangeNotifier {
     e.plan.scope = scope;
     _detached = false;
     await e.play(scope.fromVerse);
+  }
+
+  /// «إيقاف والعودة إلى البداية»: stop and go back to the start of the current scope.
+  Future<void> stop() async {
+    final e = engine;
+    if (e == null) return;
+    await e.pause();
+    await tapVerse(e.plan.scope.fromVerse);
   }
 
   Future<void> next() => _step(1);
