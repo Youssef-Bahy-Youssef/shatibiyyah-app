@@ -104,7 +104,12 @@ class MiniBar extends StatelessWidget {
                   child: Row(
                     children: [
                       if (state == 'idle') ...[
-                        _miniBtn(SvgIcon.play, 48, 20, app.togglePlay),
+                        // No recording on the device yet (nothing is bundled): say so
+                        // instead of offering a play button that cannot play.
+                        if (app.audioAvailable)
+                          _miniBtn(SvgIcon.play, 48, 20, app.togglePlay)
+                        else
+                          _noAudio(),
                         const SizedBox(width: 10),
                       ],
                       // verse info
@@ -161,6 +166,20 @@ class MiniBar extends StatelessWidget {
       },
     );
   }
+
+  Widget _noAudio() => Semantics(
+        label: 'التلاوة غير متاحة بعد',
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: C.line),
+          ),
+          child: Text('التلاوة قريبًا', style: kufi(size: 13, weight: 500, color: C.muted)),
+        ),
+      );
 
   Widget _miniGear() => _tapStop(
         onTap: app.toggleConsole,

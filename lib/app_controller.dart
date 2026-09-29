@@ -7,6 +7,8 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
+import 'data/app_content.dart';
+import 'data/recording_repository.dart';
 import 'models/playback_settings.dart';
 import 'services/audio_service.dart';
 import 'services/data_service.dart';
@@ -93,7 +95,17 @@ class AppController extends ChangeNotifier {
 
   bool _booted = false;
 
+  /// The bundled content (repositories) and the recording the reader plays.
+  final AppContent content;
+  final Recording recording;
+
+  /// The recording's file on this device, or null while it is not downloaded.
+  final String? audioFilePath;
+
   AppController({
+    required this.content,
+    required this.recording,
+    required this.audioFilePath,
     required this.data,
     required this.verseText,
     required this.audio,
@@ -107,6 +119,9 @@ class AppController extends ChangeNotifier {
   }
 
   bool get isImmersive => !wide;
+
+  /// False until the recording is on the device; the transport is inert meanwhile.
+  bool get audioAvailable => audio.available;
   bool get isPaused => audio.isPaused;
   int get currentVerse => audio.currentVerse;
   String get chapterName => audio.getChapterName();
@@ -661,7 +676,11 @@ class AppController extends ChangeNotifier {
   Future<void> boot() async {
     if (_booted) return; // guard: HomeScreen.initState may fire more than once
     _booted = true;
-    await audio.initSource();
+    await audio.initSource(
+      filePath: audioFilePath,
+      recordingId: recording.id,
+      artist: recording.reciterName,
+    );
     audio.setMode(audio.mode);
     viewer.setActiveVerse(audio.currentVerse);
     setBarState('idle');

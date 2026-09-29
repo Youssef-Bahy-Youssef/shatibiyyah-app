@@ -1,40 +1,23 @@
-// lib/services/data_service.dart — pure data layer for الشاطبية.
-// 100% port of js/data.js. Loads the three source files and pre-builds O(1) lookups:
+// lib/services/data_service.dart — the legacy reader's data model, now built from content.sqlite.
+//
+// Originally a port of js/data.js that parsed verses.json / chapters.json /
+// timestamps.json. Those files are retired: lib/data/legacy_adapter.dart builds
+// this object from the repositories (78 canonical chapters, the snapshot's page
+// regions, the reviewed cues of the selected recording). The derived lookups
+// below are unchanged, so the existing screens keep working until P4 replaces them.
 //   verseMap         id   -> Box{ page, x, y, w, h, chapterId }
 //   pageMap          page -> sorted id[]
 //   chapterPageRange idx  -> { first, last } page
 //   verseTimes[v]    start time (s) of verse v   (dense array)
-import 'dart:convert';
 import 'dart:ui';
-import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/chapter.dart';
 import '../models/verse.dart';
 
-const int kLastVerse = 1173; // ported from data.js: LAST_VERSE
-const double kDefaultDuration = 8916; // ported from data.js: DEFAULT_DURATION
-
-/// ported from data.js: export async function loadData()
-Future<ShatibiyyahData> loadData() async {
-  final results = await Future.wait([
-    rootBundle.loadString('assets/data/verses.json'),
-    rootBundle.loadString('assets/data/timestamps.json'),
-    rootBundle.loadString('assets/data/chapters.json'),
-  ]);
-  final verses = (json.decode(results[0]) as List)
-      .map((e) => Verse.fromJson(e as Map<String, dynamic>))
-      .toList();
-  final timestamps = json.decode(results[1]) as Map<String, dynamic>;
-  final chapters = (json.decode(results[2]) as List)
-      .map((e) => Chapter.fromJson(e as Map<String, dynamic>))
-      .toList();
-  return ShatibiyyahData(verses, timestamps, chapters);
-}
-
 /// ported from data.js: export class ShatibiyyahData
 class ShatibiyyahData {
-  final int lastVerse = kLastVerse;
-  final double defaultDuration = kDefaultDuration;
+  final int lastVerse;
+  final double defaultDuration;
   final List<Chapter> chapters;
 
   /// start_verse -> chapter, for clean range cuts at chapter headers
@@ -53,8 +36,12 @@ class ShatibiyyahData {
   /// page -> [chapterIdx,…] whose HEADER sits on that page
   final Map<int, List<int>> chaptersByPage = {};
 
-  ShatibiyyahData(
-      List<Verse> verses, Map<String, dynamic> timestamps, this.chapters) {
+  /// [startSeconds] is indexed by verse number (index 0 unused); [durationSeconds]
+  /// is the recording's length, or 0 when no recording is available.
+  ShatibiyyahData(List<Verse> verses, List<double?> startSeconds, this.chapters,
+      {required double durationSeconds})
+      : lastVerse = verses.length,
+        defaultDuration = durationSeconds {
     // start_verse -> chapter
     for (final c in chapters) {
       startAtVerse[c.startVerse] = c;
@@ -62,10 +49,9 @@ class ShatibiyyahData {
 
     // verseTimes
     verseTimes = List<double?>.filled(lastVerse + 2, null);
-    timestamps.forEach((k, v) {
-      final i = int.tryParse(k);
-      if (i != null && i < verseTimes.length) verseTimes[i] = (v as num).toDouble();
-    });
+    for (var v = 1; v < startSeconds.length && v < verseTimes.length; v++) {
+      verseTimes[v] = startSeconds[v];
+    }
 
     // verseMap + pageMap from the bounding boxes
     int maxPage = 0;

@@ -117,6 +117,19 @@ class PageViewerController extends ChangeNotifier {
     });
   }
 
+  /// Releases the tickers created from the widget's TickerProvider. The controller
+  /// outlives the widget (the app owns it); while detached, view changes apply at
+  /// once instead of animating (see _setView).
+  void detach() {
+    _xform?.dispose();
+    _overlay?.dispose();
+    _momentum?.dispose();
+    _xform = null;
+    _overlay = null;
+    _momentum = null;
+    _vsync = null;
+  }
+
   double _now() => _clock.elapsedMilliseconds.toDouble();
 
   void _emit(StreamController c) => c.add(null);
@@ -698,6 +711,12 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     c.attach(this);
+  }
+
+  @override
+  void dispose() {
+    c.detach(); // before super.dispose(): the mixin asserts its tickers are gone
+    super.dispose();
   }
 
   String _pageAsset(int n) =>

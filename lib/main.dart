@@ -24,12 +24,12 @@
 //   (PAUSE_OPTS); speed (SPEED_OPTS, preservesPitch); setupRange for chapter/range/full;
 //   onBoundary→advance/repeat; reachRangeEnd→loop or park+pause; tick via positionStream+16ms
 //   timer; seekToVerse/Time/Fraction; togglePlay smart-restart; previewVerseAt; media session.
-// Data files: verses.json (1173 boxes: id,page,x,y,width,height) · timestamps.json (1173 v→sec)
-//   · chapters.json (79: name,start_verse,end_verse,verse_count,start_time,header_text?,x,y,w,h)
-//   · xing-toc.json (VBR seek table; unused — bundled MP3 seeks natively) · shatibiyyah.txt
-//   (verse poem text → sadr/ajuz, search index).
-// Assets: 94 page WebPs (page001–094, 1130×1735) + page_cover.webp; audio.mp3 (64k mono, ~68MB);
-//   icons icon.png/icon-192.png/icon-maskable.png; fonts ScheherazadeNew (naskh) + ReemKufi (kufi).
+// Data (since 2026-09-29): assets/content/content.sqlite, built by `spd app-snapshot`, read
+//   through lib/data/ (the PWA's verses.json / chapters.json / timestamps.json /
+//   shatibiyyah.txt / xing-toc.json are retired; lib/data/legacy_adapter.dart feeds the old
+//   screens). No audio is bundled: a recording plays from a file on the device.
+// Assets: 94 page WebPs (page001–094, 1130×1735) + page_cover.webp; icons
+//   icon.png/icon-192.png/icon-maskable.png; fonts ScheherazadeNew (naskh) + ReemKufi (kufi).
 // CSS colors (style.css :root): darker #965f0d, base/gold #ffab2e, lighter/goldBright #fadbae,
 //   accent #4314ff, dark #4e3613, light #f4f1eb, ink #1b1307, ink2 #241a0c, panel #2a1e0e,
 //   panel2 #33260f, raised #3f2f15, line #4a3719, lineSoft #382912, parch #f4f1eb,
@@ -44,12 +44,19 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import 'app_controller.dart';
+import 'data/app_content.dart';
+import 'data/legacy_adapter.dart';
+import 'data/legacy_prefs.dart';
+import 'data/recording_repository.dart';
 import 'services/audio_service.dart';
-import 'services/data_service.dart';
 import 'services/preferences_service.dart';
 import 'services/sync_service.dart';
-import 'services/verse_text.dart';
 import 'theme.dart';
 import 'ui/home_screen.dart';
 import 'ui/widgets/page_viewer.dart';
@@ -129,19 +136,20 @@ class _BootState extends State<_Boot> {
 
   Future<void> _init() async {
     try {
+      final content = await AppContent.open();
       final prefs = await Prefs.create();
-      final data = await loadData();
-      VerseTextData verseText;
-      try {
-        verseText = await loadVerseText();
-      } catch (_) {
-        verseText = VerseTextData.empty();
-      }
+      migrateLegacyPrefs(prefs, content.matn);
+      final recording = content.recordings.defaultRecording;
+      final data = legacyData(content, await content.windowsFor(recording));
+      final verseText = legacyVerseText(content);
       final player = AudioPlayer();
       final audio = AudioEngine(player, data, prefs);
       final viewer = PageViewerController(data, prefs);
       final sync = SyncController(audio, viewer, data);
       final app = AppController(
+        content: content,
+        recording: recording,
+        audioFilePath: await _localAudio(recording),
         data: data,
         verseText: verseText,
         audio: audio,
@@ -153,6 +161,15 @@ class _BootState extends State<_Boot> {
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
+  }
+
+  /// The recording's file if it is on the device and complete (the download manager's
+  /// target; side-loaded in development). Nothing is bundled.
+  Future<String?> _localAudio(Recording recording) async {
+    final support = await getApplicationSupportDirectory();
+    final file = File(p.join(support.path, RecordingRepository.localFileName(recording)));
+    if (await file.exists() && await file.length() == recording.audioBytes) return file.path;
+    return null;
   }
 
   @override

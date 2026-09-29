@@ -258,7 +258,11 @@ class AudioEngine {
     if (play) startPlay();
   }
 
+  /// A recording is loaded. Without one (no download yet) the transport is inert.
+  bool get available => _ready;
+
   void startPlay() {
+    if (!_ready) return;
     audio.setSpeed(speed);
     audio.play();
   }
@@ -392,6 +396,7 @@ class AudioEngine {
 
   // ── transport (ported from audio.js) ──
   void togglePlay() {
+    if (!_ready) return;
     atEndGuard = false;
     if (!audio.playing) {
       if (_getTime() >= rangeEndTime - eps() ||
@@ -551,19 +556,23 @@ class AudioEngine {
     _emitProgress(t);
   }
 
-  // ── offline source — in the native app the audio ships as a bundled asset, so it is
-  // always "ready" offline. (ported from audio.js: initSource/ensureOfflineAudio, simplified) ──
-  Future<void> initSource() async {
+  // ── source — no audio is bundled. A recording plays only from a file on the device
+  // (written by the download manager in P5; side-loaded in development). With
+  // [filePath] null the engine stays unavailable and reports a load error. ──
+  Future<void> initSource({
+    required String? filePath,
+    required String recordingId,
+    required String artist,
+  }) async {
+    if (filePath == null) {
+      _loadErrorCtrl.add(null);
+      return;
+    }
     try {
       await audio.setAudioSource(
-        AudioSource.asset(
-          'assets/audio/audio.mp3',
-          tag: MediaItem(
-            id: 'shatibiyyah',
-            album: 'متن الشاطبية · الشيخ محمد عتيق',
-            title: 'متن الشاطبية',
-            artist: 'الشيخ محمد عتيق',
-          ),
+        AudioSource.file(
+          filePath,
+          tag: MediaItem(id: recordingId, album: 'تيسير الشاطبية', title: 'تيسير الشاطبية', artist: artist),
         ),
       );
       onLoaded();

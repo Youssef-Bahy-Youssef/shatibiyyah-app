@@ -63,14 +63,4 @@ void main() {
     });
   });
 
-  group('parseShatibiyyah (verse-text.js)', () {
-    test('parses an Arabic-numbered verse line into sadr/ajuz', () {
-      const line = '٣٤٧ - صدر البيت ... عجز البيت';
-      final out = parseShatibiyyah(line);
-      expect(out.length, 1);
-      expect(out.first.id, 347);
-      expect(out.first.sadr, 'صدر البيت');
-      expect(out.first.ajuz, 'عجز البيت');
-    });
-  });
 }

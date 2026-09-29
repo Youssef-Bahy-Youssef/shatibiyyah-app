@@ -14,7 +14,6 @@ dependencies:
   just_audio_background: ^0.0.1-beta.17
   audio_session: ^0.2.3
   shared_preferences: ^2.5.5
-  flutter_riverpod: ^3.3.2
   flutter_localizations:
     sdk: flutter
   sqflite: ^2.4.4
@@ -32,9 +31,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/audio/
     - assets/content/
-    - assets/data/
     - assets/pages/
     - assets/icons/
 

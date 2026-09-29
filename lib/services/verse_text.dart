@@ -1,21 +1,9 @@
-// lib/services/verse_text.dart — 100% port of js/verse-text.js.
-// Loads & parses shatibiyyah.txt into { id, sadr, ajuz, text } + a
-// diacritic-insensitive search index.
-import 'package:flutter/services.dart' show rootBundle;
-
-const int _lastVerse = 1173;
-const String _arDigits = '٠١٢٣٤٥٦٧٨٩';
-
-// ported from verse-text.js: arToInt(s)
-int? _arToInt(String s) {
-  int n = 0;
-  for (final ch in s.split('')) {
-    final d = _arDigits.indexOf(ch);
-    if (d < 0) return null;
-    n = n * 10 + d;
-  }
-  return n;
-}
+// lib/services/verse_text.dart — verse text and the legacy search index (port of js/verse-text.js).
+//
+// The verses now come from content.sqlite (lib/data/legacy_adapter.dart); the
+// shatibiyyah.txt parser is retired. The legacy diacritic-insensitive index and
+// its highlight mapping stay until search v2 (P6), which uses
+// lib/domain/normalizer.dart for parity with the database.
 
 /// ported from verse-text.js: export function isMark(ch)
 /// tashkeel (U+0610–061A, U+064B–065F), superscript alef (U+0670), tatweel (U+0640).
@@ -30,11 +18,6 @@ bool isMark(String ch) {
 // ported from verse-text.js: foldAlef(ch)
 String _foldAlef(String ch) =>
     (ch == 'آ' || ch == 'أ' || ch == 'إ' || ch == 'ٱ') ? 'ا' : ch;
-
-// ported from verse-text.js: RE_VERSE / RE_SPLIT
-final RegExp _reVerse =
-    RegExp(r'^[‎‏\s]*([٠-٩]+)\s*[-–—]\s*(.+?)\s*$');
-final RegExp _reSplit = RegExp(r'\s*\.{3,}\s*|\s+…\s+');
 
 class VerseLine {
   final int id;
@@ -51,23 +34,6 @@ class IndexEntry {
   final String text;
   final String norm; // _norm
   const IndexEntry(this.id, this.sadr, this.ajuz, this.text, this.norm);
-}
-
-/// ported from verse-text.js: parseShatibiyyah(rawText)
-List<VerseLine> parseShatibiyyah(String rawText) {
-  final out = <VerseLine>[];
-  for (final line in rawText.split(RegExp(r'\r?\n'))) {
-    final m = _reVerse.firstMatch(line);
-    if (m == null) continue;
-    final id = _arToInt(m.group(1)!);
-    if (id == null) continue;
-    final body = m.group(2)!.trim();
-    final parts = body.split(_reSplit);
-    final sadr = (parts.isNotEmpty ? parts[0] : '').trim();
-    final ajuz = parts.length > 1 ? parts.sublist(1).join(' … ').trim() : '';
-    out.add(VerseLine(id, sadr, ajuz, body));
-  }
-  return out;
 }
 
 /// ported from verse-text.js: export function normalize(str)
@@ -136,16 +102,11 @@ class VerseTextData {
   static VerseTextData empty() => const VerseTextData([], {}, []);
 }
 
-/// ported from verse-text.js: export async function loadVerseText(url)
-Future<VerseTextData> loadVerseText(
-    [String asset = 'assets/data/shatibiyyah.txt']) async {
-  final raw = await rootBundle.loadString(asset);
-  final list = parseShatibiyyah(raw);
+/// Builds the lines and the legacy search index from verse halves.
+VerseTextData verseTextFromLines(List<VerseLine> list) {
   final byId = {for (final v in list) v.id: v};
   final index = list
       .map((v) => IndexEntry(v.id, v.sadr, v.ajuz, v.text, normalize(v.text)))
-      .toList();
-  // (dev guard from verse-text.js omitted; data ships complete with _lastVerse entries)
-  assert(list.length == _lastVerse || list.isNotEmpty);
+      .toList(growable: false);
   return VerseTextData(list, byId, index);
 }
