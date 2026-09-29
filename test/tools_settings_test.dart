@@ -11,7 +11,6 @@ import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/tools_sheet.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
@@ -90,7 +89,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       await tester.pumpWidget(ValueListenableBuilder<ReaderTheme>(
         valueListenable: appTheme,
-        builder: (_, theme, __) => MaterialApp(
+        builder: (_, theme, _) => MaterialApp(
           theme: ThemeData(extensions: [colorsFor(theme)]),
           home: Scaffold(body: ToolsSheet(reader: r)),
         ),
