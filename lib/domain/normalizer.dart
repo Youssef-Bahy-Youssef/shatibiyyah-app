@@ -46,3 +46,49 @@ String normalizeMatching(String text) {
   }
   return out.toString();
 }
+
+/// [normalizeMatching] that also says where each output code unit came from:
+/// `source[i]` is the UTF-16 offset in [text] of the character that produced
+/// `text[i]` (a folded space points at the character that follows it). Used to cut
+/// a display snippet around a match found in normalized text.
+({String text, List<int> source}) normalizeMatchingMapped(String text) {
+  final out = StringBuffer();
+  final source = <int>[];
+  var pendingSpace = false;
+  var started = false;
+
+  void emit(int rune, int at) {
+    if (kInvisibles.contains(rune) || rune == kTatweel || kMarks.contains(rune)) return;
+    final folded = kFolds[rune] ?? rune;
+    if (kToSpace.contains(folded) || kWhitespace.contains(folded)) {
+      if (started) pendingSpace = true;
+      return;
+    }
+    if (pendingSpace) {
+      out.writeCharCode(0x20);
+      source.add(at);
+      pendingSpace = false;
+    }
+    final before = out.length;
+    out.writeCharCode(folded);
+    for (var i = before; i < out.length; i++) {
+      source.add(at);
+    }
+    started = true;
+  }
+
+  var at = 0;
+  for (final rune in text.runes) {
+    final expanded = kNfkc[rune];
+    if (expanded == null) {
+      emit(rune, at);
+    } else {
+      for (final r in expanded.runes) {
+        emit(r, at);
+      }
+    }
+    at += rune > 0xFFFF ? 2 : 1;
+  }
+  return (text: out.toString(), source: source);
+}
+

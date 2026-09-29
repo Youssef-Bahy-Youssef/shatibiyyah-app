@@ -23,9 +23,9 @@ class CommentaryScreen extends StatefulWidget {
   final String? bookId; // default: the default book
   const CommentaryScreen({super.key, required this.content, required this.verse, this.bookId});
 
-  static Future<void> open(BuildContext context, AppContent content, int verse) =>
+  static Future<void> open(BuildContext context, AppContent content, int verse, {String? bookId}) =>
       Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => CommentaryScreen(content: content, verse: verse),
+        builder: (_) => CommentaryScreen(content: content, verse: verse, bookId: bookId),
       ));
 
   @override

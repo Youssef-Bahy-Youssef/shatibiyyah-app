@@ -15,6 +15,7 @@ import '../../utils/arabic.dart';
 import '../../data/matn_repository.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
+import '../search/search_screen.dart';
 import '../share/share_sheet.dart';
 import '../shell/app_drawer.dart';
 import '../widgets/page_viewer.dart';
@@ -129,7 +130,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         : _TopBar(
                             reader: reader,
                             onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
-                            onSearch: widget.onSearch,
+                            onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
                             onTools: widget.onTools ?? () => showToolsSheet(context, reader),
                           ),
                   ),
