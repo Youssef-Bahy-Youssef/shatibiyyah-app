@@ -57,6 +57,20 @@ String selectedVersesCount(int n) =>
 /// numbers use «،» as the separator: in Reem Kufi a «·» there reads as the digit «٠».
 String isolatedRange(int from, int to) => '\u2068${ar(from)}–${ar(to)}\u2069';
 
+/// «١٤٥ م.ب» (decimal megabytes, as the store and the prototype count them).
+String megabytes(int bytes) => '${ar((bytes / 1e6).round())} م.ب';
+
+/// «٣٫٤ غ.ب».
+String gigabytes(int bytes) => '${ar(double.parse((bytes / 1e9).toStringAsFixed(1)))} غ.ب';
+
+/// «٢:٣٠:٣٧» — hours, minutes, seconds (rounded), kept left to right like a clock
+/// inside Arabic text (LRI … PDI).
+String durationHms(int ms) {
+  final s = (ms + 500) ~/ 1000;
+  String two(int n) => n < 10 ? '٠${ar(n)}' : ar(n);
+  return '\u2066${ar(s ~/ 3600)}:${two(s % 3600 ~/ 60)}:${two(s % 60)}\u2069';
+}
+
 /// ported from app.js: fmtTime(sec)
 String fmtTime(num sec) {
   final s0 = math.max(0, sec.isNaN ? 0 : sec.floor());

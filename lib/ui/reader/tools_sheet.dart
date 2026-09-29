@@ -9,12 +9,14 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/audio_library.dart';
 import '../../data/settings_store.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import '../share/share_sheet.dart';
 import '../shell/about_screen.dart';
+import '../shell/downloads_screen.dart';
 import '../widgets/page_viewer.dart' show kMinBrightness, kMaxBrightness;
 import 'reader_controller.dart';
 import 'shamsa.dart';
@@ -127,16 +129,36 @@ class _ToolsSheetState extends State<ToolsSheet> {
   // ── الصوت ──
   Widget _audioTab(TaysirColors t) {
     final c = r.chapter;
+    final library = r.library;
     if (!r.audioAvailable) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(children: [
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (library != null) Center(child: _reciterChip(t, library)),
+          const SizedBox(height: 12),
           Icon(LucideIcons.download, size: 32, color: t.goldText),
           const SizedBox(height: 10),
-          Text('التلاوة غير منزّلة بعد', style: kufi(size: 16, weight: 600, color: t.text)),
+          Text('التلاوة غير منزّلة بعد',
+              textAlign: TextAlign.center, style: kufi(size: 16, weight: 600, color: t.text)),
           const SizedBox(height: 4),
-          Text('تنزيل التلاوات يأتي قريبًا؛ المتن والشروح تعمل دون تنزيل.',
+          Text('نزّل تلاوة ${r.recording.reciterName} لتسمع الأبيات؛ المتن والشروح تعمل دون تنزيل.',
               textAlign: TextAlign.center, style: kufi(size: 13, weight: 400, color: t.muted)),
+          if (library != null) ...[
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: library)));
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: t.gold,
+                minimumSize: const Size.fromHeight(48),
+                shape: const StadiumBorder(),
+              ),
+              child: Text('التنزيلات', style: kufi(size: 15, weight: 600, color: t.onGold)),
+            ),
+          ],
         ]),
       );
     }
@@ -147,15 +169,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
       children: [
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), border: Border.all(color: t.line)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(LucideIcons.user, size: 16, color: t.goldText),
-              const SizedBox(width: 6),
-              Text(r.recording.reciterName, style: kufi(size: 13, weight: 400, color: t.text)),
-            ]),
-          ),
+          child: library == null ? _reciterLabel(t) : _reciterChip(t, library),
         ),
         const SizedBox(height: 10),
         Center(
@@ -235,6 +249,32 @@ class _ToolsSheetState extends State<ToolsSheet> {
   }
 
   // ── المزيد ──
+  Widget _reciterLabel(TaysirColors t) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), border: Border.all(color: t.line)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(LucideIcons.user, size: 16, color: t.goldText),
+          const SizedBox(width: 6),
+          Text(r.recording.reciterName, style: kufi(size: 13, weight: 400, color: t.text)),
+          if (r.library != null) ...[
+            const SizedBox(width: 4),
+            Icon(LucideIcons.chevronDown, size: 14, color: t.muted),
+          ],
+        ]),
+      );
+
+  /// The reciter's name; a tap opens «القارئ» (features-v3: «لسان الصوت ← شريحة اسم القارئ»).
+  Widget _reciterChip(TaysirColors t, AudioLibrary library) => Semantics(
+        button: true,
+        label: 'القارئ: ${r.recording.reciterName}',
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => showReciterSheet(context, library),
+          child: _reciterLabel(t),
+        ),
+      );
+
   Widget _moreTab(TaysirColors t) {
     Widget row(IconData icon, String label, String sub, VoidCallback? onTap) => ListTile(
           contentPadding: EdgeInsets.zero,
@@ -249,7 +289,18 @@ class _ToolsSheetState extends State<ToolsSheet> {
         Navigator.of(context).pop();
         sharePage(r.content, r.page);
       }),
-      row(LucideIcons.download, 'التنزيلات', 'التلاوات · قريبًا', null),
+      row(
+        LucideIcons.download,
+        'التنزيلات',
+        'التلاوات: ${r.library == null ? '—' : megabytes(r.library!.bytesOnDevice)} على الجهاز',
+        r.library == null
+            ? null
+            : () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: r.library!)));
+              },
+      ),
       row(LucideIcons.info, 'حول', 'الإصدار والتعريف', () {
         final navigator = Navigator.of(context);
         navigator.pop();

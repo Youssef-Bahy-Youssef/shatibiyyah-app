@@ -152,7 +152,6 @@ void main() {
       reader = ReaderController(
         content: content,
         recording: recording,
-        windows: windows,
         viewer: PageViewerController(legacyData(content, windows), prefs),
         initialVerse: 3,
       );

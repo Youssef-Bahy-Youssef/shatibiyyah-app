@@ -123,7 +123,6 @@ void main() {
           r = ReaderController(
             content: content,
             recording: recording,
-            windows: windows,
             viewer: PageViewerController(legacyData(content, windows), prefs),
             engine: state == 'playing'
                 ? PlaybackEngine(_SilentAudio(), PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings()))

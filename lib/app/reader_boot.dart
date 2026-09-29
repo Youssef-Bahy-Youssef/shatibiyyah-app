@@ -1,26 +1,21 @@
 // lib/app/reader_boot.dart — builds the v3 reader: content, player, personal data, session.
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../data/app_content.dart';
 import '../data/legacy_adapter.dart';
 import '../data/legacy_prefs.dart';
-import '../data/recording_repository.dart';
 import '../data/settings_store.dart';
 import '../data/user_store.dart';
-import '../domain/playback_engine.dart';
 import '../domain/playback_plan.dart';
 import '../models/playback_settings.dart' show K;
-import '../services/audio_focus.dart';
-import '../services/just_audio_port.dart';
+import '../services/device_storage.dart';
+import '../services/download_manager.dart';
 import '../services/preferences_service.dart';
 import '../ui/reader/reader_controller.dart';
 import '../ui/widgets/page_viewer.dart';
+import 'audio_library.dart';
 
 /// The verse the reader was on (restored at launch).
 const String kSessionVerse = 'v2.session.verse';
@@ -31,43 +26,38 @@ Future<ReaderController> bootReader() async {
   migrateLegacyPrefs(prefs, content.matn);
   final support = await getApplicationSupportDirectory();
 
-  final recording = content.recordings.defaultRecording;
-  final windows = await content.windowsFor(recording);
   final user = await UserStore.open(directory: support.path);
+  final library = AudioLibrary(
+    content: content,
+    prefs: prefs,
+    user: user,
+    downloads: DownloadManager(
+      supportDir: support,
+      freeBytes: deviceFreeBytes,
+      onUnmeteredNetwork: deviceOnUnmeteredNetwork,
+    ),
+  );
+  await library.refresh();
+  final recording = library.current;
+  final windows = await content.windowsFor(recording);
 
   final initial = _restoreVerse(prefs, content.matn.lastVerse);
   final chapter = content.matn.chapterOfVerse(initial);
-  final plan = PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings());
-
-  PlaybackEngine? engine;
-  final file = File(p.join(support.path, RecordingRepository.localFileName(recording)));
-  if (await file.exists() && await file.length() == recording.localBytes) {
-    // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
-    final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
-    await port.load(
-      file.path,
-      MediaItem(id: recording.id, title: 'تيسير الشاطبية', album: 'تيسير الشاطبية', artist: recording.reciterName),
-    );
-    final e = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording));
-    engine = e;
-    try {
-      await AudioFocus.attach(isPlaying: () => e.state.playing, pause: e.pause, setVolume: port.setVolume);
-    } catch (_) {
-      // Without a session the app still plays; it only loses the interruption policy.
-    }
-  }
+  final engine = await library.openCurrent(
+    PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
+  );
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
   final reader = ReaderController(
     content: content,
     recording: recording,
-    windows: windows,
     viewer: viewer,
     engine: engine,
     user: user,
     store: SettingsStore(prefs),
     initialVerse: initial,
   );
+  library.attach(reader);
   var saved = initial;
   reader.addListener(() {
     if (reader.verse != saved) {

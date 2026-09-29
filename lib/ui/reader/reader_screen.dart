@@ -18,6 +18,7 @@ import '../design/taysir_colors.dart';
 import '../search/search_screen.dart';
 import '../share/share_sheet.dart';
 import '../shell/app_drawer.dart';
+import '../shell/downloads_screen.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
@@ -141,7 +142,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     travel: 8,
                     child: _PlayerBar(
                       reader: reader,
-                      onOpen: () => showToolsSheet(context, reader, tab: ToolsTab.audio),
+                      onOpen: () => reader.audioAvailable || reader.library == null
+                          ? showToolsSheet(context, reader, tab: ToolsTab.audio)
+                          : DownloadsScreen.open(context, reader.library!),
                     ),
                   ),
                   if (reader.selecting)
@@ -555,15 +558,26 @@ class _PlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Download progress comes from the library, not the reader.
+    final library = reader.library;
+    return library == null ? _bar(context) : AnimatedBuilder(animation: library, builder: (context, _) => _bar(context));
+  }
+
+  Widget _bar(BuildContext context) {
     final t = TaysirColors.of(context);
     final chapter = reader.chapter;
     final audio = reader.audioAvailable;
     final repeats = reader.settings.verseRepeats;
     final sections = reader.settings.sectionRepeats;
+    final library = reader.library;
+    final downloading = library?.isDownloading(reader.recording) ?? false;
+    final progress = library?.progressOf(reader.recording);
     final String line1, line2;
     if (!audio) {
-      line1 = 'التلاوة غير منزّلة بعد';
-      line2 = 'المتن والشروح تعمل دون تنزيل';
+      line1 = downloading && progress != null
+          ? 'تُنزَّل التلاوة ${ar((progress.fraction * 100).floor())}٪'
+          : 'التلاوة غير منزّلة بعد';
+      line2 = downloading ? reader.recording.reciterName : 'المتن والشروح تعمل دون تنزيل';
     } else if (reader.playing) {
       line1 = reader.inTitle ? chapter.shortLabel : 'البيت ${ar(reader.verse)} من ${ar(chapter.toVerse)}';
       line2 = reader.recording.reciterName;
@@ -597,11 +611,20 @@ class _PlayerBar extends StatelessWidget {
                     ring: (sections == null || sections > 1) ? reader.sectionRepetition / (sections ?? 1) : null,
                   )
                 else
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.gold, width: 1.5)),
-                    child: Icon(LucideIcons.download, size: 22, color: t.goldText),
+                  // The single «تنزيل» button of the no-audio player (features-v3 audio-downloads).
+                  Semantics(
+                    button: true,
+                    label: 'التنزيلات',
+                    child: GestureDetector(
+                      onTap: onOpen,
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        decoration:
+                            BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.gold, width: 1.5)),
+                        child: Icon(LucideIcons.download, size: 22, color: t.goldText),
+                      ),
+                    ),
                   ),
                 const SizedBox(width: 10),
                 Expanded(

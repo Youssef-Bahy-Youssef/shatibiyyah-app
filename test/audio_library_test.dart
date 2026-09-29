@@ -1,0 +1,218 @@
+// The recordings library: choosing a reciter keeps the verse and swaps the audio;
+// one not on the device leaves the reader without audio; deleting the chosen one
+// takes its audio away; without hosting a download fails cleanly.
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shatibiyyah/app/audio_library.dart';
+import 'package:shatibiyyah/data/app_content.dart';
+import 'package:shatibiyyah/data/legacy_adapter.dart';
+import 'package:shatibiyyah/data/recording_repository.dart';
+import 'package:shatibiyyah/domain/playback_engine.dart';
+import 'package:shatibiyyah/domain/playback_plan.dart';
+import 'package:shatibiyyah/services/download_manager.dart';
+import 'package:shatibiyyah/services/preferences_service.dart';
+import 'package:shatibiyyah/ui/design/taysir_colors.dart';
+import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
+import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+class _SilentAudio implements AudioPort {
+  bool _playing = false;
+  @override
+  Stream<int> get positionMs => const Stream.empty();
+  @override
+  Stream<bool> get playingChanges => const Stream.empty();
+  @override
+  int get currentPositionMs => 0;
+  @override
+  bool get playing => _playing;
+  @override
+  Future<void> seek(int ms) async {}
+  @override
+  Future<void> play() async => _playing = true;
+  @override
+  Future<void> pause() async => _playing = false;
+  @override
+  Future<void> setSpeed(double speed) async {}
+}
+
+void main() {
+  sqfliteFfiInit();
+  late Directory support;
+  late AppContent content;
+
+  setUpAll(() async {
+    support = await Directory.systemTemp.createTemp('audio_library_test');
+    content = await AppContent.open(
+      loadAsset: (key) async => ByteData.sublistView(await File(key).readAsBytes()),
+      supportDir: support,
+      factory: databaseFactoryFfi,
+    );
+  });
+
+  tearDownAll(() async {
+    await content.store.close();
+    await support.delete(recursive: true);
+  });
+
+  /// A file of the right size where the downloader keeps [r] (sparse: instant).
+  Future<void> sideLoad(DownloadManager dm, Recording r) async {
+    final f = dm.fileFor(r);
+    await f.parent.create(recursive: true);
+    final raf = await f.open(mode: FileMode.write);
+    await raf.truncate(r.localBytes);
+    await raf.close();
+  }
+
+  Future<(AudioLibrary, ReaderController, DownloadManager, List<String>)> setUpLibrary() async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await Prefs.create();
+    final dir = await Directory.systemTemp.createTemp('lib');
+    addTearDown(() => dir.delete(recursive: true));
+    final dm = DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true);
+    final opened = <String>[];
+    final library = AudioLibrary(
+      content: content,
+      prefs: prefs,
+      downloads: dm,
+      engineFactory: (r, path, plan) async {
+        opened.add(r.slug);
+        return (engine: PlaybackEngine(_SilentAudio(), plan), dispose: () async {});
+      },
+    );
+    await sideLoad(dm, content.recordings.defaultRecording); // Atiq on the device
+    await library.refresh();
+    final windows = await content.windowsFor(library.current);
+    final reader = ReaderController(
+      content: content,
+      recording: library.current,
+      viewer: PageViewerController(legacyData(content, windows), prefs),
+      engine: await library.openCurrent(PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings())),
+      initialVerse: 229,
+    );
+    library.attach(reader);
+    return (library, reader, dm, opened);
+  }
+
+  test('the side-loaded recording is on the device and plays', () async {
+    final (library, reader, _, opened) = await setUpLibrary();
+    expect(library.isOnDevice(library.current), isTrue);
+    expect(reader.audioAvailable, isTrue);
+    expect(opened, ['muhammad-atiq-1']);
+    expect(reader.library, library);
+  });
+
+  test('choosing a reciter not on the device keeps the verse and drops the audio', () async {
+    final (library, reader, _, _) = await setUpLibrary();
+    final other = library.recordings.firstWhere((r) => !r.isDefault);
+    await library.choose(other);
+    expect(library.current.id, other.id);
+    expect(reader.recording.id, other.id);
+    expect(reader.audioAvailable, isFalse);
+    expect(reader.verse, 229);
+
+    await library.choose(content.recordings.defaultRecording); // back: audio again
+    expect(reader.audioAvailable, isTrue);
+    expect(reader.verse, 229);
+  });
+
+  test('deleting the chosen recording takes its audio away', () async {
+    final (library, reader, dm, _) = await setUpLibrary();
+    final r = library.current;
+    await library.delete(r);
+    expect(reader.audioAvailable, isFalse);
+    expect(dm.fileFor(r).existsSync(), isFalse);
+    expect(library.isOnDevice(r), isFalse);
+    expect(library.bytesOnDevice, 0);
+  });
+
+  test('without hosting a download fails with «no URLs», not a hang', () async {
+    final (library, _, _, _) = await setUpLibrary();
+    final other = library.recordings.firstWhere((r) => !r.isDefault);
+    await library.download(other);
+    expect(library.progressOf(other)!.phase, DownloadPhase.failed);
+    expect(library.progressOf(other)!.error, DownloadError.noUrls);
+    expect(library.isDownloading(other), isFalse);
+  });
+
+  test('Wi-Fi only is on by default and remembered', () async {
+    final (library, _, _, _) = await setUpLibrary();
+    expect(library.wifiOnly, isTrue);
+    library.wifiOnly = false;
+    expect(library.wifiOnly, isFalse);
+  });
+
+  /// Lets real I/O started by a tap finish: each step continues in the test's fake
+  /// zone, so alternate real waits with pumps.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> host(WidgetTester tester, Widget home) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(extensions: const [TaysirColors.dark]), home: home));
+    await tester.pump();
+  }
+
+  testWidgets('«التنزيلات»: each recording with its size, duration and state', (tester) async {
+    late AudioLibrary library;
+    await tester.runAsync(() async => (library, _, _, _) = await setUpLibrary());
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.text('محمد بن عتيق الصنوي'), findsOneWidget);
+    expect(find.text('\u2066٢:٣٠:٣٧\u2069، ١٤٥ م.ب'), findsOneWidget);
+    expect(find.text('على الجهاز · مُتحقَّق منه'), findsOneWidget);
+    expect(find.text('المختار'), findsOneWidget);
+    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ٢٥٢ م.ب'), findsOneWidget);
+    expect(find.text('غير منزّل'), findsOneWidget);
+    expect(find.text('التلاوات على الجهاز: ١٤٥ م.ب'), findsOneWidget);
+
+    await tester.tap(find.text('تنزيل'));
+    await settle(tester);
+    expect(find.text('التنزيل غير متاح بعد'), findsOneWidget); // no hosting yet
+    expect(find.text('إعادة المحاولة'), findsOneWidget);
+  });
+
+  testWidgets('delete asks first, then the recording is gone', (tester) async {
+    late AudioLibrary library;
+    late ReaderController reader;
+    await tester.runAsync(() async => (library, reader, _, _) = await setUpLibrary());
+    await host(tester, DownloadsScreen(library: library));
+    await tester.tap(find.text('حذف'));
+    await tester.pumpAndSettle();
+    expect(find.text('حذف التلاوة؟'), findsOneWidget);
+    await tester.tap(find.text('حذف').last);
+    await settle(tester);
+    expect(library.isOnDevice(library.current), isFalse);
+    expect(reader.audioAvailable, isFalse);
+    expect(find.text('التلاوات على الجهاز: ٠ م.ب'), findsOneWidget);
+  });
+
+  testWidgets('«القارئ»: choosing one not on the device keeps the verse and opens «التنزيلات»', (tester) async {
+    late AudioLibrary library;
+    late ReaderController reader;
+    await tester.runAsync(() async => (library, reader, _, _) = await setUpLibrary());
+    await host(
+      tester,
+      Scaffold(body: Builder(builder: (context) => TextButton(onPressed: () => showReciterSheet(context, library), child: const Text('open')))),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('يبقى البيت الحالي عند التبديل'), findsOneWidget);
+    await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
+    await settle(tester);
+    expect(reader.recording.slug, 'abdulhamid-alqaryu-1');
+    expect(reader.verse, 229);
+    expect(find.byType(DownloadsScreen), findsOneWidget);
+  });
+}

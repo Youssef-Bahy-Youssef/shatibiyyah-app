@@ -17,7 +17,7 @@ import '../../data/settings_store.dart';
 import '../../data/user_store.dart';
 import '../../domain/playback_engine.dart';
 import '../../domain/playback_plan.dart';
-import '../../domain/playback_windows.dart';
+import '../../app/audio_library.dart';
 import '../design/app_theme.dart';
 import '../widgets/page_viewer.dart';
 
@@ -26,14 +26,16 @@ const Duration kNoticeDuration = Duration(seconds: 2);
 
 class ReaderController extends ChangeNotifier {
   final AppContent content;
-  final Recording recording;
-  final PlaybackWindows windows;
   final PageViewerController viewer;
   final UserStore? user;
   final SettingsStore? store;
 
-  /// Null until the recording is on the device.
-  final PlaybackEngine? engine;
+  /// The recordings: which is chosen, which are on the device, downloads (set at boot).
+  AudioLibrary? library;
+
+  Recording _recording;
+  PlaybackEngine? _engine; // null until the recording is on the device
+  StreamSubscription<EngineState>? _engineSub;
 
   PlaybackSettings _settings;
   double _speed = 1;
@@ -54,15 +56,15 @@ class ReaderController extends ChangeNotifier {
 
   ReaderController({
     required this.content,
-    required this.recording,
-    required this.windows,
+    required Recording recording,
     required this.viewer,
-    this.engine,
+    this._engine,
     this.user,
     this.store,
     PlaybackSettings initialSettings = const PlaybackSettings(),
     int initialVerse = 1,
   })  : _verse = initialVerse,
+        _recording = recording,
         _settings = initialSettings {
     final s = store;
     if (s != null) {
@@ -77,16 +79,40 @@ class ReaderController extends ChangeNotifier {
       _textScale = s.textScale;
       appTheme.value = s.theme;
     }
-    engine?.plan.settings = _settings;
-    engine?.audio.setSpeed(_speed);
+    _attachEngine();
     _subs.add(viewer.onVerseTap.listen(tapVerse));
     _subs.add(viewer.onVerseLongPress.listen(openMenu));
     _subs.add(viewer.onPageTap.listen((_) => toggleChrome()));
     _subs.add(viewer.onPageChange.listen((_) => _onPageSwiped()));
     _subs.add(viewer.onChapterTap.listen(openHeading));
-    final e = engine;
-    if (e != null) _subs.add(e.states.listen(_onEngineState));
     viewer.setActiveVerse(_verse);
+  }
+
+  Recording get recording => _recording;
+  PlaybackEngine? get engine => _engine;
+
+  void _attachEngine() {
+    final e = _engine;
+    if (e == null) return;
+    e.plan.settings = _settings;
+    e.audio.setSpeed(_speed);
+    _engineSub = e.states.listen(_onEngineState);
+  }
+
+  /// Another recording (or the same one, once downloaded or deleted): the verse
+  /// stays, the repeat counters start again (features-v3 reciter-catalog). The
+  /// previous engine belongs to [library], which has already stopped it.
+  Future<void> setAudio(Recording recording, PlaybackEngine? engine) async {
+    await _engineSub?.cancel();
+    _engineSub = null;
+    _recording = recording;
+    _engine = engine;
+    _engineState = null;
+    _detached = false;
+    _speed = store?.speedFor(recording.id) ?? 1;
+    _attachEngine();
+    viewer.setActiveVerse(_verse);
+    notifyListeners();
   }
 
   // ── what the UI reads ──
@@ -418,6 +444,7 @@ class ReaderController extends ChangeNotifier {
   @override
   void dispose() {
     _noticeTimer?.cancel();
+    _engineSub?.cancel();
     for (final s in _subs) {
       s.cancel();
     }
