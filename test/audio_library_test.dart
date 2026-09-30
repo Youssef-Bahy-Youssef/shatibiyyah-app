@@ -247,7 +247,7 @@ void main() {
       expect(find.text('تخطَّ'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pump();
-      expect(find.text('كل شيء حول البيت'), findsOneWidget);
+      expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pump();
       expect(find.text('الشروح الثلاثة على جهازك'), findsOneWidget);
