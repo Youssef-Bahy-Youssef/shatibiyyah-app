@@ -103,10 +103,13 @@ class VerseMenu extends StatelessWidget {
         return Stack(
           children: [
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onClose,
-                child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+              child: Semantics(
+                label: 'إغلاق القائمة',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onClose,
+                  child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+                ),
               ),
             ),
             if (rect != null)

@@ -13,6 +13,7 @@ import '../../app/audio_library.dart';
 import '../../data/settings_store.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
+import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../share/share_sheet.dart';
 import '../shell/about_screen.dart';
@@ -255,7 +256,10 @@ class _ToolsSheetState extends State<ToolsSheet> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(LucideIcons.user, size: 16, color: t.goldText),
           const SizedBox(width: 6),
-          Text(r.recording.reciterName, style: kufi(size: 13, weight: 400, color: t.text)),
+          Flexible(
+            child: Text(r.recording.reciterName,
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: kufi(size: 13, weight: 400, color: t.text)),
+          ),
           if (r.library != null) ...[
             const SizedBox(width: 4),
             Icon(LucideIcons.chevronDown, size: 14, color: t.muted),
@@ -284,29 +288,33 @@ class _ToolsSheetState extends State<ToolsSheet> {
           enabled: onTap != null,
           onTap: onTap,
         );
-    return Column(children: [
-      row(LucideIcons.share2, 'مشاركة الصفحة', 'صورة الصفحة ${ar(r.page)} من المخطوط', () {
-        Navigator.of(context).pop();
-        sharePage(r.content, r.page);
-      }),
-      row(
-        LucideIcons.download,
-        'التنزيلات',
-        'التلاوات: ${r.library == null ? '—' : megabytes(r.library!.bytesOnDevice)} على الجهاز',
-        r.library == null
-            ? null
-            : () {
-                final navigator = Navigator.of(context);
-                navigator.pop();
-                navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: r.library!)));
-              },
-      ),
-      row(LucideIcons.info, 'حول', 'الإصدار والتعريف', () {
-        final navigator = Navigator.of(context);
-        navigator.pop();
-        navigator.push(MaterialPageRoute<void>(builder: (_) => AboutScreen(reader: r)));
-      }),
-    ]);
+    // A Material of its own: the sheet's coloured box would hide the rows' ink.
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(children: [
+        row(LucideIcons.share2, 'مشاركة الصفحة', 'صورة الصفحة ${ar(r.page)} من المخطوط', () {
+          Navigator.of(context).pop();
+          sharePage(r.content, r.page);
+        }),
+        row(
+          LucideIcons.download,
+          'التنزيلات',
+          'التلاوات: ${r.library == null ? '—' : megabytes(r.library!.bytesOnDevice)} على الجهاز',
+          r.library == null
+              ? null
+              : () {
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: r.library!)));
+                },
+        ),
+        row(LucideIcons.info, 'حول', 'الإصدار والتعريف', () {
+          final navigator = Navigator.of(context);
+          navigator.pop();
+          navigator.push(MaterialPageRoute<void>(builder: (_) => AboutScreen(reader: r)));
+        }),
+      ]),
+    );
   }
 }
 
@@ -318,35 +326,12 @@ class _Pills<T> extends StatelessWidget {
   const _Pills({required this.values, required this.selected, required this.label, required this.onSelect});
 
   @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: t.bg, borderRadius: BorderRadius.circular(999), border: Border.all(color: t.line)),
-      child: Row(children: [
-        for (final v in values)
-          Expanded(
-            child: Semantics(
-              selected: v == selected,
-              button: true,
-              child: GestureDetector(
-                onTap: () => onSelect(v),
-                child: Container(
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: v == selected ? t.gold : Colors.transparent,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(label(v),
-                      style: kufi(size: 14, weight: v == selected ? 600 : 400, color: v == selected ? t.onGold : t.dim)),
-                ),
-              ),
-            ),
-          ),
-      ]),
-    );
-  }
+  Widget build(BuildContext context) => PillTabs<T>(
+        options: {for (final v in values) v: label(v)},
+        selected: selected,
+        onSelect: onSelect,
+        track: TaysirColors.of(context).bg,
+      );
 }
 
 class _SwitchRow extends StatelessWidget {
@@ -359,21 +344,27 @@ class _SwitchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
-    return SizedBox(
-      height: 52,
-      child: Row(children: [
-        Icon(icon, size: 20, color: t.goldText),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label, style: kufi(size: 14.5, weight: 400, color: t.text))),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: t.onGold,
-          activeTrackColor: t.gold,
-          inactiveThumbColor: t.dim,
-          inactiveTrackColor: t.line,
+    // One item for a screen reader (the label with the switch), tappable as a whole.
+    return MergeSemantics(
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        child: SizedBox(
+          height: 52,
+          child: Row(children: [
+            Icon(icon, size: 20, color: t.goldText),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: kufi(size: 14.5, weight: 400, color: t.text))),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: t.onGold,
+              activeTrackColor: t.gold,
+              inactiveThumbColor: t.dim,
+              inactiveTrackColor: t.line,
+            ),
+          ]),
         ),
-      ]),
+      ),
     );
   }
 }

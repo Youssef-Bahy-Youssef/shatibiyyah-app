@@ -34,6 +34,9 @@ abstract class NotificationPort {
   Future<void> cancelScheduled();
 
   Future<void> schedule(PlannedNotification n);
+
+  /// Shows [n] at once, ignoring its time (the debug build's «جرّب الآن»).
+  Future<void> showNow(PlannedNotification n);
 }
 
 class LocalNotifications implements NotificationPort {
@@ -88,24 +91,38 @@ class LocalNotifications implements NotificationPort {
     if (_ready) await _plugin.cancelAllPendingNotifications();
   }
 
+  static NotificationDetails _detailsFor(PlannedNotification n) => n.longBody == null
+      ? _details
+      : NotificationDetails(
+          android: AndroidNotificationDetails(
+            'app.shatibiyyah.hirz.channel.reminders',
+            'التنبيهات',
+            channelDescription: 'فائدة اليوم وتذكير الباب',
+            icon: 'ic_stat_taysir',
+            color: const Color(0xFFFFAB2E),
+            styleInformation: BigTextStyleInformation(n.longBody!),
+          ),
+        );
+
+  @override
+  Future<void> showNow(PlannedNotification n) async {
+    if (!_ready) return;
+    await _plugin.show(
+      id: n.id + 500, // not the scheduled one's id
+      title: n.title,
+      body: n.body,
+      notificationDetails: _detailsFor(n),
+      payload: n.payload,
+    );
+  }
+
   @override
   Future<void> schedule(PlannedNotification n) async {
     if (!_ready) return;
     await _plugin.zonedSchedule(
       id: n.id,
       scheduledDate: tz.TZDateTime.from(n.when, tz.local),
-      notificationDetails: n.longBody == null
-          ? _details
-          : NotificationDetails(
-              android: AndroidNotificationDetails(
-                'app.shatibiyyah.hirz.channel.reminders',
-                'التنبيهات',
-                channelDescription: 'فائدة اليوم وتذكير الباب',
-                icon: 'ic_stat_taysir',
-                color: const Color(0xFFFFAB2E),
-                styleInformation: BigTextStyleInformation(n.longBody!),
-              ),
-            ),
+      notificationDetails: _detailsFor(n),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       title: n.title,
       body: n.body,

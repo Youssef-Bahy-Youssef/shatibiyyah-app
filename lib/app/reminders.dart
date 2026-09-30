@@ -76,6 +76,19 @@ String clip(String text, int max) {
   return '${text.substring(0, cut > max ~/ 2 ? cut : max).trimRight()}…';
 }
 
+/// The «فائدة اليوم» notification for [b] at [when].
+PlannedNotification benefitNotification(int id, DateTime when, DailyBenefit b) {
+  final text = benefitText(b);
+  return PlannedNotification(
+    id,
+    when,
+    benefitTitle(b),
+    clip(text, _shortLength),
+    'benefit:${b.fromVerse}',
+    longBody: text.length > _shortLength ? clip(text, _longLength) : null,
+  );
+}
+
 /// What to schedule at [now]. Pure, for tests.
 List<PlannedNotification> planReminders({
   required DateTime now,
@@ -92,17 +105,7 @@ List<PlannedNotification> planReminders({
       if (!day.isAfter(now) || plan.length == kBenefitDaysAhead) continue;
       final b = content.benefits.forDay(day);
       if (b == null) break;
-      final text = benefitText(b);
-      plan.add(
-        PlannedNotification(
-          _benefitId + plan.length,
-          day,
-          benefitTitle(b),
-          clip(text, _shortLength),
-          'benefit:${b.fromVerse}',
-          longBody: text.length > _shortLength ? clip(text, _longLength) : null,
-        ),
-      );
+      plan.add(benefitNotification(_benefitId + plan.length, day, b));
     }
   }
   if (chapterOn) {
@@ -196,6 +199,29 @@ class Reminders extends ChangeNotifier {
     prefs.setString(kBenefitTimePref, '${'$hour'.padLeft(2, '0')}:${'$minute'.padLeft(2, '0')}');
     notifyListeners();
     await reschedule();
+  }
+
+  /// Today's «فائدة اليوم», or the chapter reminder, as it would come (for the
+  /// debug build's test tools; the switches do not matter).
+  PlannedNotification sample({required bool chapter}) => chapter
+      ? planReminders(
+          now: clock(),
+          benefitOn: false,
+          chapterOn: true,
+          benefitTime: benefitTime,
+          content: content,
+          verse: verse(),
+        ).single
+      : benefitNotification(3000, clock(), today!);
+
+  /// Shows the sample at once (debug test tools).
+  Future<void> sendNow({required bool chapter}) => port.showNow(sample(chapter: chapter));
+
+  /// Schedules today's benefit [after] from now through the real scheduler (debug
+  /// test tools). Inexact: it may come a few minutes late. The next reschedule
+  /// (leaving the app) replaces it, so it is best tested with the app open.
+  Future<void> scheduleSoon(Duration after) async {
+    await port.schedule(benefitNotification(3000, clock().add(after), today!));
   }
 
   /// Replaces whatever was scheduled with the plan for now.

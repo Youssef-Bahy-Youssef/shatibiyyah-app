@@ -48,6 +48,8 @@ class _NoNotifications implements NotificationPort {
   Future<void> cancelScheduled() async {}
   @override
   Future<void> schedule(PlannedNotification n) async {}
+  @override
+  Future<void> showNow(PlannedNotification n) async {}
 }
 
 class _SilentAudio implements AudioPort {

@@ -171,7 +171,14 @@ class _SearchScreenState extends State<SearchScreen> {
             Icon(LucideIcons.search, size: 19, color: t.muted),
             const SizedBox(width: 6),
             Expanded(
-              child: TextField(
+              // Filling a 48 pt box: the field itself is the tap target a screen reader measures.
+              child: SizedBox(
+                height: 48,
+                child: TextField(
+                expands: true,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.center,
+                keyboardType: TextInputType.text, // one line and the search key, despite maxLines: null
                 controller: _field,
                 autofocus: true,
                 onChanged: _onChanged,
@@ -185,6 +192,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   hintText: 'ابحث في الأبيات والأبواب والشروح',
                   hintStyle: naskh(size: 17, color: t.muted),
                 ),
+              ),
               ),
             ),
             if (_field.text.isNotEmpty)

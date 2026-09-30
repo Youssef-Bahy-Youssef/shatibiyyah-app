@@ -1,12 +1,14 @@
 // lib/ui/shell/about_screen.dart — «حول» (features-v3 about-and-support): the app
 // icon, name, the poem's title, version, a one-line description and «أعد الجولة».
 // «أرسل ملاحظة» waits for a support address.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../theme.dart' show kufi, naskh;
 import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
 import '../reader/reader_controller.dart';
+import 'debug_tools_screen.dart';
 import 'shell_page.dart';
 import 'tour_screen.dart';
 
@@ -76,6 +78,17 @@ class AboutScreen extends StatelessWidget {
                   shape: const StadiumBorder(),
                 ),
                 child: Text('أعد الجولة', style: kufi(size: 14.5, weight: 500, color: t.text)),
+              ),
+            ),
+          ],
+          // Debug builds only (Android Studio / flutter run): the test tools.
+          if (kDebugMode && reader != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context)
+                    .push(MaterialPageRoute<void>(builder: (_) => DebugToolsScreen(reader: reader!))),
+                child: Text('أدوات التجربة', style: kufi(size: 13.5, weight: 500, color: t.goldText)),
               ),
             ),
           ],

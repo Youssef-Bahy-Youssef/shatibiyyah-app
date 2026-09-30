@@ -153,7 +153,7 @@ class _TourScreenState extends State<TourScreen> {
             children: [
               for (var i = 0; i < _cards.length; i++) ...[
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 200),
                   width: i == _card ? 22 : 8,
                   height: 8,
                   decoration: BoxDecoration(

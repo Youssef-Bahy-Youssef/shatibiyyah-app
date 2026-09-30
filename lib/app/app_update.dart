@@ -63,6 +63,14 @@ class AppUpdate extends ChangeNotifier {
     }
   }
 
+  /// Shows the banner without asking Play (debug test tools; «تحديث» then fails
+  /// quietly outside a Play install).
+  void debugShowBanner() {
+    _available = true;
+    _dismissed = false;
+    notifyListeners();
+  }
+
   void dismiss() {
     _dismissed = true;
     notifyListeners();

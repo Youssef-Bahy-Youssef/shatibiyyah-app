@@ -1,6 +1,8 @@
 // lib/ui/design/pill_tabs.dart — the prototype's pill choice (`pillSt`): one
 // rounded track, the chosen option filled with gold. For tabs («رموز القراء») and
-// settings choices («السمة», «حجم النص»).
+// settings choices («السمة», «حجم النص»). The pill is 40 pt inside a 4 pt track,
+// and each option's tap area takes the track's padding too: 48 pt, the Android
+// minimum.
 import 'package:flutter/material.dart';
 
 import '../../theme.dart' show kufi;
@@ -10,15 +12,23 @@ class PillTabs<T> extends StatelessWidget {
   final Map<T, String> options;
   final T? selected;
   final ValueChanged<T> onSelect;
-  const PillTabs({super.key, required this.options, required this.selected, required this.onSelect});
+  final double fontSize;
+  final Color? track; // the track's colour (default: the panel)
+  const PillTabs({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelect,
+    this.fontSize = 14,
+    this.track,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     return Container(
-      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: t.panel,
+        color: track ?? t.panel,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: t.line),
       ),
@@ -32,16 +42,27 @@ class PillTabs<T> extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(999),
                   onTap: () => onSelect(e.key),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: e.key == selected ? t.gold : null,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(e.value,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: e.key == selected ? t.gold : null,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        e.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: kufi(
-                            size: 14, weight: e.key == selected ? 600 : 400, color: e.key == selected ? t.onGold : t.text)),
+                          size: fontSize,
+                          weight: e.key == selected ? 600 : 400,
+                          color: e.key == selected ? t.onGold : t.text,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

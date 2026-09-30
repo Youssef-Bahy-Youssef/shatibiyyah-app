@@ -132,7 +132,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         children: [
                           Icon(LucideIcons.lightbulb, size: 15, color: t.goldText),
                           const SizedBox(width: 6),
-                          Text('تيسير الشاطبية، $time', style: kufi(size: 11.5, weight: 400, color: t.muted)),
+                          Flexible(
+                            child: Text('تيسير الشاطبية، $time', style: kufi(size: 11.5, weight: 400, color: t.muted)),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 6),

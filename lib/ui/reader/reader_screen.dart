@@ -102,7 +102,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       offstage: reader.textMode,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: PageViewer(controller: reader.viewer),
+                        child: PageViewer(
+                          controller: reader.viewer,
+                          verseLabel: (n) {
+                            final v = reader.content.matn.verse(n);
+                            return 'البيت ${ar(n)}: ${v.firstHemistich}، ${v.secondHemistich}';
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -651,7 +657,10 @@ class _PlayerBar extends StatelessWidget {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: onOpen,
-                    child: Column(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 50), // as tall as the shamsa beside it
+                      child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(line1,
@@ -663,6 +672,7 @@ class _PlayerBar extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: kufi(size: 12, weight: 400, color: t.muted)),
                       ],
+                    ),
                     ),
                   ),
                 ),

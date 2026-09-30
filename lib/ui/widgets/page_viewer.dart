@@ -485,6 +485,25 @@ class PageViewerController extends ChangeNotifier {
     _verseTap.add(hit);
   }
 
+  /// A screen reader's «activate» on verse [id]: what a tap on it does.
+  void activateVerse(int id) {
+    _pulseOn(id);
+    _verseTap.add(id);
+  }
+
+  /// A screen reader's long press on verse [id]: its menu, as a held touch opens it.
+  void holdVerse(int id) {
+    _pulseOn(id);
+    _verseLongPress.add(id);
+  }
+
+  void _pulseOn(int id) {
+    final b = data.getBox(id);
+    if (b == null) return;
+    pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+    _invalidate();
+  }
+
   void _doubleTapZoom(Offset local) {
     if (zoom > 1.05) {
       resetView(true);
@@ -758,7 +777,12 @@ class PageViewerController extends ChangeNotifier {
 
 class PageViewer extends StatefulWidget {
   final PageViewerController controller;
-  const PageViewer({super.key, required this.controller});
+
+  /// What a screen reader says for verse N (its text). With it, each verse on the
+  /// page is one item for TalkBack / VoiceOver, placed over its box: activating it
+  /// taps the verse, a long press opens its menu (features-v3 screen-reader-support).
+  final String Function(int verse)? verseLabel;
+  const PageViewer({super.key, required this.controller, this.verseLabel});
 
   @override
   State<PageViewer> createState() => _PageViewerState();
@@ -885,13 +909,31 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
             ),
             child: Stack(
               children: [
-                image,
+                ExcludeSemantics(child: image), // the scan itself says nothing; the verses below do
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _HighlightPainter(c),
                     isComplex: false,
                   ),
                 ),
+                if (widget.verseLabel case final label?)
+                  for (final id in c.data.versesOnPage(c.currentPage))
+                    if (c.data.getBox(id) case final b?)
+                      Positioned(
+                        left: b.x * c.baseScale,
+                        top: b.y * c.baseScale,
+                        width: b.w * c.baseScale,
+                        height: b.h * c.baseScale,
+                        // No hit area of its own: touches still reach the Listener above.
+                        child: Semantics(
+                          container: true,
+                          label: label(id),
+                          selected: c.activeId == id,
+                          onTap: () => c.activateVerse(id),
+                          onLongPress: () => c.holdVerse(id),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
               ],
             ),
           ),

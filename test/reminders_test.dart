@@ -42,6 +42,10 @@ class FakePort implements NotificationPort {
 
   @override
   Future<void> schedule(PlannedNotification n) async => scheduled.add(n);
+
+  final shown = <PlannedNotification>[];
+  @override
+  Future<void> showNow(PlannedNotification n) async => shown.add(n);
 }
 
 void main() {
@@ -184,6 +188,17 @@ void main() {
     expect(await r.setBenefit(false), isTrue);
     expect(port.scheduled.single.payload, 'verse:229');
     expect(port.permissionAsks, 3); // only when turning on
+  });
+
+  test('debug tools: each reminder at once, and one through the scheduler in 2 minutes', () async {
+    final (r, port) = await reminders();
+    await r.sendNow(chapter: false);
+    await r.sendNow(chapter: true);
+    expect(port.shown.map((n) => n.payload), [startsWith('benefit:'), 'verse:229']);
+    expect(port.shown.first.title, benefitTitle(r.today!));
+    await r.scheduleSoon(const Duration(minutes: 2));
+    expect(port.scheduled.single.when, DateTime(2026, 9, 30, 8, 17));
+    expect(r.benefitOn, isFalse); // the switches are untouched
   });
 
   test('the launching reminder is read once from the port', () async {

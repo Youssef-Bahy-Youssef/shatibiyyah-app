@@ -76,18 +76,22 @@ class _IndexScreenState extends State<IndexScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Expanded(
-                      child: Text(part.title, style: kufi(size: 19, weight: 600, color: t.goldBright)),
-                    ),
-                    Text(
-                      'الأبيات ${isolatedRange(part.fromVerse, part.toVerse)}، ${chaptersCount(chapters.length)}',
-                      style: kufi(size: 12.5, weight: 400, color: t.dim),
-                    ),
-                  ],
+                // A Wrap across the full width: the range moves under the title when
+                // large text leaves no room.
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    spacing: 12,
+                    children: [
+                      Text(part.title, style: kufi(size: 19, weight: 600, color: t.goldBright)),
+                      Text(
+                        'الأبيات ${isolatedRange(part.fromVerse, part.toVerse)}، ${chaptersCount(chapters.length)}',
+                        style: kufi(size: 12.5, weight: 400, color: t.dim),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(

@@ -16,6 +16,7 @@ import '../../data/user_store.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
+import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import '../reader/shamsa.dart';
@@ -164,40 +165,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'الملاحظات (${ar(personal?.notes.length ?? 0)})',
       'السجل',
     ];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: t.panel,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: t.line),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < labels.length; i++)
-            Expanded(
-              child: Semantics(
-                selected: i == _tab,
-                button: true,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => setState(() => _tab = i),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: i == _tab ? t.gold : null,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(labels[i],
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: kufi(size: 13.5, weight: i == _tab ? 600 : 400, color: i == _tab ? t.onGold : t.text)),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+    return PillTabs<int>(
+      options: {for (var i = 0; i < labels.length; i++) i: labels[i]},
+      selected: _tab,
+      onSelect: (i) => setState(() => _tab = i),
+      fontSize: 13.5,
     );
   }
 

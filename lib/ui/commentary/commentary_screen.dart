@@ -15,6 +15,7 @@ import '../../data/commentary_repository.dart';
 import '../../domain/commentary_text.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
+import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 
 class CommentaryScreen extends StatefulWidget {
@@ -164,7 +165,7 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
                             _load();
                           },
                     child: Container(
-                      height: 46,
+                      height: 48,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         border: Border(
@@ -231,33 +232,11 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
     );
   }
 
-  Widget _segmentPills(TaysirColors t) => Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-            color: t.bg, borderRadius: BorderRadius.circular(999), border: Border.all(color: t.line)),
-        child: Row(
-          children: [
-            for (final (label, isLanguage) in [('المعنى', false), ('اللغة', true)])
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _language = isLanguage),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _language == isLanguage ? t.gold : Colors.transparent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(label,
-                        style: kufi(
-                            size: 14,
-                            weight: _language == isLanguage ? 600 : 400,
-                            color: _language == isLanguage ? t.onGold : t.dim)),
-                  ),
-                ),
-              ),
-          ],
-        ),
+  Widget _segmentPills(TaysirColors t) => PillTabs<bool>(
+        options: const {false: 'المعنى', true: 'اللغة'},
+        selected: _language,
+        onSelect: (language) => setState(() => _language = language),
+        track: t.bg,
       );
 
   List<Widget> _quotes(TaysirColors t, BlockRef block) {

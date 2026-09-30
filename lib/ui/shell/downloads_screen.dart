@@ -154,16 +154,14 @@ class _RecordingCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    // A Wrap: with large text «المختار» moves under the name.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Flexible(
-                          child: Text(r.reciterName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: kufi(size: 15.5, weight: 600, color: t.text)),
-                        ),
+                        Text(r.reciterName, style: kufi(size: 15.5, weight: 600, color: t.text)),
                         if (chosen) ...[
-                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999)),
@@ -180,14 +178,20 @@ class _RecordingCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              OutlinedButton(
-                onPressed: onAction,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 44),
-                  side: BorderSide(color: t.line),
-                  shape: const StadiumBorder(),
+              // Flexible: with large text the button shrinks (ellipsis) instead of overflowing.
+              Flexible(
+                child: OutlinedButton(
+                  onPressed: onAction,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    side: BorderSide(color: t.line),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(action,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: kufi(size: 13.5, weight: 500, color: t.text)),
                 ),
-                child: Text(action, style: kufi(size: 13.5, weight: 500, color: t.text)),
               ),
             ],
           ),

@@ -61,8 +61,14 @@ class _RumuzScreenState extends State<RumuzScreen> {
           else if (_tab == RamzKind.letter) ...[
             InkWell(
               onTap: () => _openVerse(list.first.fromVerse),
-              child: Text('${_triples(list)}، البيت ${_verses(list.first)}',
-                  style: kufi(size: 12.5, weight: 400, color: t.muted)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('${_triples(list)}، البيت ${_verses(list.first)}',
+                      style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                ),
+              ),
             ),
             const SizedBox(height: 10),
             GridView.count(

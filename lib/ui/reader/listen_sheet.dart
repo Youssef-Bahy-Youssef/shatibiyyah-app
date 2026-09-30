@@ -43,7 +43,9 @@ Future<void> showListenSheet(BuildContext context, ReaderController reader, int 
               border: Border(top: BorderSide(color: t.line)),
             ),
             padding: EdgeInsets.fromLTRB(16, 10, 16, 20 + MediaQuery.of(sheet).padding.bottom),
-            child: Column(
+            // Scrolls when large text makes the options taller than the sheet.
+            child: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -75,7 +77,11 @@ Future<void> showListenSheet(BuildContext context, ReaderController reader, int 
                       child: Row(
                         children: [
                           Expanded(child: Text(o.title, style: kufi(size: 15, weight: 600, color: t.text))),
-                          Text(o.detail, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(o.detail,
+                                textAlign: TextAlign.end, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                          ),
                         ],
                       ),
                     ),
@@ -83,6 +89,7 @@ Future<void> showListenSheet(BuildContext context, ReaderController reader, int 
                   const SizedBox(height: 8),
                 ],
               ],
+            ),
             ),
           ),
         );
