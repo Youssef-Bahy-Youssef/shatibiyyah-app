@@ -48,7 +48,15 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Without android/keystore.properties (no upload key on this machine yet) a
+            // local release build is signed with the debug key so it can be tried out.
+            // Google Play refuses debug-signed uploads, so it can never reach the store.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("keystore.properties missing: release build signed with the DEBUG key (not for Play)")
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }
