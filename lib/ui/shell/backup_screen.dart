@@ -65,6 +65,7 @@ class _BackupScreenState extends State<BackupScreen> {
     } on device.DocumentError catch (e) {
       (message, failed) = (_deviceError(e), true);
     }
+    if (failed) _reader.rating?.noteError();
     if (!mounted) return;
     setState(() {
       _busy = false;

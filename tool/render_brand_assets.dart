@@ -8,6 +8,8 @@
 //            mipmap-*/ic_launcher_foreground.png  adaptive foreground: the logo, 54 of 108 dp
 //            mipmap-*/ic_launcher_background.png  adaptive background: the espresso gradient
 //            drawable-xxhdpi/splash_logo.png      pre-Android-12 launch logo (128 dp)
+//            drawable-*/ic_stat_taysir.png        notification small icon: the logo's silhouette
+//                                                 in white, 24 dp (Android tints it)
 //   ios      LaunchImage.imageset/*.png           the launch-screen logo (128 pt)
 //   ios      AppIcon.appiconset/*.png             full-bleed square tiles (iOS rounds them);
 //                                                 tool/flatten_ios_icons.py then drops the alpha
@@ -72,6 +74,13 @@ void main() {
           _logo(c, s * 0.5, Offset(s * 0.25, s * 0.25));
         });
         await _png('$dir/ic_launcher_background.png', (108 * d).round(), (c, s) => _tile(c, s));
+        // Notification small icon: alpha only, so the logo's shape filled with white.
+        await _png('$_android/drawable-$name/ic_stat_taysir.png', (24 * d).round(), (c, s) {
+          c.saveLayer(Rect.fromLTWH(0, 0, s, s),
+              Paint()..colorFilter = const ColorFilter.mode(Color(0xFFFFFFFF), BlendMode.srcIn));
+          _logo(c, s, Offset.zero);
+          c.restore();
+        });
       }
       await _png('$_android/drawable-xxhdpi/splash_logo.png', 128 * 3, (c, s) => _logo(c, s, Offset.zero));
       for (final (suffix, scale) in [('', 1), ('@2x', 2), ('@3x', 3)]) {

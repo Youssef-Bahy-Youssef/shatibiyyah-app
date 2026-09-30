@@ -12,9 +12,11 @@
 // Before starting: the free space must cover what is left plus 50 MB, and by
 // default the download waits for Wi-Fi.
 //
-// This runs while the app is open. Carrying on in the background after the app is
-// closed (Android WorkManager / iOS background URLSession) is a later step; the
-// resume above already makes a closed app lose nothing but time.
+// The bytes are moved by a [Transfer]: [HttpTransfer] (dart:io, while the app
+// runs; used in tests and where no background service exists) or, on Android,
+// BackgroundTransfer (lib/services/background_transfer.dart), which carries on
+// after the app is closed. A part file completed while the app was closed is
+// verified and moved into place by [DownloadManager.recover] at the next launch.
 import 'dart:async';
 import 'dart:io';
 
@@ -50,8 +52,31 @@ class DownloadException implements Exception {
 /// Lets a caller stop a download; the part file stays for the next attempt.
 class DownloadCancel {
   bool _cancelled = false;
+  final _listeners = <void Function()>[];
   bool get cancelled => _cancelled;
-  void cancel() => _cancelled = true;
+  void cancel() {
+    _cancelled = true;
+    for (final l in List.of(_listeners)) {
+      l();
+    }
+  }
+
+  /// [listener] runs when [cancel] is called (a transfer that is not polling).
+  void onCancel(void Function() listener) => _listeners.add(listener);
+}
+
+/// Thrown by a [Transfer] when its [DownloadCancel] was used.
+class TransferCancelled implements Exception {
+  const TransferCancelled();
+}
+
+/// Moves the bytes of one mirror into the part file.
+abstract class Transfer {
+  /// Brings [part] to [total] bytes from [url], resuming what is there when it
+  /// can, reporting the bytes received. Throws on failure (the manager then tries
+  /// the next mirror) and [TransferCancelled] when [cancel] is used.
+  Future<void> fetch(Uri url, File part, int total, void Function(int received) progress, DownloadCancel? cancel,
+      {required bool wifiOnly});
 }
 
 class DownloadManager {
@@ -67,7 +92,7 @@ class DownloadManager {
   final int rounds;
   final Duration retryDelay;
 
-  HttpClient Function() httpClient;
+  final Transfer transfer;
 
   DownloadManager({
     required this.supportDir,
@@ -75,11 +100,15 @@ class DownloadManager {
     required this.onUnmeteredNetwork,
     this.rounds = 3,
     this.retryDelay = const Duration(seconds: 2),
+    Transfer? transfer,
     HttpClient Function()? httpClient,
-  }) : httpClient = httpClient ?? HttpClient.new;
+  }) : transfer = transfer ?? HttpTransfer(httpClient ?? HttpClient.new);
 
   File fileFor(Recording r) => File(p.join(supportDir.path, RecordingRepository.localFileName(r)));
   File _partFor(Recording r) => File('${fileFor(r).path}.part');
+
+  /// Where [r]'s bytes gather until verified.
+  File partFileFor(Recording r) => _partFor(r);
 
   /// Whether [r] is on the device, complete.
   Future<bool> isDownloaded(Recording r) async {
@@ -92,6 +121,21 @@ class DownloadManager {
     for (final f in [fileFor(r), _partFor(r)]) {
       if (await f.exists()) await f.delete();
     }
+  }
+
+  /// A part file that reached its full size while the app was closed (a
+  /// background transfer finished): verified and moved into place. True when [r]
+  /// is now on the device; a corrupted part file is discarded.
+  Future<bool> recover(Recording r) async {
+    final delivery = r.delivery;
+    final part = _partFor(r);
+    if (delivery == null || !await part.exists() || await part.length() != delivery.bytes) return false;
+    if (await compute(_sha256Of, part.path) != delivery.sha256) {
+      await part.delete();
+      return false;
+    }
+    await part.rename(fileFor(r).path);
+    return true;
   }
 
   /// Downloads [r], reporting progress; returns the verified file.
@@ -136,8 +180,9 @@ class DownloadManager {
           await Future<void>.delayed(wifiPoll);
         }
         try {
-          await _fetch(Uri.parse(url), part, total, (n) => report(DownloadPhase.downloading, n), cancel);
-        } on _Cancelled {
+          await transfer.fetch(Uri.parse(url), part, total, (n) => report(DownloadPhase.downloading, n), cancel,
+              wifiOnly: wifiOnly);
+        } on TransferCancelled {
           report(DownloadPhase.cancelled, await have());
           throw const DownloadException(DownloadError.cancelled);
         } catch (_) {
@@ -168,8 +213,17 @@ class DownloadManager {
     throw const DownloadException(DownloadError.network);
   }
 
-  /// Appends the rest of the file from [url] to [part], resuming with a Range request.
-  Future<void> _fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel) async {
+}
+
+/// The transfer over dart:io: appends the rest of the file to the part file with
+/// an HTTP Range request. Runs while the app runs.
+class HttpTransfer implements Transfer {
+  final HttpClient Function() httpClient;
+  HttpTransfer(this.httpClient);
+
+  @override
+  Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
+      {required bool wifiOnly}) async {
     final client = httpClient();
     try {
       var start = await part.exists() ? await part.length() : 0;
@@ -194,7 +248,7 @@ class DownloadManager {
           sink.add(chunk);
           received += chunk.length;
           progress(received);
-          if (cancel?.cancelled ?? false) throw const _Cancelled();
+          if (cancel?.cancelled ?? false) throw const TransferCancelled();
         }
       } finally {
         await sink.flush();
@@ -204,10 +258,6 @@ class DownloadManager {
       client.close(force: true);
     }
   }
-}
-
-class _Cancelled implements Exception {
-  const _Cancelled();
 }
 
 String _sha256Of(String path) {

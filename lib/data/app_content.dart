@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../domain/playback_windows.dart';
+import 'benefits_repository.dart';
 import 'commentary_repository.dart';
 import 'content_store.dart';
 import 'layout_repository.dart';
@@ -20,8 +21,9 @@ class AppContent {
   final CommentaryRepository books;
   final RecordingRepository recordings;
   final RumuzRepository rumuz;
+  final BenefitsRepository benefits;
 
-  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz);
+  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz, this.benefits);
 
   /// Opens the bundled snapshot (installing it on first run) and loads the repositories.
   static Future<AppContent> open({
@@ -41,6 +43,7 @@ class AppContent {
       await CommentaryRepository.load(store.db),
       await RecordingRepository.load(store.db),
       await RumuzRepository.load(store.db),
+      await BenefitsRepository.load(store.db),
     );
   }
 

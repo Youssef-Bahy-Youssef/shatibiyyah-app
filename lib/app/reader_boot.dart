@@ -1,5 +1,7 @@
 // lib/app/reader_boot.dart — builds the v3 reader: content, player, personal data, session.
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -11,13 +13,18 @@ import '../data/user_store.dart';
 import '../domain/playback_plan.dart';
 import '../models/playback_settings.dart' show K;
 import '../services/device_storage.dart';
+import '../services/background_transfer.dart';
 import '../services/download_manager.dart';
+import '../services/notifications.dart';
 import '../services/preferences_service.dart';
 import '../ui/commentary/commentary_screen.dart';
 import '../ui/reader/reader_controller.dart';
 import '../ui/widgets/page_viewer.dart';
 import 'audio_library.dart';
+import 'app_update.dart';
 import 'personal_data.dart';
+import 'rating.dart';
+import 'reminders.dart';
 
 /// The verse the reader was on (restored at launch).
 const String kSessionVerse = 'v2.session.verse';
@@ -29,6 +36,14 @@ Future<ReaderController> bootReader() async {
   final support = await getApplicationSupportDirectory();
 
   final user = await UserStore.open(directory: support.path);
+  // Downloads carry on in the background where the platform allows it (Android);
+  // elsewhere, or if the service does not start, they run while the app runs.
+  BackgroundTransfer? background;
+  if (Platform.isAndroid) {
+    try {
+      background = await BackgroundTransfer.start();
+    } catch (_) {}
+  }
   final library = AudioLibrary(
     content: content,
     prefs: prefs,
@@ -37,9 +52,19 @@ Future<ReaderController> bootReader() async {
       supportDir: support,
       freeBytes: deviceFreeBytes,
       onUnmeteredNetwork: deviceOnUnmeteredNetwork,
+      transfer: background,
     ),
   );
   await library.refresh();
+  if (background != null) {
+    background.onUnattendedComplete = library.backgroundFinished;
+    // A download still running since before the app was closed: show it again.
+    for (final r in library.recordings) {
+      if (!library.isOnDevice(r) && await background.isActive(library.downloads.partFileFor(r))) {
+        unawaited(library.download(r));
+      }
+    }
+  }
   final recording = library.current;
   final windows = await content.windowsFor(recording);
 
@@ -60,6 +85,12 @@ Future<ReaderController> bootReader() async {
     initialVerse: initial,
   );
   library.attach(reader);
+  reader.rating = RatingPrompt(prefs: prefs, port: InAppReviewPort());
+  if (Platform.isAndroid) {
+    final update = AppUpdate(PlayUpdatePort());
+    reader.update = update;
+    unawaited(update.check()); // the banner appears when Play answers
+  }
   final personal = PersonalData(user);
   await personal.load();
   reader.personal = personal;
@@ -67,6 +98,11 @@ Future<ReaderController> bootReader() async {
   void ribbons() => viewer.setRibbons(personal.ribbons);
   personal.addListener(ribbons);
   ribbons();
+  final reminders = Reminders(prefs: prefs, port: LocalNotifications(), content: content, verse: () => reader.verse);
+  try {
+    await reminders.start();
+    reader.reminders = reminders;
+  } catch (_) {} // no notifications on this platform: the reader works without them
   var saved = initial;
   reader.addListener(() {
     if (reader.verse != saved) {

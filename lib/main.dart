@@ -5,23 +5,31 @@
 // shatibiyyah-data; the 94 manuscript pages are assets/pages/page001–094.webp.
 // No audio is bundled: a recording plays from a file on the device. The theme
 // (dark espresso or paper) is app-wide and switched from the tools sheet.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:audio_service/audio_service.dart';
 
 import 'app/reader_boot.dart';
+import 'app/reminders.dart';
+import 'data/benefits_repository.dart';
 import 'services/lock_screen.dart';
 import 'theme.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
+import 'ui/commentary/commentary_screen.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
 
 /// The lock-screen handler, when the platform service started.
 LockScreenHandler? lockScreen;
+
+/// The app's navigator: a tapped reminder opens its verse from outside the tree.
+final GlobalKey<NavigatorState> appNavigator = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +61,7 @@ class ShatibiyyahApp extends StatelessWidget {
       valueListenable: appTheme,
       builder: (context, theme, _) => MaterialApp(
         title: 'تيسير الشاطبية',
+        navigatorKey: appNavigator,
         debugShowCheckedModeBanner: false,
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar')],
@@ -95,24 +104,59 @@ class _Boot extends StatefulWidget {
   State<_Boot> createState() => _BootState();
 }
 
-class _BootState extends State<_Boot> {
+class _BootState extends State<_Boot> with WidgetsBindingObserver {
   ReaderController? _reader;
   bool _error = false;
+  StreamSubscription<ReminderTarget>? _taps;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _taps?.cancel();
+    super.dispose();
+  }
+
+  /// Leaving the app moves «تذكير الباب» to three days from now, on the current verse.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _reader?.reminders?.reschedule();
   }
 
   Future<void> _init() async {
     try {
       final reader = await bootReader();
       lockScreen?.attach(reader);
+      _taps = reader.reminders?.taps.listen(_openReminder);
       if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
+  }
+
+  /// A tapped reminder: the reader on its verse; for «فائدة اليوم», Al-Wafi there too.
+  void _openReminder(ReminderTarget target) {
+    final reader = _reader;
+    final navigator = appNavigator.currentState;
+    if (reader == null || navigator == null) return;
+    navigator.popUntil((r) => r.isFirst);
+    reader.tapVerse(target.verse);
+    if (target is BenefitTarget) {
+      CommentaryScreen.open(navigator.context, reader.content, target.verse, bookId: kBenefitsCommentaryId);
+    }
+  }
+
+  /// After the splash: the tour on the first run, else the reminder that launched the app.
+  Future<void> _afterSplash() async {
+    _firstRun();
+    final target = await _reader?.reminders?.launchTarget();
+    if (target != null && mounted) _openReminder(target);
   }
 
   /// The first time only: the tour, then «اختر القارئ» (features-v3 onboarding-tour).
@@ -127,7 +171,7 @@ class _BootState extends State<_Boot> {
   Widget build(BuildContext context) {
     return BootSplash(
       ready: _reader != null || _error,
-      onGone: _firstRun,
+      onGone: _afterSplash,
       child: _reader != null
           ? ReaderScreen(reader: _reader!)
           : (_error ? const _ErrorScreen() : const SizedBox.shrink()),

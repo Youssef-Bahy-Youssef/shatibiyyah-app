@@ -122,6 +122,24 @@ void main() {
     expect(reader.verse, 229);
   });
 
+  // (The accepted and the corrupted part file are in download_manager_test: the
+  // snapshot has no delivery checksums until the files are hosted.)
+  test('a finished part file with nothing to verify it against is not taken in', () async {
+    final (library, reader, dm, _) = await setUpLibrary();
+    final other = library.recordings.firstWhere((r) => !r.isDefault);
+    await library.choose(other);
+    final part = dm.partFileFor(other);
+    await part.parent.create(recursive: true);
+    final raf = await part.open(mode: FileMode.write);
+    await raf.truncate(other.localBytes); // full size, unverifiable
+    await raf.close();
+    expect(other.delivery, isNull);
+    await library.backgroundFinished();
+    expect(library.isOnDevice(other), isFalse);
+    expect(dm.fileFor(other).existsSync(), isFalse);
+    expect(reader.audioAvailable, isFalse);
+  });
+
   test('deleting the chosen recording takes its audio away', () async {
     final (library, reader, dm, _) = await setUpLibrary();
     final r = library.current;

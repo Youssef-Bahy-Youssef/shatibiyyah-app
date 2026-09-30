@@ -1,6 +1,8 @@
 // The recording downloader against a local HTTP server with fault injection
 // (plan P5 acceptance: resume after a kill, next mirror on failure, a corrupted
-// byte fails verification and the retry works, low disk, Wi-Fi only).
+// byte fails verification and the retry works, low disk, Wi-Fi only); a part
+// file finished while the app was closed is recovered; any Transfer plugs in.
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -9,6 +11,25 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/recording_repository.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
+
+/// A transfer that writes the whole file at once, or waits until cancelled.
+class _InstantTransfer implements Transfer {
+  final Uint8List body;
+  final bool hang;
+  _InstantTransfer(this.body, {this.hang = false});
+  @override
+  Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
+      {required bool wifiOnly}) async {
+    if (hang) {
+      final cancelled = Completer<void>();
+      cancel?.onCancel(cancelled.complete);
+      await cancelled.future; // like a background task: no polling, only the cancel call
+      throw const TransferCancelled();
+    }
+    await part.writeAsBytes(body);
+    progress(total);
+  }
+}
 
 /// Serves [body] at several paths, each with its own misbehaviour.
 class _Server {
@@ -187,5 +208,57 @@ void main() {
       manager().download(_recording(body, [])),
       throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.noUrls)),
     );
+  });
+
+  group('recover and transfers', () {
+    DownloadManager with_(Transfer t) => DownloadManager(
+          supportDir: dir,
+          freeBytes: () async => null,
+          onUnmeteredNetwork: () async => true,
+          transfer: t,
+        );
+
+    test('a complete, correct part file is verified and moved into place', () async {
+      final r = _recording(body, [server.url('/ok')]);
+      final m = manager();
+      await (m.partFileFor(r)..parent.createSync(recursive: true)).writeAsBytes(body);
+      expect(await m.recover(r), isTrue);
+      expect(await m.isDownloaded(r), isTrue);
+      expect(m.partFileFor(r).existsSync(), isFalse);
+    });
+
+    test('a corrupted part file is discarded; an incomplete one is kept for resuming', () async {
+      final r = _recording(body, [server.url('/ok')]);
+      final m = manager();
+      await (m.partFileFor(r)..parent.createSync(recursive: true)).writeAsBytes(Uint8List.fromList(body)..[10] ^= 0xFF);
+      expect(await m.recover(r), isFalse);
+      expect(m.partFileFor(r).existsSync(), isFalse);
+
+      await (m.partFileFor(r)..parent.createSync(recursive: true)).writeAsBytes(body.sublist(0, 1000));
+      expect(await m.recover(r), isFalse);
+      expect(m.partFileFor(r).lengthSync(), 1000);
+      expect(await m.isDownloaded(r), isFalse);
+    });
+
+    test('any Transfer plugs in: its bytes are verified like the HTTP ones', () async {
+      final r = _recording(body, ['https://mirror.invalid/a.mp3']);
+      final file = await with_(_InstantTransfer(body)).download(r);
+      expect(await file.readAsBytes(), body);
+
+      final bad = _recording(body, ['https://mirror.invalid/a.mp3']);
+      await with_(_InstantTransfer(body)).delete(bad);
+      final corrupted = Uint8List.fromList(body)..[0] ^= 1;
+      await expectLater(with_(_InstantTransfer(corrupted)).download(bad),
+          throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.verification)));
+    });
+
+    test('a transfer that does not poll is stopped through the cancel call', () async {
+      final r = _recording(body, ['https://mirror.invalid/a.mp3']);
+      final cancel = DownloadCancel();
+      final done = with_(_InstantTransfer(body, hang: true)).download(r, cancel: cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      cancel.cancel();
+      await expectLater(done, throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.cancelled)));
+    });
   });
 }

@@ -18,6 +18,9 @@ import '../../data/user_store.dart';
 import '../../domain/playback_engine.dart';
 import '../../domain/playback_plan.dart';
 import '../../app/audio_library.dart';
+import '../../app/app_update.dart';
+import '../../app/rating.dart';
+import '../../app/reminders.dart';
 import '../../app/personal_data.dart';
 import '../design/app_theme.dart';
 import '../widgets/page_viewer.dart';
@@ -33,6 +36,15 @@ class ReaderController extends ChangeNotifier {
 
   /// The recordings: which is chosen, which are on the device, downloads (set at boot).
   AudioLibrary? library;
+
+  /// «التنبيهات», set at boot (none in tests unless given).
+  Reminders? reminders;
+
+  /// The rating request after a finished chapter, set at boot.
+  RatingPrompt? rating;
+
+  /// Google Play's update check, for the home screen's banner (Android builds).
+  AppUpdate? update;
 
   /// Bookmarks and notes (set at boot; null in tests that do not need them). The
   /// reader redraws when they change (ribbons in text mode, the menu's icons).
@@ -473,8 +485,18 @@ class ReaderController extends ChangeNotifier {
   }
 
   /// Called by the engine for each verse played through (listening progress).
-  static void Function(int verse) listenRecorder(UserStore? user, Recording recording) =>
-      (verse) => user?.recordVerseListened(recording.id, verse);
+  /// Records each verse played through; [onChapterFinished] hears of a chapter
+  /// whose last unheard verse it was.
+  static void Function(int verse) listenRecorder(UserStore? user, Recording recording,
+          {MatnRepository? matn, void Function(MatnChapter)? onChapterFinished}) =>
+      (verse) {
+        if (user == null) return;
+        if (matn == null || onChapterFinished == null) {
+          user.recordVerseListened(recording.id, verse);
+        } else {
+          recordListened(user, matn, recording.id, verse, onChapterFinished);
+        }
+      };
 
   @override
   void dispose() {

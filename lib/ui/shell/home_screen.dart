@@ -3,11 +3,14 @@
 // «تابع من حيث توقفت» (the reader's verse, chapter and page), then three tabs:
 // «المراجع», «الملاحظات», «السجل» (reading-history: listening sessions and
 // commentary passages read). Each entry opens its verse in the reader, or its
-// passage in its book. The prototype's plans tab left with study plans; the update
-// banner and the rating card come in P7.
+// passage in its book. When Google Play has a newer version, a banner above them
+// offers it (lib/app/app_update.dart; the only screen that shows it). The
+// prototype's plans tab left with study plans; the rating is asked for natively
+// after a finished chapter (lib/app/rating.dart), not by a card.
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/app_update.dart';
 import '../../app/personal_data.dart';
 import '../../data/user_store.dart';
 import '../../theme.dart' show kufi, naskh;
@@ -47,11 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
         body: SafeArea(
           bottom: false,
           child: AnimatedBuilder(
-            animation: Listenable.merge([reader, ?personal]),
+            animation: Listenable.merge([reader, ?personal, ?reader.update]),
             builder: (context, _) => ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
                 _header(t),
+                if (reader.update case final update? when update.showBanner) _updateBanner(t, update),
                 const SizedBox(height: 8),
                 _continueCard(t),
                 const SizedBox(height: 16),
@@ -90,6 +94,32 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _updateBanner(TaysirColors t, AppUpdate update) => Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsetsDirectional.fromSTEB(14, 4, 4, 4),
+        decoration: BoxDecoration(
+          color: t.panel2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: t.goldDeep),
+        ),
+        child: Row(
+          children: [
+            Icon(LucideIcons.download, size: 18, color: t.goldText),
+            const SizedBox(width: 10),
+            Expanded(child: Text('إصدار جديد من التطبيق متاح', style: kufi(size: 13.5, weight: 500, color: t.text))),
+            TextButton(
+              onPressed: update.update,
+              child: Text('تحديث', style: kufi(size: 14, weight: 600, color: t.goldText)),
+            ),
+            IconButton(
+              tooltip: 'إخفاء',
+              onPressed: update.dismiss,
+              icon: Icon(LucideIcons.x, size: 18, color: t.muted),
+            ),
+          ],
+        ),
+      );
 
   Widget _continueCard(TaysirColors t) {
     final v = reader.verse;

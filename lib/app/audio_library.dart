@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../data/app_content.dart';
+import '../data/matn_repository.dart';
 import '../data/recording_repository.dart';
 import '../data/user_store.dart';
 import '../domain/playback_engine.dart';
@@ -33,7 +34,13 @@ class AudioLibrary extends ChangeNotifier {
   final Prefs prefs;
   final UserStore? user;
   final DownloadManager downloads;
-  final EngineFactory engineFactory;
+  final EngineFactory? _engineFactory;
+
+  /// The app's engine unless one was given: it tells the reader's rating prompt
+  /// when a chapter becomes finished.
+  EngineFactory get engineFactory =>
+      _engineFactory ??
+      justAudioEngine(user, matn: content.matn, onChapterFinished: (_) => _reader?.rating?.chapterFinished());
 
   final Map<String, DownloadProgress> _progress = {};
   final Map<String, DownloadCancel> _cancels = {};
@@ -47,7 +54,9 @@ class AudioLibrary extends ChangeNotifier {
     required this.downloads,
     this.user,
     EngineFactory? engineFactory,
-  }) : engineFactory = engineFactory ?? justAudioEngine(user);
+  // A named parameter cannot be private, so no `this._engineFactory`.
+  // ignore: prefer_initializing_formals
+  }) : _engineFactory = engineFactory;
 
   List<Recording> get recordings => content.recordings.recordings;
 
@@ -69,10 +78,11 @@ class AudioLibrary extends ChangeNotifier {
   /// Bytes of recordings on the device.
   int get bytesOnDevice => [for (final r in recordings) if (isOnDevice(r)) r.localBytes].fold(0, (a, b) => a + b);
 
-  /// Looks at the files on the device.
+  /// Looks at the files on the device; a download that finished while the app was
+  /// closed is verified and moved into place first.
   Future<void> refresh() async {
     for (final r in recordings) {
-      if (await downloads.isDownloaded(r)) {
+      if (await downloads.isDownloaded(r) || (!isDownloading(r) && await downloads.recover(r))) {
         _onDevice.add(r.id);
       } else {
         _onDevice.remove(r.id);
@@ -128,6 +138,7 @@ class AudioLibrary extends ChangeNotifier {
       _onDevice.add(r.id);
       if (r.id == current.id) await _reconnect(); // playable now
     } on DownloadException catch (e) {
+      if (e.error != DownloadError.cancelled) _reader?.rating?.noteError(); // shown in «التنزيلات»
       final p = _progress[r.id];
       _progress[r.id] = DownloadProgress(
           e.error == DownloadError.cancelled ? DownloadPhase.cancelled : DownloadPhase.failed,
@@ -141,6 +152,14 @@ class AudioLibrary extends ChangeNotifier {
   }
 
   void cancel(Recording r) => _cancels[r.id]?.cancel();
+
+  /// A background download finished with the app not waiting for it: take it in,
+  /// and play it at once if it is the chosen recording.
+  Future<void> backgroundFinished() async {
+    final wasCurrent = isOnDevice(current);
+    await refresh();
+    if (!wasCurrent && isOnDevice(current)) await _reconnect();
+  }
 
   /// Removes [r] from the device; the reader loses its audio if it was the chosen one.
   Future<void> delete(Recording r) async {
@@ -159,11 +178,12 @@ class AudioLibrary extends ChangeNotifier {
 
 /// The app's engine: just_audio (own interruption policy), listening progress
 /// recorded per verse.
-EngineFactory justAudioEngine(UserStore? user) => (recording, filePath, plan) async {
+EngineFactory justAudioEngine(UserStore? user, {MatnRepository? matn, void Function(MatnChapter)? onChapterFinished}) =>
+    (recording, filePath, plan) async {
       // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
       final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
       await port.load(filePath);
-      final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording));
+      final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording, matn: matn, onChapterFinished: onChapterFinished));
       AudioFocus? focus;
       try {
         focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);

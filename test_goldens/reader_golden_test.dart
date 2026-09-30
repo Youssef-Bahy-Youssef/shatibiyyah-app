@@ -28,11 +28,27 @@ import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/home_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
+import 'package:shatibiyyah/app/reminders.dart';
+import 'package:shatibiyyah/services/notifications.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
+import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+class _NoNotifications implements NotificationPort {
+  @override
+  Future<void> init(void Function(String payload) onTap) async {}
+  @override
+  Future<String?> launchPayload() async => null;
+  @override
+  Future<bool> requestPermission() async => true;
+  @override
+  Future<void> cancelScheduled() async {}
+  @override
+  Future<void> schedule(PlannedNotification n) async {}
+}
 
 class _SilentAudio implements AudioPort {
   bool _playing = false;
@@ -352,5 +368,41 @@ void main() {
             matchesGoldenFile('goldens/$name.png'));
       });
     }
+  }
+
+  // «التنبيهات» with «فائدة اليوم» on (the time row) and a fixed day's preview.
+  for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
+    final name = 'reminders_${theme.name}_390x844';
+    testWidgets(name, (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      addTearDown(tester.view.reset);
+      SharedPreferences.setMockInitialValues({'flutter.v2.reminders.benefit': '1'});
+      late Reminders reminders;
+      await tester.runAsync(() async {
+        reminders = Reminders(
+          prefs: await Prefs.create(),
+          port: _NoNotifications(),
+          content: content,
+          verse: () => 226,
+          clock: () => DateTime(2026, 9, 30, 8),
+        );
+      });
+      await tester.pumpWidget(MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
+          fontFamily: 'ScheherazadeNew',
+          extensions: [colorsFor(theme)],
+        ),
+        builder: (context, child) =>
+            MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
+        home: RemindersScreen(reminders: reminders),
+      ));
+      await tester.pumpAndSettle();
+      await expectLater(find.byType(RemindersScreen), matchesGoldenFile('goldens/$name.png'));
+    });
   }
 }
