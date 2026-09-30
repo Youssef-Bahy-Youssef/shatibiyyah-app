@@ -45,12 +45,26 @@ Future<void> main() async {
       ),
     );
   } catch (_) {}
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  applyOrientationPolicy();
   runApp(const ShatibiyyahApp());
+  // The window's size may be known only once the first frame is laid out.
+  WidgetsBinding.instance.addPostFrameCallback((_) => applyOrientationPolicy());
 }
+
+/// Phones stay upright; a tablet (shortest side from 600 dp, plan P8) turns freely,
+/// so the page and its commentary can stand side by side in landscape.
+void applyOrientationPolicy() {
+  final views = WidgetsBinding.instance.platformDispatcher.views;
+  if (views.isEmpty) return;
+  final view = views.first;
+  final shortest = view.physicalSize.shortestSide / view.devicePixelRatio;
+  SystemChrome.setPreferredOrientations(shortest >= kTabletShortestSide
+      ? DeviceOrientation.values
+      : const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+}
+
+/// The shortest side (dp) from which the device counts as a tablet.
+const double kTabletShortestSide = 600;
 
 class ShatibiyyahApp extends StatelessWidget {
   const ShatibiyyahApp({super.key});

@@ -23,6 +23,7 @@ import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
+import '../shell/shell_page.dart' show readingPadding;
 
 const List<String> kSearchSuggestions = ['ورش', 'النقل', 'حمزة', 'بدأت'];
 
@@ -147,7 +148,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: readingPadding(MediaQuery.sizeOf(context).width, top: 8, bottom: 24),
                   children: typed ? _resultList(t) : _emptyState(t),
                 ),
               ),

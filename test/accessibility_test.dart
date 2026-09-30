@@ -20,6 +20,7 @@ import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/services/notifications.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
+import 'package:shatibiyyah/ui/commentary/compare_screen.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
@@ -122,6 +123,7 @@ void main() {
     'about': (r) => AboutScreen(reader: r),
     'debug tools': (r) => DebugToolsScreen(reader: r),
     'commentary': (r) => CommentaryScreen(content: content, verse: 226),
+    'compare (phone: pages)': (r) => CompareScreen(content: content, verse: 226),
   };
 
   Future<void> show(
@@ -147,6 +149,11 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
+    // Screens that read the database (the passages) finish their reads first.
+    for (var i = 0; i < 6; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump(const Duration(milliseconds: 60));
+    }
   }
 
   Future<void> unmount(WidgetTester tester) async {
@@ -248,6 +255,32 @@ void main() {
     expect(node.label, contains(v.secondHemistich));
     expect(node.getSemanticsData().hasAction(SemanticsAction.longPress), isTrue);
     await unmount(tester);
+    handle.dispose();
+  });
+
+  testWidgets('tablet split (text mode) and compare columns: labelled 48 pt targets', (tester) async {
+    final handle = tester.ensureSemantics();
+    for (final build in <Widget Function(ReaderController)>[
+      (r) => ReaderScreen(reader: r..setTextMode(true)..openSplit(226)),
+      (r) => CompareScreen(content: content, verse: 226),
+    ]) {
+      final r = await reader(tester);
+      tester.view.physicalSize = const Size(1366, 1024);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(extensions: [colorsFor(ReaderTheme.dark)]),
+        builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: build(r),
+      ));
+      for (var i = 0; i < 8; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await unmount(tester);
+    }
     handle.dispose();
   });
 }

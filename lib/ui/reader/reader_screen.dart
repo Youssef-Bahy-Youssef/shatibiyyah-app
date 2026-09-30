@@ -13,6 +13,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../../data/matn_repository.dart';
+import '../../data/settings_store.dart' show kSplitDefault;
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../search/search_screen.dart';
@@ -25,6 +26,7 @@ import '../widgets/verse_menu.dart';
 import 'fixed_page_layout.dart';
 import 'listen_sheet.dart';
 import 'reader_controller.dart';
+import 'split_panel.dart';
 import 'shamsa.dart';
 import 'text_reader.dart';
 import 'tools_sheet.dart';
@@ -58,8 +60,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
-    final mq = MediaQuery.of(context);
-    final layout = ReaderLayout.compute(mq.size, mq.padding);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -81,145 +81,212 @@ class _ReaderScreenState extends State<ReaderScreen> {
             // Back closes the verse menu, then the selection, before it leaves the reader
             // (neither is a route).
             builder: (context, _) => PopScope(
-              canPop: reader.menuVerse == null && reader.headingChapter == null && !reader.selecting,
+              canPop: reader.menuVerse == null &&
+                  reader.headingChapter == null &&
+                  !reader.selecting &&
+                  !_splitOn(context),
               onPopInvokedWithResult: (didPop, _) {
                 if (didPop) return;
                 if (reader.menuVerse != null) {
                   reader.closeMenu();
+                } else if (_splitOn(context)) {
+                  reader.closeSplit();
                 } else if (reader.headingChapter != null) {
                   reader.closeHeading();
                 } else {
                   reader.clearSelection();
                 }
               },
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fromRect(
-                    rect: layout.page,
-                    // Kept mounted in text mode so the page is where it was when the student returns.
-                    child: Offstage(
-                      offstage: reader.textMode,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: PageViewer(
-                          controller: reader.viewer,
-                          verseLabel: (n) {
-                            final v = reader.content.matn.verse(n);
-                            return 'البيت ${ar(n)}: ${v.firstHemistich}، ${v.secondHemistich}';
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (reader.textMode)
-                    Positioned.fromRect(
-                      rect: layout.textZone,
-                      child: TextReader(key: _text, reader: reader),
-                    ),
-                  if (!reader.chromeVisible && !reader.textMode)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: mq.padding.bottom + 12,
-                      child: IgnorePointer(
-                        child: Center(
-                          child: Text(ar(reader.page),
-                              style: naskh(size: 13, color: t.muted.withValues(alpha: 0.7))),
-                        ),
-                      ),
-                    ),
-                  _Chrome(
-                    rect: layout.bar,
-                    visible: reader.chromeVisible,
-                    travel: -6,
-                    child: reader.selecting
-                        ? _SelectionHeader(reader: reader)
-                        : _TopBar(
-                            reader: reader,
-                            onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
-                            onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
-                            onTools: widget.onTools ?? () => showToolsSheet(context, reader),
-                          ),
-                  ),
-                  // While selecting, the player makes way for the selection bar.
-                  _Chrome(
-                    rect: layout.player,
-                    visible: reader.chromeVisible && !reader.selecting,
-                    travel: 8,
-                    child: _PlayerBar(
-                      reader: reader,
-                      onOpen: () => reader.audioAvailable || reader.library == null
-                          ? showToolsSheet(context, reader, tab: ToolsTab.audio)
-                          : DownloadsScreen.open(context, reader.library!),
-                    ),
-                  ),
-                  if (reader.selecting)
-                    _Chrome(
-                      rect: layout.player,
-                      visible: reader.selectionComplete,
-                      travel: 8,
-                      child: _SelectionActions(reader: reader),
-                    ),
-                  if (reader.selecting && !reader.selectionComplete)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: layout.bar.bottom + 8,
-                      child: IgnorePointer(child: Center(child: _SelectionHint(reader: reader))),
-                    ),
-                  if (reader.detached && reader.playing && !reader.selecting)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: layout.player.top - 24,
-                      child: Center(child: _ResumeChip(reader: reader)),
-                    ),
-                  if (reader.headingChapter != null) ...[
-                    Positioned.fill(
-                      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: reader.closeHeading),
-                    ),
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      top: layout.bar.bottom + 10,
-                      child: _HeadingCard(reader: reader, chapter: reader.headingChapter!),
-                    ),
-                  ],
-                  if (reader.notice != null)
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: mq.size.height - layout.player.top + 16,
-                      child: IgnorePointer(child: Center(child: _Notice(text: reader.notice!))),
-                    ),
-                  VerseMenu(
-                    listenable: reader,
-                    content: reader.content,
-                    verse: () => reader.menuVerse,
-                    anchor: (v) => _anchor(v, layout),
-                    onClose: reader.closeMenu,
-                    canPlay: () => reader.audioAvailable,
-                    onPlayFrom: (v) => showListenSheet(context, reader, v),
-                    onStartRange: reader.startSelection,
-                    onShare: (v) => showShareSheet(context, reader.content, v),
-                    onBookmark: reader.personal == null
-                        ? null
-                        : (v) => showBookmarkSheet(context,
-                            personal: reader.personal!, content: reader.content, from: v, onDone: reader.showNotice),
-                    onNote: reader.personal == null
-                        ? null
-                        : (v) => showNoteSheet(context,
-                            personal: reader.personal!, content: reader.content, verse: v, onDone: reader.showNotice),
-                    bookmarked: (v) => reader.personal?.bookmarkAt(v) != null,
-                    hasNote: (v) => reader.personal?.noteFor(v) != null,
-                  ),
-                ],
-              ),
+              child: LayoutBuilder(builder: _body),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Whether the split is on screen: open, and the window wide enough (a phone, or a
+  /// tablet made narrow, keeps it closed without forgetting it).
+  bool _splitShown = false;
+
+  /// The split as Back sees it: decided from the screen width, which is known before
+  /// the layout below runs ([_splitShown] is set there, a frame later).
+  bool _splitOn(BuildContext context) =>
+      widget.reader.splitOpen && MediaQuery.sizeOf(context).width >= kSplitMinWidth;
+  bool _wide = false; // the tablet breakpoint: «الشرح» opens the split
+  double? _dragFraction; // while the divider is dragged
+
+  /// The reader alone, or (a tablet with the split open) the reader beside the
+  /// commentary panel. The reader half gets its own MediaQuery size, so the page,
+  /// the bars and the verse menu lay themselves out inside it.
+  Widget _body(BuildContext context, BoxConstraints box) {
+    final reader = widget.reader;
+    _wide = box.maxWidth >= kSplitMinWidth;
+    _splitShown = reader.splitOpen && _wide;
+    if (!_splitShown) return _stack(context);
+    final mq = MediaQuery.of(context);
+    final landscape = box.maxWidth > box.maxHeight;
+    final fraction = _dragFraction ?? reader.store?.splitFraction(landscape: landscape) ?? kSplitDefault;
+    final total = box.maxWidth - kSplitDividerWidth;
+    final readerWidth = total * fraction;
+    return Row(
+      children: [
+        SizedBox(
+          width: readerWidth,
+          child: MediaQuery(
+            data: mq.copyWith(size: Size(readerWidth, box.maxHeight)),
+            child: Builder(builder: _stack),
+          ),
+        ),
+        SplitDivider(
+          fraction: fraction,
+          total: total,
+          onChanged: (f) => setState(() => _dragFraction = f),
+          onEnd: () {
+            final f = _dragFraction;
+            if (f != null) reader.store?.setSplitFraction(f, landscape: landscape);
+            setState(() => _dragFraction = null);
+          },
+        ),
+        Expanded(child: SplitPanel(reader: reader)),
+      ],
+    );
+  }
+
+  /// The reader: the page (or text mode), the bars, the menu and the cards.
+  Widget _stack(BuildContext context) {
+    final reader = widget.reader;
+    final t = TaysirColors.of(context);
+    final mq = MediaQuery.of(context);
+    final layout = ReaderLayout.compute(mq.size, mq.padding);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fromRect(
+          rect: layout.page,
+          // Kept mounted in text mode so the page is where it was when the student returns.
+          child: Offstage(
+            offstage: reader.textMode,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: PageViewer(
+                controller: reader.viewer,
+                verseLabel: (n) {
+                  final v = reader.content.matn.verse(n);
+                  return 'البيت ${ar(n)}: ${v.firstHemistich}، ${v.secondHemistich}';
+                },
+              ),
+            ),
+          ),
+        ),
+        if (reader.textMode)
+          Positioned.fromRect(
+            rect: layout.textZone,
+            child: TextReader(key: _text, reader: reader),
+          ),
+        if (!reader.chromeVisible && !reader.textMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: mq.padding.bottom + 12,
+            child: IgnorePointer(
+              child: Center(
+                child: Text(ar(reader.page),
+                    style: naskh(size: 13, color: t.muted.withValues(alpha: 0.7))),
+              ),
+            ),
+          ),
+        _Chrome(
+          rect: layout.bar,
+          visible: reader.chromeVisible,
+          travel: -6,
+          child: reader.selecting
+              ? _SelectionHeader(reader: reader)
+              : _TopBar(
+                  reader: reader,
+                  onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
+                  onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
+                  onTools: widget.onTools ?? () => showToolsSheet(context, reader),
+                ),
+        ),
+        // While selecting, the player makes way for the selection bar.
+        _Chrome(
+          rect: layout.player,
+          visible: reader.chromeVisible && !reader.selecting,
+          travel: 8,
+          child: _PlayerBar(
+            reader: reader,
+            onOpen: () => reader.audioAvailable || reader.library == null
+                ? showToolsSheet(context, reader, tab: ToolsTab.audio)
+                : DownloadsScreen.open(context, reader.library!),
+          ),
+        ),
+        if (reader.selecting)
+          _Chrome(
+            rect: layout.player,
+            visible: reader.selectionComplete,
+            travel: 8,
+            child: _SelectionActions(reader: reader),
+          ),
+        if (reader.selecting && !reader.selectionComplete)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: layout.bar.bottom + 8,
+            child: IgnorePointer(child: Center(child: _SelectionHint(reader: reader))),
+          ),
+        if (reader.detached && reader.playing && !reader.selecting)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: layout.player.top - 24,
+            child: Center(child: _ResumeChip(reader: reader)),
+          ),
+        if (reader.headingChapter != null) ...[
+          Positioned.fill(
+            child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: reader.closeHeading),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            top: layout.bar.bottom + 10,
+            child: _HeadingCard(
+              reader: reader,
+              chapter: reader.headingChapter!,
+              onExplain: _wide ? reader.openSplit : null,
+            ),
+          ),
+        ],
+        if (reader.notice != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: mq.size.height - layout.player.top + 16,
+            child: IgnorePointer(child: Center(child: _Notice(text: reader.notice!))),
+          ),
+        VerseMenu(
+          listenable: reader,
+          content: reader.content,
+          verse: () => reader.menuVerse,
+          anchor: (v) => _anchor(v, layout),
+          onClose: reader.closeMenu,
+          canPlay: () => reader.audioAvailable,
+          onPlayFrom: (v) => showListenSheet(context, reader, v),
+          onStartRange: reader.startSelection,
+          onShare: (v) => showShareSheet(context, reader.content, v),
+          onBookmark: reader.personal == null
+              ? null
+              : (v) => showBookmarkSheet(context,
+                  personal: reader.personal!, content: reader.content, from: v, onDone: reader.showNotice),
+          onNote: reader.personal == null
+              ? null
+              : (v) => showNoteSheet(context,
+                  personal: reader.personal!, content: reader.content, verse: v, onDone: reader.showNotice),
+          bookmarked: (v) => reader.personal?.bookmarkAt(v) != null,
+          hasNote: (v) => reader.personal?.noteFor(v) != null,
+          onExplain: _wide ? reader.openSplit : null,
+        ),
+      ],
     );
   }
 }
@@ -229,7 +296,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 class _HeadingCard extends StatelessWidget {
   final ReaderController reader;
   final MatnChapter chapter;
-  const _HeadingCard({required this.reader, required this.chapter});
+  final void Function(int verse)? onExplain; // the tablet's split; else the commentary screen
+  const _HeadingCard({required this.reader, required this.chapter, this.onExplain});
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +343,11 @@ class _HeadingCard extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: () {
                     reader.closeHeading();
-                    CommentaryScreen.open(context, reader.content, chapter.fromVerse);
+                    if (onExplain case final open?) {
+                      open(chapter.fromVerse);
+                    } else {
+                      CommentaryScreen.open(context, reader.content, chapter.fromVerse);
+                    }
                   },
                   icon: Icon(LucideIcons.bookOpen, size: 17, color: t.goldText),
                   label: Text('الشرح', style: kufi(size: 14.5, weight: 400, color: t.text)),

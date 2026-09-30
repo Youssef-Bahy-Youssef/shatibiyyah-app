@@ -63,7 +63,30 @@ class SettingsStore {
   }
 
   void setSpeedFor(String recordingId, double v) => prefs.setString('v2.speed.$recordingId', '$v');
+
+  /// The tablet split (plan P8): the page's share of the width, kept per orientation.
+  double splitFraction({required bool landscape}) {
+    final v = double.tryParse(prefs.getString('v2.split.${landscape ? 'landscape' : 'portrait'}') ?? '');
+    return v == null ? kSplitDefault : v.clamp(kSplitMin, kSplitMax).toDouble();
+  }
+
+  void setSplitFraction(double v, {required bool landscape}) =>
+      prefs.setString('v2.split.${landscape ? 'landscape' : 'portrait'}', v.clamp(kSplitMin, kSplitMax).toStringAsFixed(3));
+
+  /// The split panel's text size («حجم الخط»), one of [kSplitTextScales].
+  double get splitTextScale {
+    final v = double.tryParse(prefs.getString('v2.split.text_scale') ?? '');
+    return kSplitTextScales.contains(v) ? v! : 1;
+  }
+
+  set splitTextScale(double v) => prefs.setString('v2.split.text_scale', '$v');
 }
+
+/// The page's share of the width in the split: the divider moves between 30 % and 70 %.
+const double kSplitMin = 0.3;
+const double kSplitMax = 0.7;
+const double kSplitDefault = 0.45;
+const List<double> kSplitTextScales = [1, 1.15, 1.3];
 
 /// The next value in [options] after [current] (wrapping), for tap-to-cycle cards.
 T cycle<T>(List<T> options, T current) => options[(options.indexOf(current) + 1) % options.length];

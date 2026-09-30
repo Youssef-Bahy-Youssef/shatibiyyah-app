@@ -62,6 +62,9 @@ class VerseMenu extends StatelessWidget {
   final bool Function(int verse)? bookmarked;
   final bool Function(int verse)? hasNote;
 
+  /// «الشرح»: by default the commentary screen; the tablet's reader opens its split panel.
+  final void Function(int verse)? onExplain;
+
   const VerseMenu({
     super.key,
     required this.listenable,
@@ -77,6 +80,7 @@ class VerseMenu extends StatelessWidget {
     this.onNote,
     this.bookmarked,
     this.hasNote,
+    this.onExplain,
   });
 
   static const double _estimatedHeight = 220;
@@ -135,7 +139,11 @@ class VerseMenu extends StatelessWidget {
     final sadr = content.matn.verse(verse).firstHemistich;
     void explain() {
       onClose();
-      CommentaryScreen.open(context, content, verse);
+      if (onExplain case final open?) {
+        open(verse);
+      } else {
+        CommentaryScreen.open(context, content, verse);
+      }
     }
 
     void copy() {

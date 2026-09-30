@@ -24,6 +24,7 @@ import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/commentary/compare_screen.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/home_screen.dart';
@@ -406,5 +407,63 @@ void main() {
       await tester.pumpAndSettle();
       await expectLater(find.byType(RemindersScreen), matchesGoldenFile('goldens/$name.png'));
     });
+  }
+
+  // Tablets (plan P8): the reader, the split (page and commentary) and «قارن الشروح»,
+  // at 768×1024 and 1024×1366 in both orientations.
+  for (final size in const [Size(768, 1024), Size(1024, 768), Size(1024, 1366), Size(1366, 1024)]) {
+    for (final state in ['reader', 'split', 'compare']) {
+      final name = 'tablet_${state}_${size.width.toInt()}x${size.height.toInt()}';
+      testWidgets(name, (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.view.padding = const FakeViewPadding(top: 24, bottom: 20);
+        addTearDown(tester.view.reset);
+        SharedPreferences.setMockInitialValues({});
+        late ReaderController r;
+        await tester.runAsync(() async {
+          final prefs = await Prefs.create();
+          final recording = content.recordings.defaultRecording;
+          final windows = await content.windowsFor(recording);
+          r = ReaderController(
+            content: content,
+            recording: recording,
+            viewer: PageViewerController(legacyData(content, windows), prefs),
+            store: SettingsStore(prefs),
+            initialVerse: 226,
+          );
+        });
+        await tester.pumpWidget(MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            fontFamily: 'ScheherazadeNew',
+            extensions: [colorsFor(ReaderTheme.dark)],
+          ),
+          builder: (context, child) =>
+              MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
+          home: state == 'compare' ? CompareScreen(content: content, verse: 226) : ReaderScreen(reader: r),
+        ));
+        if (state != 'compare') {
+          await tester.runAsync(() => precacheImage(
+                const AssetImage('assets/pages/page019.webp'),
+                tester.element(find.byType(ReaderScreen)),
+              ));
+        }
+        if (state == 'split') r.openSplit(226);
+        // The passages are read from the database: let the reads finish.
+        for (var i = 0; i < 10; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+          await tester.pump(const Duration(milliseconds: 60));
+        }
+        await expectLater(
+          find.byType(state == 'compare' ? CompareScreen : ReaderScreen),
+          matchesGoldenFile('goldens/$name.png'),
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 10));
+      });
+    }
   }
 }

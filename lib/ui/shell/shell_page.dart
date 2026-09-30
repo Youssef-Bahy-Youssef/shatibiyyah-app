@@ -46,7 +46,8 @@ class ShellPage extends StatelessWidget {
                   ],
                 ),
               ),
-              Expanded(child: body),
+              // On a tablet the content keeps a reading width instead of spanning the screen.
+              Expanded(child: ReadingWidth(child: body)),
             ],
           ),
         ),
@@ -85,4 +86,26 @@ class ComingSoonScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The widest a screen's content grows (tablets, plan P8): centred beyond it.
+const double kReadingWidth = 720;
+
+class ReadingWidth extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  const ReadingWidth({super.key, required this.child, this.maxWidth = kReadingWidth});
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: child),
+      );
+}
+
+/// A list's padding for a [width]-wide area: [side] at each edge, more when that
+/// keeps the content within [kReadingWidth] (the list still scrolls edge to edge).
+EdgeInsets readingPadding(double width, {double side = 16, double top = 0, double bottom = 0}) {
+  final extra = width > kReadingWidth + 2 * side ? (width - kReadingWidth) / 2 - side : 0.0;
+  return EdgeInsets.fromLTRB(side + extra, top, side + extra, bottom);
 }

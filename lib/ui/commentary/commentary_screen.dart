@@ -5,20 +5,31 @@
 // the verse(s) quoted on top; «يشرح الأبيات a–b معًا» for grouped explanations;
 // headed paragraphs with tappable footnote markers; footnotes without a placeable
 // marker listed after the text; the source line; previous / next explanation.
-// Quranic-quote colouring is not in M1 (v2.1, migration plan G-07).
+// Quranic-quote colouring waits for G-07.
+//
+// The content is a CommentaryPane, which the tablet's split view (plan P8) hosts
+// beside the page: it can follow a verse given from outside, holding while the
+// student scrolls in it.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/app_content.dart';
 import '../../data/commentary_repository.dart';
-import '../../domain/commentary_text.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
+import '../shell/shell_page.dart' show readingPadding;
+import 'commentary_parts.dart';
 
-class CommentaryScreen extends StatefulWidget {
+/// How long after the student's last scroll in the pane a new verse from outside
+/// waits before it replaces the passage being read.
+const Duration kHoldAfterScroll = Duration(seconds: 6);
+
+class CommentaryScreen extends StatelessWidget {
   final AppContent content;
   final int verse;
   final String? bookId; // default: the default book
@@ -33,25 +44,89 @@ class CommentaryScreen extends StatefulWidget {
       ));
 
   @override
-  State<CommentaryScreen> createState() => _CommentaryScreenState();
+  Widget build(BuildContext context) {
+    final t = TaysirColors.of(context);
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: t.bg,
+        body: SafeArea(
+          bottom: false,
+          child: CommentaryPane(
+            content: content,
+            verse: verse,
+            bookId: bookId,
+            header: (context, title) => SizedBox(
+              height: 56,
+              child: Row(
+                children: [
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: 'إغلاق',
+                    icon: Icon(LucideIcons.x, color: t.text, size: 21),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  Expanded(
+                    child: Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: kufi(size: 20, weight: 600, color: t.text)),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// Everything shown for one block, loaded together so a tab switch never shows a mix.
-class _BlockView {
-  final BlockRef block;
-  final List<Segment> segments;
-  final List<Footnote> footnotes;
-  final List<BlockSource> sources;
-  const _BlockView(this.block, this.segments, this.footnotes, this.sources);
+/// A book's explanation of a verse: the tabs, the passage, previous / next.
+class CommentaryPane extends StatefulWidget {
+  final AppContent content;
+
+  /// The verse to explain. A new value moves the pane there — unless the passage
+  /// shown already covers it, or the student scrolled in the pane within
+  /// [kHoldAfterScroll] (then it moves once that time has passed).
+  final int verse;
+  final String? bookId;
+  final double textScale;
+
+  /// Drawn above the tabs with the title («الوافي · البيت ٢٢٦»).
+  final Widget Function(BuildContext context, String title)? header;
+
+  /// Told of each passage shown.
+  final void Function(BlockRef block)? onShown;
+
+  /// The student moved in the book themselves (a tab, previous / next).
+  final VoidCallback? onNavigate;
+
+  const CommentaryPane({
+    super.key,
+    required this.content,
+    required this.verse,
+    this.bookId,
+    this.textScale = 1,
+    this.header,
+    this.onShown,
+    this.onNavigate,
+  });
+
+  @override
+  State<CommentaryPane> createState() => _CommentaryPaneState();
 }
 
-class _CommentaryScreenState extends State<CommentaryScreen> {
+class _CommentaryPaneState extends State<CommentaryPane> {
   CommentaryRepository get books => widget.content.books;
   late String _bookId = widget.bookId ?? books.defaultBook.id;
-  late int _verse = widget.verse; // the verse the reader is anchored on
-  _BlockView? _view;
+  late int _verse = widget.verse; // the verse the pane is anchored on
+  BlockView? _view;
   bool _language = false;
   final _scroll = ScrollController();
+  Timer? _hold; // running while the student's last scroll is recent
+  int? _pendingVerse; // a verse from outside that arrived meanwhile
 
   @override
   void initState() {
@@ -60,30 +135,58 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
   }
 
   @override
+  void didUpdateWidget(CommentaryPane old) {
+    super.didUpdateWidget(old);
+    if (widget.verse != old.verse) _follow(widget.verse);
+  }
+
+  @override
   void dispose() {
+    _hold?.cancel();
     _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _load({BlockRef? block}) async {
-    final ref = block ?? (await books.blocksForVerse(_bookId, _verse)).firstOrNull;
-    if (ref == null) {
-      if (mounted) setState(() => _view = null);
+  void _follow(int verse) {
+    final b = _view?.block;
+    if (b != null && b.bookId == _bookId && b.fromVerse != null && verse >= b.fromVerse! && verse <= b.toVerse!) {
+      _pendingVerse = null;
+      return; // the passage shown already explains it
+    }
+    if (_hold != null) {
+      _pendingVerse = verse; // the student is reading: after the hold
       return;
     }
-    final view = _BlockView(
-      ref,
-      await books.segments(ref.id),
-      await books.footnotes(ref.id),
-      await books.sources(ref.id),
-    );
+    _verse = verse;
+    _load();
+  }
+
+  /// A scroll by the student starts (or extends) the hold on verses from outside.
+  void _userScrolled() {
+    _hold?.cancel();
+    _hold = Timer(kHoldAfterScroll, () {
+      _hold = null;
+      final v = _pendingVerse;
+      _pendingVerse = null;
+      if (v != null && mounted) _follow(v);
+    });
+  }
+
+  Future<void> _load({BlockRef? block}) async {
+    final view = await loadBlockView(books, _bookId, _verse, block: block);
     if (!mounted) return;
+    if (view == null) {
+      setState(() => _view = null);
+      return;
+    }
+    final ref = view.block;
     setState(() {
       _view = view;
       _language = false;
       if (ref.fromVerse != null && (_verse < ref.fromVerse! || _verse > ref.toVerse!)) _verse = ref.fromVerse!;
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    widget.onShown?.call(ref);
     final from = ref.fromVerse;
     if (from != null) CommentaryScreen.onRead?.call(ref.bookId, from, ref.toVerse ?? from);
   }
@@ -93,6 +196,7 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
     if (view == null) return;
     final next = await books.neighbour(view.block, direction);
     if (next != null) {
+      widget.onNavigate?.call();
       _verse = next.fromVerse!;
       await _load(block: next);
     }
@@ -111,42 +215,14 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: t.bg,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _header(t),
-              _tabs(t),
-              Expanded(child: _body(t)),
-            ],
-          ),
-        ),
-      ),
+    return Column(
+      children: [
+        if (widget.header case final header?) header(context, _title()),
+        _tabs(t),
+        Expanded(child: _body(t)),
+      ],
     );
   }
-
-  Widget _header(TaysirColors t) => SizedBox(
-        height: 56,
-        child: Row(
-          children: [
-            const SizedBox(width: 6),
-            IconButton(
-              tooltip: 'إغلاق',
-              icon: Icon(LucideIcons.x, color: t.text, size: 21),
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-            Expanded(
-              child: Text(_title(),
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: kufi(size: 20, weight: 600, color: t.text)),
-            ),
-            const SizedBox(width: 12),
-          ],
-        ),
-      );
 
   Widget _tabs(TaysirColors t) => DecoratedBox(
         decoration: BoxDecoration(color: t.bg, border: Border(bottom: BorderSide(color: t.line))),
@@ -162,6 +238,7 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
                         ? null
                         : () {
                             setState(() => _bookId = book.id);
+                            widget.onNavigate?.call();
                             _load();
                           },
                     child: Container(
@@ -190,45 +267,35 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
     if (view == null) {
       return Center(child: CircularProgressIndicator(color: t.gold));
     }
-    final language = view.segments.where((s) => s.isLanguage).toList();
-    final main = view.segments.where((s) => !s.isLanguage && s.type != 'citation_lead_in').toList();
-    final shown = _language && language.isNotEmpty ? language : main;
-    final placed = <String>{};
-    final items = <Widget>[];
+    final parts = CommentaryParts(context, t, scale: widget.textScale);
+    final language = view.language;
+    final shown = _language && language.isNotEmpty ? language : view.main;
+    final items = <Widget>[
+      if (language.isNotEmpty) _segmentPills(t),
+      ..._quotes(t, view.block),
+      if (view.block.grouped)
+        parts.chip(LucideIcons.layers, 'يشرح الأبيات ${ar(view.block.fromVerse!)}–${ar(view.block.toVerse!)} معًا'),
+      if (view.block.needsReview) parts.chip(LucideIcons.triangleAlert, 'هذا الموضع قيد المراجعة', warn: true),
+      ...parts.text(shown, view.footnotes, withNotes: !_language),
+      if (view.sources.isNotEmpty) parts.sourceLine(view.sources),
+      _prevNext(t),
+    ];
 
-    if (language.isNotEmpty) items.add(_segmentPills(t));
-    items.addAll(_quotes(t, view.block));
-    if (view.block.grouped) {
-      items.add(_chip(t, LucideIcons.layers,
-          'يشرح الأبيات ${ar(view.block.fromVerse!)}–${ar(view.block.toVerse!)} معًا'));
-    }
-    if (view.block.needsReview) {
-      items.add(_chip(t, LucideIcons.triangleAlert, 'هذا الموضع قيد المراجعة', warn: true));
-    }
-    for (final segment in shown) {
-      final notes = view.footnotes.where((f) => f.segmentId == segment.id).toList();
-      final heading = segment.heading;
-      if (heading != null && heading.trim().isNotEmpty && !heading.startsWith('[')) {
-        items.add(Align(alignment: AlignmentDirectional.centerStart, child: _headingPill(t, heading)));
-      }
-      for (final paragraph in layoutSegment(segment.text, notes)) {
-        for (final run in paragraph.runs) {
-          if (run.isMarker) placed.add(run.footnote!.id);
-        }
-        items.add(_paragraph(t, paragraph));
-      }
-    }
-    final unplaced = view.footnotes.where((f) => !placed.contains(f.id)).toList();
-    if (unplaced.isNotEmpty && !_language) items.add(_notesList(t, unplaced));
-    if (view.sources.isNotEmpty) items.add(_sourceLine(t, view.sources));
-    items.add(_prevNext(t));
-
-    return ListView.separated(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => items[i],
+    // The student's own scrolling holds a verse change from outside (see [CommentaryPane.verse]).
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (n) {
+        if (n.direction != ScrollDirection.idle) _userScrolled();
+        return false;
+      },
+      child: LayoutBuilder(
+        builder: (context, box) => ListView.separated(
+          controller: _scroll,
+          padding: readingPadding(box.maxWidth, side: 18, top: 12, bottom: 24),
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => items[i],
+        ),
+      ),
     );
   }
 
@@ -264,9 +331,9 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(matn.verse(n).firstHemistich,
-                        textAlign: TextAlign.right, style: naskh(size: 18, height: 1.65, color: t.text)),
+                        textAlign: TextAlign.right, style: naskh(size: 18 * widget.textScale, height: 1.65, color: t.text)),
                     Text(matn.verse(n).secondHemistich,
-                        textAlign: TextAlign.left, style: naskh(size: 18, height: 1.65, color: t.text)),
+                        textAlign: TextAlign.left, style: naskh(size: 18 * widget.textScale, height: 1.65, color: t.text)),
                   ],
                 ),
               ),
@@ -278,29 +345,6 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
     ];
   }
 
-  Widget _chip(TaysirColors t, IconData icon, String label, {bool warn = false}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: (warn ? t.warn : t.gold).withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: warn ? t.warn : t.goldDeep),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: warn ? t.warn : t.goldText),
-            const SizedBox(width: 8),
-            Expanded(child: Text(label, style: kufi(size: 13.5, weight: 600, color: warn ? t.warn : t.goldText))),
-          ],
-        ),
-      );
-
-  // No `alignment` on the Container: that would stretch the pill to the full width.
-  Widget _headingPill(TaysirColors t, String heading) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-        decoration: BoxDecoration(color: t.gold.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(999)),
-        child: Text(heading, style: kufi(size: 13.5, weight: 600, color: t.goldText)),
-      );
-
   /// «وبيت آخر» / «وبيتان آخران» / «و٣ أبيات أخرى» / «و١١ بيتًا آخر».
   static String _moreVerses(int n) => switch (n) {
         1 => 'وبيت آخر في هذا الشرح',
@@ -308,111 +352,6 @@ class _CommentaryScreenState extends State<CommentaryScreen> {
         <= 10 => 'و${ar(n)} أبيات أخرى في هذا الشرح',
         _ => 'و${ar(n)} بيتًا آخر في هذا الشرح',
       };
-
-  Widget _paragraph(TaysirColors t, CommentaryParagraph paragraph) {
-    final base = naskh(size: 19, height: 1.95, color: t.text);
-    return Text.rich(
-      TextSpan(style: base, children: [
-        for (final run in paragraph.runs)
-          if (run.isMarker)
-            WidgetSpan(
-              alignment: PlaceholderAlignment.top,
-              child: Semantics(
-                button: true,
-                label: 'حاشية ${run.text}',
-                child: GestureDetector(
-                  onTap: () => _showFootnote(t, run.footnote!),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Text(run.text, style: naskh(size: 13, weight: FontWeight.w700, color: t.goldText)),
-                  ),
-                ),
-              ),
-            )
-          else
-            TextSpan(text: run.text),
-      ]),
-      textAlign: TextAlign.justify,
-    );
-  }
-
-  void _showFootnote(TaysirColors t, Footnote note) => showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: t.panel,
-        showDragHandle: true,
-        builder: (_) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('حاشية ${note.marker ?? ''}', style: kufi(size: 15, weight: 600, color: t.goldText)),
-                const SizedBox(height: 10),
-                Text(note.text, style: naskh(size: 17, height: 1.8, color: t.text)),
-              ],
-            ),
-          ),
-        ),
-      );
-
-  Widget _notesList(TaysirColors t, List<Footnote> notes) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: BoxDecoration(
-            color: t.panel2, borderRadius: BorderRadius.circular(16), border: Border.all(color: t.line)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('الحواشي', style: kufi(size: 13.5, weight: 600, color: t.goldText)),
-            for (final n in notes)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text('${n.marker != null ? '(${n.marker}) ' : ''}${n.text}',
-                    style: naskh(size: 16, height: 1.7, color: t.dim)),
-              ),
-          ],
-        ),
-      );
-
-  static String _range(List<int> pages) {
-    if (pages.isEmpty) return '';
-    final sorted = pages.toSet().toList()..sort();
-    return sorted.length == 1 ? ar(sorted.first) : '${ar(sorted.first)}–${ar(sorted.last)}';
-  }
-
-  Widget _sourceLine(TaysirColors t, List<BlockSource> sources) {
-    final quranpedia = sources.where((s) => s.provider == 'quranpedia').toList();
-    final other = sources.where((s) => s.provider != 'quranpedia').toList();
-    final printed = sources.map((s) => s.printedPage).whereType<int>().toList();
-    final parts = [
-      if (quranpedia.isNotEmpty) 'قرآنبيديا ص ${_range(quranpedia.map((s) => s.sourcePage).toList())}',
-      if (other.isNotEmpty) 'مكتبة أهل البيت ص ${_range(other.map((s) => s.sourcePage).toList())}',
-      printed.isEmpty ? 'لا ترقيم مطبوع' : 'الطبعة ص ${_range(printed)}',
-    ];
-    final url = sources.map((s) => s.url).whereType<String>().firstOrNull;
-    return Semantics(
-      link: url != null,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: url == null ? null : () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-              color: t.panel2, borderRadius: BorderRadius.circular(16), border: Border.all(color: t.line)),
-          child: Row(
-            children: [
-              Icon(LucideIcons.libraryBig, size: 16, color: t.goldText),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: Text('المصدر: ${parts.join(' · ')}', style: kufi(size: 13, weight: 400, color: t.dim))),
-              if (url != null) Icon(LucideIcons.externalLink, size: 15, color: t.muted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _prevNext(TaysirColors t) {
     Widget button(String label, IconData icon, int direction) => Expanded(

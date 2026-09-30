@@ -484,6 +484,49 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── the tablet split: page and commentary side by side (plan P8, commentary-split-screen) ──
+  bool _splitOpen = false;
+  bool _splitFollow = true;
+  int _splitPinned = 1;
+
+  bool get splitOpen => _splitOpen;
+
+  /// «يتبع التلاوة»: the panel explains the reader's verse (playing or selected).
+  bool get splitFollow => _splitFollow;
+
+  /// The verse the panel explains.
+  int get splitVerse => _splitFollow ? _verse : _splitPinned;
+
+  /// Opens the panel on [verse]. Another verse than the reader's pins the panel there
+  /// (following would move it away at once); the switch brings following back.
+  void openSplit(int verse) {
+    _splitOpen = true;
+    _splitPinned = verse;
+    if (verse != _verse) _splitFollow = false;
+    notifyListeners();
+  }
+
+  void closeSplit() {
+    if (!_splitOpen) return;
+    _splitOpen = false;
+    notifyListeners();
+  }
+
+  /// Turning following off keeps the panel where it is (on the reader's verse).
+  void setSplitFollow(bool on) {
+    if (!on && _splitFollow) _splitPinned = _verse;
+    _splitFollow = on;
+    notifyListeners();
+  }
+
+  /// The student moved in the panel (a tab, previous / next) to [verse]: it stays there.
+  void pinSplit(int verse) {
+    _splitPinned = verse;
+    if (!_splitFollow) return notifyListeners();
+    _splitFollow = false;
+    notifyListeners();
+  }
+
   /// Called by the engine for each verse played through (listening progress).
   /// Records each verse played through; [onChapterFinished] hears of a chapter
   /// whose last unheard verse it was.

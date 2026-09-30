@@ -123,6 +123,29 @@ To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
       second AVD with a **Google Play** system image, which includes the
       Accessibility Suite.
 
+## 8. Tablet (P8)
+
+Create a tablet emulator once: *Device Manager* → **+** → *Create Virtual
+Device* → **Pixel Tablet** → the same Android 16 image as `taysir_pixel`.
+Run the app on it (choose it in the device selector) and side-load the audio
+with `ANDROID_SERIAL=emulator-5556 tool/sideload_audio.sh` (the serial is shown
+by `adb devices`).
+
+- [ ] The tablet turns (the phone does not): rotate with the emulator's rotate
+      buttons; the page re-lays itself out and keeps the highlighted verse.
+- [ ] Long press a verse → «الشرح»: the commentary opens **beside** the page
+      (page on the right), not as a new screen. Back closes the panel.
+- [ ] Drag the divider: the page's share moves between 30 % and 70 %. Rotate and
+      back: each orientation keeps its own position.
+- [ ] Play: with «يتبع التلاوة» on, each new verse moves the panel. Scroll in the
+      panel while it plays: it stays put until you stop scrolling for about
+      6 seconds. Switch «يتبع التلاوة» off: it stays on its verse.
+- [ ] «التالي» inside the panel moves it on and turns following off.
+- [ ] «حجم الخط» cycles three sizes; «قارن الشروح» shows the three books in
+      columns in landscape (with «مزامنة التمرير»), as pages in portrait.
+- [ ] Home, settings and search keep a reading width instead of spanning the
+      whole tablet.
+
 ## If something fails
 
 Note the screen and the step, and copy the **Run** tab output (errors show

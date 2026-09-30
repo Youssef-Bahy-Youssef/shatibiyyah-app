@@ -21,6 +21,7 @@ import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import '../reader/shamsa.dart';
 import '../search/search_screen.dart';
+import 'shell_page.dart' show readingPadding;
 
 class HomeScreen extends StatefulWidget {
   final ReaderController reader;
@@ -53,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: AnimatedBuilder(
             animation: Listenable.merge([reader, ?personal, ?reader.update]),
             builder: (context, _) => ListView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              padding: readingPadding(MediaQuery.sizeOf(context).width, top: 4, bottom: 24),
               children: [
                 _header(t),
                 if (reader.update case final update? when update.showBanner) _updateBanner(t, update),
