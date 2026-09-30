@@ -1,7 +1,7 @@
 // lib/ui/shell/about_screen.dart — «حول» (features-v3 about-and-support): the app
 // icon, name, the poem's title, version, a one-line description and «أعد الجولة».
 // «أرسل ملاحظة» waits for a support address.
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
 import '../../theme.dart' show kufi, naskh;
@@ -81,8 +81,9 @@ class AboutScreen extends StatelessWidget {
               ),
             ),
           ],
-          // Debug builds only (Android Studio / flutter run): the test tools.
-          if (kDebugMode && reader != null) ...[
+          // Debug and profile builds only (Android Studio): the test tools. Never in
+          // the release build that goes to the store.
+          if (!kReleaseMode && reader != null) ...[
             const SizedBox(height: 12),
             Center(
               child: TextButton(

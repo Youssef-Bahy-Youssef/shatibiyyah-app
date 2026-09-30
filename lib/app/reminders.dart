@@ -217,11 +217,15 @@ class Reminders extends ChangeNotifier {
   /// Shows the sample at once (debug test tools).
   Future<void> sendNow({required bool chapter}) => port.showNow(sample(chapter: chapter));
 
+  /// A test notification from [scheduleSoon], kept across reschedules until its time.
+  PlannedNotification? _soon;
+
   /// Schedules today's benefit [after] from now through the real scheduler (debug
-  /// test tools). Inexact: it may come a few minutes late. The next reschedule
-  /// (leaving the app) replaces it, so it is best tested with the app open.
+  /// test tools). Inexact: it may come a few minutes late. Leaving the app keeps
+  /// it (reschedule puts it back), so it can be tested with the app closed.
   Future<void> scheduleSoon(Duration after) async {
-    await port.schedule(benefitNotification(3000, clock().add(after), today!));
+    _soon = benefitNotification(3000, clock().add(after), today!);
+    await port.schedule(_soon!);
   }
 
   /// Replaces whatever was scheduled with the plan for now.
@@ -236,6 +240,11 @@ class Reminders extends ChangeNotifier {
       verse: verse(),
     )) {
       await port.schedule(n);
+    }
+    if (_soon case final soon? when soon.when.isAfter(clock())) {
+      await port.schedule(soon);
+    } else {
+      _soon = null;
     }
   }
 }

@@ -198,6 +198,8 @@ void main() {
     expect(port.shown.first.title, benefitTitle(r.today!));
     await r.scheduleSoon(const Duration(minutes: 2));
     expect(port.scheduled.single.when, DateTime(2026, 9, 30, 8, 17));
+    await r.reschedule(); // leaving the app keeps the test one
+    expect(port.scheduled.single.when, DateTime(2026, 9, 30, 8, 17));
     expect(r.benefitOn, isFalse); // the switches are untouched
   });
 

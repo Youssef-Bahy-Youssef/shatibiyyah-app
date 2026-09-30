@@ -1,5 +1,5 @@
-// lib/ui/shell/debug_tools_screen.dart — «أدوات التجربة»: only in debug builds
-// (run from Android Studio / `flutter run`), reached from «حول». What cannot be
+// lib/ui/shell/debug_tools_screen.dart — «أدوات التجربة»: only in debug and
+// profile builds (run from Android Studio), never in release; reached from «حول». What cannot be
 // waited for or needs Google Play, tried at once: each reminder now, a reminder
 // through the real scheduler in two minutes, the update banner, the review call.
 import 'package:flutter/material.dart';
@@ -50,7 +50,7 @@ class _DebugToolsScreenState extends State<DebugToolsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
             child: Text(
-              'نسخة التطوير فقط؛ لا تظهر في نسخة المتجر.',
+              'نسخ التطوير فقط؛ لا تظهر في نسخة المتجر.',
               style: kufi(size: 12.5, weight: 400, color: t.muted),
             ),
           ),
