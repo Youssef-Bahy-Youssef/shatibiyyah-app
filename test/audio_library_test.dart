@@ -1,6 +1,6 @@
 // The recordings library: choosing a reciter keeps the verse and swaps the audio;
 // one not on the device leaves the reader without audio; deleting the chosen one
-// takes its audio away; without hosting a download fails cleanly.
+// takes its audio away; offline, a download fails cleanly (no test reaches the network).
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -21,6 +21,17 @@ import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
 import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+/// No network in unit tests: every mirror fails at once.
+class _OfflineTransfer implements Transfer {
+  int attempts = 0;
+  @override
+  Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
+      {required bool wifiOnly}) async {
+    attempts++;
+    throw SocketException('offline (test): $url');
+  }
+}
 
 class _SilentAudio implements AudioPort {
   bool _playing = false;
@@ -75,7 +86,13 @@ void main() {
     final prefs = await Prefs.create();
     final dir = await Directory.systemTemp.createTemp('lib');
     addTearDown(() => dir.delete(recursive: true));
-    final dm = DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true);
+    final dm = DownloadManager(
+      supportDir: dir,
+      freeBytes: () async => null,
+      onUnmeteredNetwork: () async => true,
+      transfer: _OfflineTransfer(),
+      retryDelay: Duration.zero,
+    );
     final opened = <String>[];
     final library = AudioLibrary(
       content: content,
@@ -122,20 +139,19 @@ void main() {
     expect(reader.verse, 229);
   });
 
-  // (The accepted and the corrupted part file are in download_manager_test: the
-  // snapshot has no delivery checksums until the files are hosted.)
-  test('a finished part file with nothing to verify it against is not taken in', () async {
+  // (A part file that verifies is taken in: download_manager_test.)
+  test('a background download that does not verify is discarded, not played', () async {
     final (library, reader, dm, _) = await setUpLibrary();
     final other = library.recordings.firstWhere((r) => !r.isDefault);
     await library.choose(other);
     final part = dm.partFileFor(other);
     await part.parent.create(recursive: true);
     final raf = await part.open(mode: FileMode.write);
-    await raf.truncate(other.localBytes); // full size, unverifiable
+    await raf.truncate(other.localBytes); // full size, wrong bytes (what a bad mirror could leave)
     await raf.close();
-    expect(other.delivery, isNull);
     await library.backgroundFinished();
     expect(library.isOnDevice(other), isFalse);
+    expect(part.existsSync(), isFalse); // discarded: the next download starts clean
     expect(dm.fileFor(other).existsSync(), isFalse);
     expect(reader.audioAvailable, isFalse);
   });
@@ -150,13 +166,14 @@ void main() {
     expect(library.bytesOnDevice, 0);
   });
 
-  test('without hosting a download fails with «no URLs», not a hang', () async {
-    final (library, _, _, _) = await setUpLibrary();
+  test('offline, a download tries every mirror, then fails with «network», not a hang', () async {
+    final (library, _, dm, _) = await setUpLibrary();
     final other = library.recordings.firstWhere((r) => !r.isDefault);
     await library.download(other);
     expect(library.progressOf(other)!.phase, DownloadPhase.failed);
-    expect(library.progressOf(other)!.error, DownloadError.noUrls);
+    expect(library.progressOf(other)!.error, DownloadError.network);
     expect(library.isDownloading(other), isFalse);
+    expect((dm.transfer as _OfflineTransfer).attempts, other.delivery!.urls.length * dm.rounds);
   });
 
   test('Wi-Fi only is on by default and remembered', () async {
@@ -197,8 +214,11 @@ void main() {
     expect(find.text('التلاوات على الجهاز: ١٤٥ م.ب'), findsOneWidget);
 
     await tester.tap(find.text('تنزيل'));
-    await settle(tester);
-    expect(find.text('التنزيل غير متاح بعد'), findsOneWidget); // no hosting yet
+    // Three rounds over both mirrors, each step real file I/O: several settles.
+    for (var i = 0; i < 4; i++) {
+      await settle(tester);
+    }
+    expect(find.text('تعذّر الاتصال؛ يُستأنف من حيث توقف'), findsOneWidget); // offline in the test
     expect(find.text('إعادة المحاولة'), findsOneWidget);
   });
 

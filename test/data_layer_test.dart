@@ -150,10 +150,17 @@ void main() {
   });
 
   group('RecordingRepository', () {
-    test('two recordings, Atiq the default; no delivery file yet', () {
+    test('two recordings, Atiq the default; each hosted on two HTTPS mirrors', () {
       expect(recordings.recordings, hasLength(2));
       expect(recordings.defaultRecording.slug, 'muhammad-atiq-1');
-      expect(recordings.recordings.every((r) => r.delivery == null), isTrue);
+      for (final r in recordings.recordings) {
+        final d = r.delivery!;
+        // The hosted file is the timed file itself (no re-encode): same bytes, same hash.
+        expect((d.sha256, d.bytes), (r.audioSha256, r.audioBytes), reason: r.slug);
+        expect(d.urls, hasLength(2), reason: r.slug);
+        expect(d.urls.every((u) => u.startsWith('https://') && u.endsWith('/${r.slug}-v1.mp3')), isTrue, reason: r.slug);
+        expect(d.urls.first, startsWith('https://github.com/')); // GitHub first, the Internet Archive second
+      }
     });
 
     test('cues are complete and strictly increasing', () async {
