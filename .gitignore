@@ -60,3 +60,4 @@ app.*.map.json
 
 # Diff images from a failed golden run
 test_goldens/failures/
+assets/audio/*.mp3
