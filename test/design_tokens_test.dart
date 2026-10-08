@@ -7,7 +7,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart' show Brightness, ThemeData;
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 /// The generator, where the workspace puts it: the app inside the workspace
 /// (`app/`), or the two repositories side by side.
@@ -118,6 +120,23 @@ void main() {
     expect(run.exitCode, 0, reason: '${run.stderr}');
     expect(File('lib/ui/design/tokens.g.dart').readAsStringSync(), run.stdout,
         reason: 'run: python3 design/redesign/tools/gen_flutter_tokens.py');
+  });
+
+  test('ThemeData for each theme comes from the tokens: Material follows paper and night', () {
+    for (final (tz, brightness) in [(TzTheme.paper, Brightness.light), (TzTheme.dark, Brightness.dark)]) {
+      final ThemeData t = tzThemeData(tz);
+      final c = tz.colors;
+      expect(t.brightness, brightness);
+      expect(t.colorScheme.brightness, brightness);
+      expect((t.scaffoldBackgroundColor, t.colorScheme.surface, t.colorScheme.onSurface), (c.bg, c.surface, c.ink));
+      expect((t.colorScheme.primary, t.colorScheme.onPrimary, t.colorScheme.error), (c.action, c.onAction, c.carmine));
+      expect(t.snackBarTheme.backgroundColor, c.snack);
+      expect(t.textTheme.bodyMedium!.fontFamily, TzFont.ui);
+      expect(t.textTheme.bodyMedium!.fontSize, TzType.body.fontSize);
+      expect(t.extension<TzTheme>(), same(tz));
+    }
+    expect(TzTheme.paper.rubric, TzColors.paper.rubric);
+    expect(TzTheme.dark.copyWith(nightInk: TzNightPage.wisteria).rubric, TzNightPage.wisteria.accent);
   });
 
   group('every offered night ink meets pageAccent.targets', () {

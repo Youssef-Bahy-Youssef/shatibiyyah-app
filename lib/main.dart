@@ -18,6 +18,7 @@ import 'services/lock_screen.dart';
 import 'theme.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
+import 'ui/design/tz_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
 import 'ui/shell/boot_splash.dart';
@@ -82,21 +83,9 @@ class ShatibiyyahApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: C.ink,
-          fontFamily: kFontNaskh,
-          colorScheme: const ColorScheme.dark(
-            surface: C.ink,
-            primary: C.gold,
-            secondary: C.goldBright,
-            onPrimary: C.onGold,
-            error: C.danger,
-          ),
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          extensions: [colorsFor(theme)],
+        // The token theme; the legacy palette rides along until the screens are swept (item 3.1).
+        theme: tzThemeData(theme == ReaderTheme.paper ? TzTheme.paper : TzTheme.dark).copyWith(
+          extensions: [theme == ReaderTheme.paper ? TzTheme.paper : TzTheme.dark, colorsFor(theme)],
         ),
         // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
