@@ -44,6 +44,7 @@ class AudioLibrary extends ChangeNotifier {
 
   final Map<String, DownloadProgress> _progress = {};
   final Map<String, DownloadCancel> _cancels = {};
+  final Map<String, Future<void>> _running = {};
   final Set<String> _onDevice = {};
   ReaderController? _reader;
   Future<void> Function()? _disposeEngine;
@@ -69,6 +70,12 @@ class AudioLibrary extends ChangeNotifier {
   DownloadProgress? progressOf(Recording r) => _progress[r.id];
   bool isDownloading(Recording r) => _cancels.containsKey(r.id);
 
+  /// Paused with «إيقاف مؤقت» (also after a relaunch): «متابعة» resumes it.
+  bool isPaused(Recording r) => !isDownloading(r) && _progress[r.id]?.phase == DownloadPhase.paused;
+
+  /// Whether any bytes of [r] are on the device: «حذف» is offered (ADR 0007).
+  bool holdsBytes(Recording r) => isOnDevice(r) || isDownloading(r) || (_progress[r.id]?.received ?? 0) > 0;
+
   bool get wifiOnly => prefs.getString(kWifiOnlyPref) != '0';
   set wifiOnly(bool on) {
     prefs.setString(kWifiOnlyPref, on ? '1' : '0');
@@ -79,13 +86,21 @@ class AudioLibrary extends ChangeNotifier {
   int get bytesOnDevice => [for (final r in recordings) if (isOnDevice(r)) r.localBytes].fold(0, (a, b) => a + b);
 
   /// Looks at the files on the device; a download that finished while the app was
-  /// closed is verified and moved into place first.
+  /// closed is verified and moved into place first. A partial left from before
+  /// shows where it stopped: paused, or interrupted.
   Future<void> refresh() async {
     for (final r in recordings) {
       if (await downloads.isDownloaded(r) || (!isDownloading(r) && await downloads.recover(r))) {
         _onDevice.add(r.id);
       } else {
         _onDevice.remove(r.id);
+        if (isDownloading(r) || _progress.containsKey(r.id)) continue;
+        final kept = await downloads.partialOf(r);
+        if (kept != null && kept.received > 0) {
+          _progress[r.id] = kept.paused
+              ? DownloadProgress(DownloadPhase.paused, kept.received, r.localBytes)
+              : DownloadProgress(DownloadPhase.failed, kept.received, r.localBytes, DownloadError.network);
+        }
       }
     }
     notifyListeners();
@@ -129,6 +144,8 @@ class AudioLibrary extends ChangeNotifier {
     if (isDownloading(r)) return;
     final cancel = DownloadCancel();
     _cancels[r.id] = cancel;
+    final finished = Completer<void>();
+    _running[r.id] = finished.future;
     notifyListeners();
     try {
       await downloads.download(r, wifiOnly: wifiOnly, cancel: cancel, onProgress: (p) {
@@ -138,20 +155,30 @@ class AudioLibrary extends ChangeNotifier {
       _onDevice.add(r.id);
       if (r.id == current.id) await _reconnect(); // playable now
     } on DownloadException catch (e) {
-      if (e.error != DownloadError.cancelled) _reader?.rating?.noteError(); // shown in «التنزيلات»
+      final stopped = e.error == DownloadError.cancelled || e.error == DownloadError.paused;
+      if (!stopped) _reader?.rating?.noteError(); // shown in «التنزيلات»
       final p = _progress[r.id];
       _progress[r.id] = DownloadProgress(
-          e.error == DownloadError.cancelled ? DownloadPhase.cancelled : DownloadPhase.failed,
+          switch (e.error) {
+            DownloadError.cancelled => DownloadPhase.cancelled,
+            DownloadError.paused => DownloadPhase.paused,
+            _ => DownloadPhase.failed,
+          },
           p?.received ?? 0,
           r.localBytes,
           e.error);
     } finally {
       _cancels.remove(r.id);
+      _running.remove(r.id);
+      finished.complete();
       notifyListeners();
     }
   }
 
   void cancel(Recording r) => _cancels[r.id]?.cancel();
+
+  /// «إيقاف مؤقت»: stops the download and keeps its bytes for «متابعة».
+  void pause(Recording r) => _cancels[r.id]?.pause();
 
   /// A background download finished with the app not waiting for it: take it in,
   /// and play it at once if it is the chosen recording.
@@ -161,9 +188,11 @@ class AudioLibrary extends ChangeNotifier {
     if (!wasCurrent && isOnDevice(current)) await _reconnect();
   }
 
-  /// Removes [r] from the device; the reader loses its audio if it was the chosen one.
+  /// Removes [r] from the device in any state (a partial too); the reader loses
+  /// its audio if it was the chosen one.
   Future<void> delete(Recording r) async {
     cancel(r);
+    await _running[r.id]; // a running download writes its sidecar as it stops
     if (r.id == current.id) {
       await _disposeEngine?.call();
       _disposeEngine = null;

@@ -116,8 +116,8 @@ class _RecordingCard extends StatelessWidget {
             : 'يُنزَّل ${ar((p.fraction * 100).floor())}٪، ${megabytes(p.received)} من ${megabytes(p.total)}',
       };
       stateColor = t.goldText;
-      action = 'إيقاف';
-      onAction = () => library.cancel(r);
+      action = 'إيقاف مؤقت';
+      onAction = () => library.pause(r);
     } else if (p?.phase == DownloadPhase.failed) {
       state = switch (p!.error) {
         DownloadError.noUrls => 'التنزيل غير متاح بعد',
@@ -128,7 +128,7 @@ class _RecordingCard extends StatelessWidget {
       stateColor = t.warn;
       action = 'إعادة المحاولة';
       onAction = () => library.download(r);
-    } else if (p?.phase == DownloadPhase.cancelled && p!.received > 0) {
+    } else if ((p?.phase == DownloadPhase.paused || p?.phase == DownloadPhase.cancelled) && p!.received > 0) {
       state = 'متوقف عند ${ar((p.fraction * 100).floor())}٪';
       action = 'متابعة';
       onAction = () => library.download(r);
@@ -195,6 +195,16 @@ class _RecordingCard extends StatelessWidget {
               ),
             ],
           ),
+          // «حذف» in every state that holds bytes (ADR 0007); a verified file has it above.
+          if (!onDevice && library.holdsBytes(r))
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: () => _confirmDelete(context, t),
+                style: TextButton.styleFrom(minimumSize: const Size(48, 44)),
+                child: Text('حذف', style: kufi(size: 13.5, weight: 500, color: t.warn)),
+              ),
+            ),
           if (downloading && p != null && p.phase == DownloadPhase.downloading) ...[
             const SizedBox(height: 10),
             Directionality(
@@ -219,7 +229,9 @@ class _RecordingCard extends StatelessWidget {
           backgroundColor: t.panel,
           title: Text('حذف التلاوة؟', style: kufi(size: 17, weight: 600, color: t.text)),
           content: Text(
-            'تُحذف تلاوة ${recording.reciterName} من الجهاز (${megabytes(recording.localBytes)})، ويمكن تنزيلها متى شئت.',
+            library.isOnDevice(recording)
+                ? 'تُحذف تلاوة ${recording.reciterName} من الجهاز (${megabytes(recording.localBytes)})، ويمكن تنزيلها متى شئت.'
+                : 'يُحذف ما نُزّل من تلاوة ${recording.reciterName} (${megabytes(library.progressOf(recording)?.received ?? 0)})، ويمكن تنزيلها متى شئت.',
             style: kufi(size: 14, weight: 400, color: t.dim),
           ),
           actions: [
