@@ -65,6 +65,10 @@ class PersonalData extends ChangeNotifier {
     return null;
   }
 
+  /// The bookmarks whose verses include [verse] (a single verse or a run), the
+  /// most recently changed first. The verse menu and the sheet work on these.
+  List<Bookmark> bookmarksCovering(int verse) => [for (final b in _bookmarks) if (b.covers(verse)) b];
+
   /// Ribbons on the page: the colour of the bookmark starting at each verse
   /// (a run is marked on its first verse).
   Map<int, Color> get ribbons => {
@@ -85,6 +89,27 @@ class PersonalData extends ChangeNotifier {
 
   Future<void> deleteBookmark(int from, {int? to}) async {
     await store.deleteBookmark(from, to: to);
+    await load();
+  }
+
+  /// Changes the colour and tag of [b], keeping its verses and uuid.
+  Future<void> updateBookmark(Bookmark b, {required BookmarkColor color, required BookmarkTag tag}) async {
+    await store.updateBookmark(b.uuid, color: color, tag: tag);
+    await load();
+  }
+
+  /// Deletes [b]; [restoreBookmark] brings it back as it was.
+  Future<void> removeBookmark(Bookmark b) async {
+    // Out of the lists and off the page at once (a swiped row must leave the tree now).
+    _bookmarks = [for (final x in _bookmarks) if (x.uuid != b.uuid) x];
+    notifyListeners();
+    await store.deleteBookmarkById(b.uuid);
+    await load();
+  }
+
+  /// «تراجع» after a delete: the same uuid, verses, colour and tag.
+  Future<void> restoreBookmark(Bookmark b) async {
+    await store.restoreBookmark(b.uuid);
     await load();
   }
 

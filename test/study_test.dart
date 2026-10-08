@@ -105,7 +105,7 @@ void main() {
 
     r.openMenu(229);
     await tester.pump();
-    await tester.tap(find.text('مرجع'));
+    await tester.tap(find.text('تعديل المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
     await settle(tester);
@@ -178,6 +178,103 @@ void main() {
     await tester.tap(find.text('البيت ٢٢٩'));
     await tester.pump();
     expect(r.verse, 229);
+    await unmount(tester);
+  });
+
+  // ── deleting bookmarks (plan 1.3, ADR 0009 rules 1–3, F-50/F-51) ──
+
+  Future<Bookmark> rangeBookmark(WidgetTester tester, PersonalData personal) async {
+    await tester.runAsync(() => personal.saveBookmark(226, to: 234, color: BookmarkColor.blue, tag: BookmarkTag.muraja));
+    await tester.pump();
+    return personal.bookmarks.single;
+  }
+
+  testWidgets('range bookmark deleted from its middle verse', (tester) async {
+    final (r, personal) = await open(tester);
+    await rangeBookmark(tester, personal);
+    r.openMenu(230);
+    await tester.pump();
+    await tester.tap(find.text('تعديل المرجع'));
+    await tester.pumpAndSettle();
+    expect(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'), findsOneWidget); // the covering bookmark, listed
+    await tester.tap(find.text('حذف'));
+    await settle(tester);
+    expect(personal.bookmarks, isEmpty);
+    expect(find.text('أُزيل المرجع'), findsOneWidget);
+    expect(find.text('تراجع'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('save on a covered verse edits, count stays 1', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await rangeBookmark(tester, personal);
+    r.openMenu(230);
+    await tester.pump();
+    await tester.tap(find.text('تعديل المرجع'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('لون').at(4)); // rose
+    await tester.tap(find.text('حفظ المرجع'));
+    await settle(tester);
+    expect(personal.bookmarks, hasLength(1));
+    final after = personal.bookmarks.single;
+    expect((after.uuid, after.fromVerse, after.toVerse, after.color, after.tag),
+        (before.uuid, 226, 234, BookmarkColor.rose, BookmarkTag.muraja));
+    await unmount(tester);
+  });
+
+  Future<void> openHome(WidgetTester tester, ReaderController r) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
+    ));
+    await tester.pump();
+  }
+
+  testWidgets('swipe-delete then undo restores the same uuid', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await rangeBookmark(tester, personal);
+    await openHome(tester, r);
+    await tester.drag(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'), const Offset(500, 0));
+    await tester.pumpAndSettle(); // the row slides away, then is dismissed
+    await settle(tester);
+    expect(personal.bookmarks, isEmpty);
+    expect(find.text('لا مراجع بعد'), findsOneWidget);
+    expect(find.text('أُزيل المرجع'), findsOneWidget);
+
+    await tester.tap(find.text('تراجع'));
+    await settle(tester);
+    final back = personal.bookmarks.single;
+    expect((back.uuid, back.fromVerse, back.toVerse, back.color, back.tag),
+        (before.uuid, 226, 234, BookmarkColor.blue, BookmarkTag.muraja));
+
+    // A long press offers «تعديل» and «حذف»; a tap still opens the verse.
+    await tester.longPress(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'));
+    await tester.pumpAndSettle();
+    expect(find.text('تعديل'), findsOneWidget);
+    await tester.tap(find.text('حذف'));
+    await settle(tester);
+    expect(personal.bookmarks, isEmpty);
+    expect(find.text('أُزيل المرجع'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6)); // the undo lasts 5 s
+    await tester.pumpAndSettle();
+    expect(find.text('تراجع'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('ribbon disappears after delete', (tester) async {
+    final (r, personal) = await open(tester);
+    await rangeBookmark(tester, personal);
+    expect(personal.ribbons.keys, [226]);
+    r.openMenu(232);
+    await tester.pump();
+    await tester.tap(find.text('تعديل المرجع'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف'));
+    await settle(tester);
+    expect(personal.ribbons, isEmpty);
+    r.openMenu(232);
+    await tester.pump();
+    expect(find.text('مرجع'), findsOneWidget); // nothing covers it any more
     await unmount(tester);
   });
 

@@ -202,7 +202,7 @@ class VerseMenu extends StatelessWidget {
                     _action(
                       t,
                       (bookmarked?.call(verse) ?? false) ? LucideIcons.bookmarkCheck : LucideIcons.bookmarkPlus,
-                      'مرجع',
+                      (bookmarked?.call(verse) ?? false) ? 'تعديل المرجع' : 'مرجع',
                       () {
                         onClose();
                         onBookmark!(verse);
