@@ -152,7 +152,7 @@ class _BackupScreenState extends State<BackupScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            'يشمل: المراجع والملاحظات والسجل والأبيات المسموعة وإعدادات القراءة. '
+            'يشمل: المراجع والملاحظات وإعدادات القراءة. '
             'لا يشمل الصوت ولا الشروح.',
             style: kufi(size: 13, weight: 400, color: t.muted, height: 1.7),
           ),

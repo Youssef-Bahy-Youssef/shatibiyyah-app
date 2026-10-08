@@ -33,6 +33,9 @@ abstract class NotificationPort {
   /// Removes every scheduled reminder (not the ones already shown).
   Future<void> cancelScheduled();
 
+  /// Removes the notification [id], scheduled or shown.
+  Future<void> cancel(int id);
+
   Future<void> schedule(PlannedNotification n);
 
   /// Shows [n] at once, ignoring its time (the debug build's «جرّب الآن»).
@@ -47,7 +50,7 @@ class LocalNotifications implements NotificationPort {
     android: AndroidNotificationDetails(
       'app.shatibiyyah.hirz.channel.reminders',
       'التنبيهات',
-      channelDescription: 'فائدة اليوم وتذكير الباب',
+      channelDescription: 'تذكير الباب',
       icon: 'ic_stat_taysir',
       color: Color(0xFFFFAB2E),
     ),
@@ -91,13 +94,18 @@ class LocalNotifications implements NotificationPort {
     if (_ready) await _plugin.cancelAllPendingNotifications();
   }
 
+  @override
+  Future<void> cancel(int id) async {
+    if (_ready) await _plugin.cancel(id: id);
+  }
+
   static NotificationDetails _detailsFor(PlannedNotification n) => n.longBody == null
       ? _details
       : NotificationDetails(
           android: AndroidNotificationDetails(
             'app.shatibiyyah.hirz.channel.reminders',
             'التنبيهات',
-            channelDescription: 'فائدة اليوم وتذكير الباب',
+            channelDescription: 'تذكير الباب',
             icon: 'ic_stat_taysir',
             color: const Color(0xFFFFAB2E),
             styleInformation: BigTextStyleInformation(n.longBody!),

@@ -48,6 +48,8 @@ class _NoNotifications implements NotificationPort {
   @override
   Future<void> cancelScheduled() async {}
   @override
+  Future<void> cancel(int id) async {}
+  @override
   Future<void> schedule(PlannedNotification n) async {}
   @override
   Future<void> showNow(PlannedNotification n) async {}
@@ -273,8 +275,8 @@ void main() {
     });
   }
 
-  // «الرئيسية» (the bookmarks tab; history shows clock times) and «الفهرس», over a
-  // user.sqlite with two bookmarks, a note and the first chapters of الأصول heard.
+  // «الرئيسية» (the bookmarks tab) and «الفهرس», over a user.sqlite with two
+  // bookmarks and a note.
   for (final screen in ['home', 'index']) {
     for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
       final name = '${screen}_${theme.name}_390x844';
@@ -291,12 +293,6 @@ void main() {
           addTearDown(() => dir.delete(recursive: true));
           user = await UserStore.open(directory: dir.path, factory: databaseFactoryFfi);
           final recording = content.recordings.defaultRecording;
-          for (var v = 95; v <= 160; v++) {
-            await user.recordVerseListened(recording.id, v);
-          }
-          for (var v = 226; v <= 229; v++) {
-            await user.recordVerseListened(recording.id, v);
-          }
           final personal = PersonalData(user);
           await personal.load();
           await personal.saveBookmark(229, color: BookmarkColor.values[4], tag: BookmarkTag.muraja);
@@ -381,7 +377,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
       addTearDown(tester.view.reset);
-      SharedPreferences.setMockInitialValues({'flutter.v2.reminders.benefit': '1'});
+      SharedPreferences.setMockInitialValues({'flutter.v2.reminders.chapter': '1'});
       late Reminders reminders;
       await tester.runAsync(() async {
         reminders = Reminders(

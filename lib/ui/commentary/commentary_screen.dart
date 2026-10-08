@@ -35,8 +35,9 @@ class CommentaryScreen extends StatelessWidget {
   final String? bookId; // default: the default book
   const CommentaryScreen({super.key, required this.content, required this.verse, this.bookId});
 
-  /// Told each passage shown, for «السجل» (set at boot; features-v3 reading-history).
-  static void Function(String bookId, int fromVerse, int toVerse)? onRead;
+  /// Told each time a passage is shown: a day of use for the rating prompt (set at
+  /// boot; ADR 0008).
+  static void Function()? onOpened;
 
   static Future<void> open(BuildContext context, AppContent content, int verse, {String? bookId}) =>
       Navigator.of(context).push(MaterialPageRoute(
@@ -187,8 +188,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
     widget.onShown?.call(ref);
-    final from = ref.fromVerse;
-    if (from != null) CommentaryScreen.onRead?.call(ref.bookId, from, ref.toVerse ?? from);
+    CommentaryScreen.onOpened?.call();
   }
 
   Future<void> _step(int direction) async {

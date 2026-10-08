@@ -24,7 +24,6 @@ class K {
   static const bright = 'shatibiyyah_brightness';
   static const boxes = 'shatibiyyah_showboxes';
   // app.js keys
-  static const chapProg = 'shatibiyyah_chap_prog';
   static const session = 'shatibiyyah_last_session';
   static const keepControls = 'keepControlsVisible';
   static const immersiveHint = 'immersiveHintShown';

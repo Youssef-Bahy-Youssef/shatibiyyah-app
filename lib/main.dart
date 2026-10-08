@@ -14,14 +14,12 @@ import 'package:audio_service/audio_service.dart';
 
 import 'app/reader_boot.dart';
 import 'app/reminders.dart';
-import 'data/benefits_repository.dart';
 import 'services/lock_screen.dart';
 import 'theme.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
-import 'ui/commentary/commentary_screen.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
 
@@ -154,16 +152,13 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     }
   }
 
-  /// A tapped reminder: the reader on its verse; for «فائدة اليوم», Al-Wafi there too.
+  /// A tapped reminder: the reader on its verse.
   void _openReminder(ReminderTarget target) {
     final reader = _reader;
     final navigator = appNavigator.currentState;
     if (reader == null || navigator == null) return;
     navigator.popUntil((r) => r.isFirst);
     reader.tapVerse(target.verse);
-    if (target is BenefitTarget) {
-      CommentaryScreen.open(navigator.context, reader.content, target.verse, bookId: kBenefitsCommentaryId);
-    }
   }
 
   /// After the splash: the tour on the first run, else the reminder that launched the app.
