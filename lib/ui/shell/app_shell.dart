@@ -214,7 +214,8 @@ class _DockChrome extends StatelessWidget {
               duration: tzDuration(context, TzMotion.long),
               curve: TzMotion.emphasized,
               // The dock is a fixed-height binding, like a system tab bar: its text
-              // follows the system size up to 1.3×, not beyond (item 3.12 revisits).
+              // follows the system size up to 1.3×, not beyond. Item 3.12 keeps this:
+              // every tab keeps its icon and a 48 px target, and what it leads to scales in full.
               child: MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),

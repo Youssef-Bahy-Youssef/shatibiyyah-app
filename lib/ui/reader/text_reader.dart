@@ -252,7 +252,8 @@ class _ColumnState extends State<_Column> {
 
   @override
   Widget build(BuildContext context) {
-    final side = EdgeInsets.only(left: widget.padding.left, right: widget.padding.right);
+    // The column's margins are the same on both sides (readingPadding): no side is physical.
+    final side = EdgeInsets.symmetric(horizontal: widget.padding.horizontal / 2);
     return CustomScrollView(
       controller: _scroll,
       center: _centre,

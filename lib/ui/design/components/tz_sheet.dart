@@ -79,7 +79,9 @@ class _TzSheetState extends State<TzSheet> with SingleTickerProviderStateMixin {
                 ),
               ),
               if (picker)
-                Align(alignment: AlignmentDirectional.centerStart, child: widget.child)
+                // As tall as its content, and no taller than the room it has: content
+                // that scrolls (larger system text) stays inside the sheet.
+                Flexible(child: Align(alignment: AlignmentDirectional.centerStart, heightFactor: 1, child: widget.child))
               else
                 // The full sheet fills what it is given; its content scrolls inside.
                 Flexible(child: widget.child),

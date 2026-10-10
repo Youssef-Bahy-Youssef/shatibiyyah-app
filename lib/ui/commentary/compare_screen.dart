@@ -95,7 +95,7 @@ class _CompareScreenState extends State<CompareScreen> {
 
   Widget _header(TaysirColors t, bool columns) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 16, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 8, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -163,12 +163,12 @@ class _CompareScreenState extends State<CompareScreen> {
                   children: [
                     Text(
                       v.firstHemistich,
-                      textAlign: TextAlign.right,
+                      textAlign: TextAlign.start,
                       style: TzType.verse.copyWith(color: t.text),
                     ),
                     Text(
                       v.secondHemistich,
-                      textAlign: TextAlign.left,
+                      textAlign: TextAlign.end,
                       style: TzType.verse.copyWith(color: t.text),
                     ),
                   ],

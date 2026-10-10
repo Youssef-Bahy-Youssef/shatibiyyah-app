@@ -61,7 +61,8 @@ class ShareFormatButton extends StatelessWidget {
             onTap: enabled ? onTap : null,
             borderRadius: radius,
             child: Container(
-              height: 80,
+              // 80 px as drawn; taller when the system text is larger.
+              constraints: const BoxConstraints(minHeight: 80),
               foregroundDecoration: BoxDecoration(
                 borderRadius: radius,
                 border: Border.all(color: selected ? c.ink : c.lineSoft, width: 1.5),

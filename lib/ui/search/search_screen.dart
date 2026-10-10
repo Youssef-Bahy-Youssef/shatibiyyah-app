@@ -151,7 +151,7 @@ class _SearchScreenState extends State<SearchScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+                padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 12, 4),
                 child: Row(
                   children: [
                     IconButton(
@@ -411,7 +411,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       children: [
                         Text(matn.verse(n).firstHemistich, style: TzType.verse.copyWith(color: t.text)),
                         Text(matn.verse(n).secondHemistich,
-                            textAlign: TextAlign.left, style: TzType.verse.copyWith(color: t.text)),
+                            textAlign: TextAlign.end, style: TzType.verse.copyWith(color: t.text)),
                         Text(
                           '${matn.chapterOfVerse(n).shortLabel}، ص ${ar(widget.reader.content.layout.pageOfVerse(n))}',
                           style: TzType.caption.copyWith(color: t.muted),
@@ -598,11 +598,11 @@ class _JumpScreenState extends State<JumpScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(previewA,
-                          textAlign: _verse && n != null ? TextAlign.right : TextAlign.center,
+                          textAlign: _verse && n != null ? TextAlign.start : TextAlign.center,
                           style: TzType.verse.copyWith(color: t.dim)),
                       if (previewB.isNotEmpty)
                         Text(previewB,
-                            textAlign: _verse ? TextAlign.left : TextAlign.center,
+                            textAlign: _verse ? TextAlign.end : TextAlign.center,
                             style: _verse
                                 ? TzType.verse.copyWith(color: t.dim)
                                 : TzType.label.copyWith(color: t.muted)),

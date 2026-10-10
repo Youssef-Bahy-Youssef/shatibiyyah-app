@@ -177,6 +177,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           onTap: reader.closeSymbol,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true, // one labelled «إغلاق» above, not a nameless target
             onTap: reader.closeSymbol,
             onVerticalDragStart: (_) => reader.closeSymbol(),
           ),

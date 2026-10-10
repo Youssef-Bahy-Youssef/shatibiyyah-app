@@ -111,7 +111,7 @@ class _TourScreenState extends State<TourScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 16, 0),
           child: Row(
             children: [
               const TaysirLogo(size: 34),
