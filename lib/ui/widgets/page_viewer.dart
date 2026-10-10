@@ -954,7 +954,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     // Everything the stage is drawn from. The highlight's own moving parts (the
     // glide, a pulse, ribbons, a selection) are not here: they repaint its layer.
     final of = (
-      c.currentPage, c.zoom, c.tx, c.ty, c.baseW, c.baseH, c.viewW, c.viewH, c.baseScale, //
+      c, c.currentPage, c.zoom, c.tx, c.ty, c.baseW, c.baseH, c.viewW, c.viewH, c.baseScale, //
       c.night, c.nightInk, c.pageBg, c.showPlaying, c.showBoxes, c.activeId, widget.verseLabel != null,
     );
     if (of == _stageOf && _stage != null) return _stage!;
@@ -1037,7 +1037,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
 
   /// The scan, in its own layer: built again only for another page, size or ink.
   Widget _buildImage() {
-    final of = (c.currentPage, c.baseW, c.baseH, c.night, c.nightInk);
+    final of = (c, c.currentPage, c.baseW, c.baseH, c.night, c.nightInk);
     if (of == _imageOf && _image != null) return _image!;
     _imageOf = of;
     PageViewer.debugImageBuilds++;
