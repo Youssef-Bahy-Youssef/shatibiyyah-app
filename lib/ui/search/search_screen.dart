@@ -23,6 +23,7 @@ import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
+import '../shell/app_shell.dart';
 import '../shell/shell_page.dart' show readingPadding;
 
 const List<String> kSearchSuggestions = ['ورش', 'النقل', 'حمزة', 'بدأت'];
@@ -111,8 +112,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _openVerse(int verse) {
     _remember();
-    widget.reader.tapVerse(verse);
-    Navigator.of(context).popUntil((r) => r.isFirst);
+    AppShell.openVerse(context, widget.reader, verse);
   }
 
   void _openPage(int page) {

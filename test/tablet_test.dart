@@ -190,10 +190,12 @@ void main() {
     r.openSplit(226);
     await settle(tester);
     final divider = find.byType(SplitDivider);
-    final before = tester.getSize(find.byType(PageViewer)).width;
-    await tester.drag(divider, const Offset(-100, 0)); // towards the panel: the page widens
+    final before = tester.getTopLeft(divider).dx;
+    await tester.drag(divider, const Offset(-100, 0)); // towards the panel: the reader's column widens
     await tester.pump();
-    expect(tester.getSize(find.byType(PageViewer)).width, greaterThan(before));
+    // In landscape the page is height-limited under the dock, so the column, not the
+    // page, shows the new share.
+    expect(tester.getTopLeft(divider).dx, lessThan(before - 60)); // −100 less the touch slop
     final kept = r.store!.splitFraction(landscape: true);
     expect(kept, greaterThan(kSplitDefault));
     expect(r.store!.splitFraction(landscape: false), kSplitDefault); // the other orientation untouched

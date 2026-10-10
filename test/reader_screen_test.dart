@@ -1,5 +1,6 @@
-// The v3 reader shell: the page never moves when the chrome toggles; the top bar and
-// the player show what the spec says; the verse menu opens from a long-press.
+// The reader: the page never moves when the chrome toggles; the top bar shows what
+// the spec says; the verse menu opens from a long-press. The dock is the shell's
+// (app_shell_test.dart).
 import 'dart:async';
 import 'dart:io';
 
@@ -117,7 +118,7 @@ void main() {
     expect(tester.getSize(stack), const Size(390, 844));
     final page = tester.getRect(find.byType(PageViewer));
     expect(page.left, closeTo(8, 0.5));
-    expect(page.top, closeTo(124.9, 0.5));
+    expect(page.top, closeTo(104.9, 0.5)); // under a 56 px bar at 40; 156 px kept for the dock
     expect(page.width, closeTo(374, 0.5));
     expect(page.height, closeTo(574.2, 0.5));
 
@@ -133,14 +134,11 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('top bar: short label and «القسم · ص N من ٩٤»; player without a recording', (tester) async {
+  testWidgets('top bar: short label and «القسم · ص N من ٩٤»', (tester) async {
     final r = await reader(tester);
     await show(tester, r);
     expect(find.text('باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
     expect(find.text('الأصول · ص ١٩ من ٩٤'), findsOneWidget);
-    expect(find.text('التلاوة غير منزّلة بعد'), findsOneWidget);
-    expect(find.text('المتن والشروح تعمل دون تنزيل'), findsOneWidget);
-    expect(find.byTooltip('تشغيل'), findsNothing); // no transport without audio
     await unmount(tester);
   });
 
@@ -480,9 +478,9 @@ void main() {
         );
       });
       await show(tester, r);
-      await tester.tap(find.byTooltip('القائمة'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('الفهرس'));
+      // The index as its own route (the dock's tab is app_shell_test's).
+      Navigator.of(tester.element(find.byType(ReaderScreen)))
+          .push(MaterialPageRoute<void>(builder: (_) => IndexScreen(reader: r)));
       await tester.pumpAndSettle();
       final chips = find.byWidgetPredicate((w) => w is Scrollable && axisDirectionToAxis(w.axisDirection) == Axis.horizontal);
       await tester.scrollUntilVisible(find.text('الخاتمة'), 200, scrollable: chips.first);
@@ -518,57 +516,6 @@ void main() {
       expect(data.chaptersOnPage(2), isEmpty);
       expect(data.pageOfChapter(1), 1);
       expect(data.pageOfChapter(2), 2); // no heading: the page of its first verse
-    });
-  });
-
-  group('drawer', () {
-    testWidgets('☰ opens the seven destinations; the index opens a chapter in the reader', (tester) async {
-      final r = await reader(tester);
-      await show(tester, r);
-      await tester.tap(find.byTooltip('القائمة'));
-      await tester.pumpAndSettle();
-      for (final label in ['الرئيسية والمكتبة', 'الفهرس', 'التنزيلات', 'التنبيهات', 'الإعدادات', 'رموز القراء', 'حول']) {
-        expect(find.text(label), findsOneWidget, reason: label);
-      }
-
-      await tester.tap(find.text('الفهرس'));
-      await tester.pumpAndSettle();
-      expect(find.byType(IndexScreen), findsOneWidget);
-      expect(find.text('الأبيات \u2068٩٥–٤٤٤\u2069، ٢٨ بابًا'), findsOneWidget);
-      final list = find.descendant(of: find.byType(IndexScreen), matching: find.byType(Scrollable)).first;
-      await tester.scrollUntilVisible(find.text('الحالي'), 300, scrollable: list);
-      expect(find.text('الحالي'), findsOneWidget); // verse 226's chapter, in الأصول
-
-      await tester.drag(list, const Offset(0, 5000)); // back to the part chips
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('فرش الحروف'));
-      await tester.pumpAndSettle();
-      final first = content.matn.chapters.firstWhere((c) => c.partId == content.matn.parts[2].id);
-      await tester.tap(find.text(first.shortLabel));
-      await tester.pumpAndSettle();
-      expect(find.byType(IndexScreen), findsNothing);
-      expect(r.verse, first.fromVerse);
-      await unmount(tester);
-    });
-
-    testWidgets('a later-phase destination opens «قريبًا»; حول shows the version', (tester) async {
-      final r = await reader(tester);
-      await show(tester, r);
-      await tester.tap(find.byTooltip('القائمة'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('التنبيهات'));
-      await tester.pumpAndSettle();
-      expect(find.text('قريبًا في تحديث قادم'), findsOneWidget);
-      await tester.tap(find.byTooltip('رجوع'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byTooltip('القائمة'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('حول'));
-      await tester.pumpAndSettle();
-      expect(find.byType(AboutScreen), findsOneWidget);
-      expect(find.text(versionLabel(kAppVersion)), findsOneWidget);
-      await unmount(tester);
     });
   });
 

@@ -64,6 +64,13 @@ void main() {
     }
   });
 
+  test('no drawer and no home screen: the dock is the navigation (3.4, ADR 0019)', () {
+    expect(File('lib/ui/shell/app_drawer.dart').existsSync(), isFalse);
+    expect(File('lib/ui/shell/home_screen.dart').existsSync(), isFalse);
+    expect(_hits(RegExp(r'\bDrawer\(|AppDrawer|HomeScreen|الرئيسية والمكتبة|openDrawer')), isEmpty);
+    expect(AppRoute.values.map((r) => r.name), isNot(contains('home')));
+  });
+
   test('a new user database has none of the removed tables', () async {
     sqfliteFfiInit();
     final dir = await Directory.systemTemp.createTemp('removed_features');

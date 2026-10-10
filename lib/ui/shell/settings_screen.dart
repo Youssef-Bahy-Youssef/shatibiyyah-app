@@ -2,10 +2,13 @@
 //
 // The theme (داكنة · ورقية) and the text-mode size (١٠٠٪ · ١٥٠٪ · ٢٠٠٪), both
 // kept by the settings store; then the way to the downloads, reminders, backup,
-// reader codes and about. v3 dropped the widget and lock-screen previews.
+// reader codes and about. When Google Play has a newer version, a banner at the
+// top offers it (lib/app/app_update.dart; the only screen that shows it, since
+// the home screen went in item 3.4).
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/app_update.dart';
 import '../../app/routes.dart';
 import '../../data/settings_store.dart';
 import '../design/tokens.g.dart';
@@ -35,14 +38,15 @@ class SettingsScreen extends StatelessWidget {
           child: Text(s, style: TzType.caption.copyWith(color: t.muted)),
         );
     return ListenableBuilder(
-      listenable: Listenable.merge([reader, appTheme]),
+      listenable: Listenable.merge([reader, appTheme, ?reader.update]),
       builder: (context, _) {
         final scale = kSettingsTextScales.where((s) => (s - reader.textScale).abs() < 0.01).firstOrNull;
-        return ShellPage(
+        return ShellPage.topLevel(
           title: 'الإعدادات',
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + ShellInset.of(context)),
             children: [
+              if (reader.update case final update? when update.showBanner) _updateBanner(t, update),
               label('السمة'),
               PillTabs<ReaderTheme>(
                 options: const {ReaderTheme.dark: 'داكنة', ReaderTheme.paper: 'ورقية'},
@@ -99,6 +103,32 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+
+Widget _updateBanner(TaysirColors t, AppUpdate update) => Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: t.panel2,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: t.goldDeep),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.download, size: 18, color: t.goldText),
+          const SizedBox(width: 10),
+          Expanded(child: Text('إصدار جديد من التطبيق متاح', style: TzType.label.copyWith(color: t.text))),
+          TextButton(
+            onPressed: update.update,
+            child: Text('تحديث', style: TzType.label.copyWith(color: t.goldText)),
+          ),
+          IconButton(
+            tooltip: 'إخفاء',
+            onPressed: update.dismiss,
+            icon: Icon(LucideIcons.x, size: 18, color: t.muted),
+          ),
+        ],
+      ),
+    );
 
 class _Group extends StatelessWidget {
   final List<Widget> rows;

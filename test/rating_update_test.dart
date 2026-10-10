@@ -15,7 +15,7 @@ import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
-import 'package:shatibiyyah/ui/shell/home_screen.dart';
+import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -186,7 +186,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: tzThemeData(TzTheme.dark),
-          home: HomeScreen(reader: r),
+          home: SettingsScreen(reader: r),
         ),
       );
       expect(find.text('إصدار جديد من التطبيق متاح'), findsNothing);

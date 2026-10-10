@@ -534,7 +534,8 @@ class PageViewerController extends ChangeNotifier {
   double _panTx = 0, _panTy = 0;
   ({double dist0, double z0, double sx, double sy})? _pinch;
   double _lastX = 0, _lastY = 0, _lastMoveT = 0, _vx = 0, _vy = 0;
-  ({double t, double x, double y}) _lastTap = (t: 0, x: 0, y: 0);
+  // Never a double tap before the first tap: the clock starts at construction.
+  ({double t, double x, double y}) _lastTap = (t: double.negativeInfinity, x: 0, y: 0);
   Timer? _longPressTimer;
   bool _longPressed = false;
 
@@ -716,7 +717,7 @@ class PageViewerController extends ChangeNotifier {
           (Offset(local.dx - _lastTap.x, local.dy - _lastTap.y)).distance <
               _dblSlop;
       if (isDouble) {
-        _lastTap = (t: 0, x: 0, y: 0);
+        _lastTap = (t: double.negativeInfinity, x: 0, y: 0);
         _doubleTapZoom(local);
       } else {
         _lastTap = (t: now, x: local.dx, y: local.dy);

@@ -27,14 +27,13 @@ import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/commentary/compare_screen.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
-import 'package:shatibiyyah/ui/shell/home_screen.dart';
-import 'package:shatibiyyah/ui/shell/index_screen.dart';
+import 'package:shatibiyyah/ui/shell/app_shell.dart';
+import 'package:shatibiyyah/ui/design/components/dock.dart' show DockTab;
 import 'package:shatibiyyah/app/reminders.dart';
 import 'package:shatibiyyah/services/notifications.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
 import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
-import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -154,7 +153,7 @@ void main() {
           // the image does not depend on how far a rotation had got.
           builder: (context, child) =>
               MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
-          home: ReaderScreen(reader: r),
+          home: AppShell(reader: r),
         ));
         // The scanned page is an asset image: decode it for real, then draw.
         await tester.runAsync(() => precacheImage(
@@ -165,7 +164,7 @@ void main() {
         for (var i = 0; i < 8; i++) {
           await tester.pump(const Duration(milliseconds: 60)); // chrome fades, text-mode scroll
         }
-        await expectLater(find.byType(ReaderScreen), matchesGoldenFile('goldens/$name.png'));
+        await expectLater(find.byType(AppShell), matchesGoldenFile('goldens/$name.png'));
         await tester.pumpWidget(const SizedBox());
         await tester.pump(const Duration(seconds: 3)); // let notices and animations end
       });
@@ -247,9 +246,9 @@ void main() {
     });
   }
 
-  // «الرئيسية» (the bookmarks tab) and «الفهرس», over a user.sqlite with two
-  // bookmarks and a note.
-  for (final screen in ['home', 'index']) {
+  // «المحفوظ» (the bookmarks tab, then the empty notes tab) and «الفهرس» in the
+  // shell, over a user.sqlite with the reference's three bookmarks and no note.
+  for (final screen in ['saved_bookmarks', 'saved_notes', 'index']) {
     for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
       final name = '${screen}_${theme.name}_390x844';
       testWidgets(name, (tester) async {
@@ -267,9 +266,9 @@ void main() {
           final recording = content.recordings.defaultRecording;
           final personal = PersonalData(user);
           await personal.load();
-          await personal.saveBookmark(229, color: BookmarkColor.values[4], tag: BookmarkTag.muraja);
-          await personal.saveBookmark(120, to: 123, color: BookmarkColor.values[1], tag: BookmarkTag.hifz);
-          await personal.saveNote(230, 'قارن بالوافي');
+          await personal.saveBookmark(683, color: BookmarkColor.values[3], tag: BookmarkTag.ishkal);
+          await personal.saveBookmark(120, to: 123, color: BookmarkColor.values[2], tag: BookmarkTag.hifz);
+          await personal.saveBookmark(229, color: BookmarkColor.values[0], tag: BookmarkTag.muraja);
           final prefs = await Prefs.create();
           final windows = await content.windowsFor(recording);
           r = ReaderController(
@@ -285,12 +284,14 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: tzThemeData(tzThemeFor(theme)),
           builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
-          home: screen == 'home' ? HomeScreen(reader: r) : IndexScreen(reader: r),
+          home: AppShell(reader: r, initialTab: screen == 'index' ? DockTab.contents : DockTab.saved),
         ));
-        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100))); // listened verses
         await tester.pumpAndSettle();
-        await expectLater(
-            find.byType(screen == 'home' ? HomeScreen : IndexScreen), matchesGoldenFile('goldens/$name.png'));
+        if (screen == 'saved_notes') {
+          await tester.tap(find.text('الملاحظات ٠'));
+          await tester.pumpAndSettle();
+        }
+        await expectLater(find.byType(AppShell), matchesGoldenFile('goldens/$name.png'));
       });
     }
   }
@@ -322,10 +323,10 @@ void main() {
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: tzThemeData(tzThemeFor(theme)),
-          home: screen == 'settings' ? SettingsScreen(reader: r) : BackupScreen(reader: r),
+          home: screen == 'settings' ? AppShell(reader: r, initialTab: DockTab.settings) : BackupScreen(reader: r),
         ));
         await tester.pumpAndSettle();
-        await expectLater(find.byType(screen == 'settings' ? SettingsScreen : BackupScreen),
+        await expectLater(find.byType(screen == 'settings' ? AppShell : BackupScreen),
             matchesGoldenFile('goldens/$name.png'));
       });
     }
@@ -391,7 +392,7 @@ void main() {
           theme: tzThemeData(tzThemeFor(ReaderTheme.dark)),
           builder: (context, child) =>
               MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
-          home: state == 'compare' ? CompareScreen(content: content, verse: 226) : ReaderScreen(reader: r),
+          home: state == 'compare' ? CompareScreen(content: content, verse: 226) : AppShell(reader: r),
         ));
         if (state != 'compare') {
           await tester.runAsync(() => precacheImage(
@@ -406,7 +407,7 @@ void main() {
           await tester.pump(const Duration(milliseconds: 60));
         }
         await expectLater(
-          find.byType(state == 'compare' ? CompareScreen : ReaderScreen),
+          find.byType(state == 'compare' ? CompareScreen : AppShell),
           matchesGoldenFile('goldens/$name.png'),
         );
         await tester.pumpWidget(const SizedBox());

@@ -18,9 +18,10 @@ import 'services/lock_screen.dart';
 import 'ui/design/tokens.g.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
+import 'ui/design/components/dock.dart' show DockTab;
+import 'ui/shell/app_shell.dart';
 import 'ui/design/tz_theme.dart';
 import 'ui/reader/reader_controller.dart';
-import 'ui/reader/reader_screen.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
 import 'ui/design/taysir_colors.dart';
@@ -147,6 +148,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     if (reader == null || navigator == null) return;
     navigator.popUntil((r) => r.isFirst);
     reader.tapVerse(target.verse);
+    appShell.currentState?.select(DockTab.matn);
   }
 
   /// After the splash: the tour on the first run, else the reminder that launched the app.
@@ -170,7 +172,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
       ready: _reader != null || _error,
       onGone: _afterSplash,
       child: _reader != null
-          ? ReaderScreen(reader: _reader!)
+          ? AppShell(key: appShell, reader: _reader!)
           : (_error ? const _ErrorScreen() : const SizedBox.shrink()),
     );
   }

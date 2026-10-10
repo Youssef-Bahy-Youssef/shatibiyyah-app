@@ -12,6 +12,7 @@ import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
+import 'app_shell.dart';
 import 'shell_page.dart';
 
 class RumuzScreen extends StatefulWidget {
@@ -27,10 +28,7 @@ class _RumuzScreenState extends State<RumuzScreen> {
 
   RumuzRepository get _rumuz => widget.reader.content.rumuz;
 
-  void _openVerse(int verse) {
-    widget.reader.tapVerse(verse);
-    Navigator.of(context).popUntil((r) => r.isFirst);
-  }
+  void _openVerse(int verse) => AppShell.openVerse(context, widget.reader, verse);
 
   /// The letters as the poem groups them, an imam and his two transmitters per
   /// word: «أبج دهز حطي كلم نصع فضق رست».
