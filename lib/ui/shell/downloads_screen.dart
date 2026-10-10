@@ -93,7 +93,7 @@ class _RecordingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     final r = recording;
-    final chosen = library.current.id == r.id;
+    final chosen = library.chosen.id == r.id;
     final onDevice = library.isOnDevice(r);
     final p = library.progressOf(r);
     final downloading = library.isDownloading(r);
@@ -286,7 +286,7 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
                   ),
                   const SizedBox(height: 12),
                   Text('القارئ', style: TzType.title.copyWith(color: t.text)),
-                  Text('يبقى البيت الحالي عند التبديل', style: TzType.caption.copyWith(color: t.muted)),
+                  Text('يبقى البيت الحالي عند التبديل، وتستمر التلاوة', style: TzType.caption.copyWith(color: t.muted)),
                   const SizedBox(height: 12),
                   for (final r in library.recordings) ...[
                     ReciterOption(
@@ -294,7 +294,7 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
                       recording: r,
                       onPick: () async {
                         final navigator = Navigator.of(sheet);
-                        await library.choose(r);
+                        await library.choose(r); // one not on the device starts downloading
                         navigator.pop();
                         if (!library.isOnDevice(r)) {
                           navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: library)));
@@ -336,7 +336,7 @@ class ReciterOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     final r = recording;
-    final chosen = library.current.id == r.id;
+    final chosen = library.chosen.id == r.id;
     return Semantics(
       inMutuallyExclusiveGroup: true,
       checked: chosen,
@@ -359,12 +359,23 @@ class ReciterOption extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
+                        // Both recordings are first-class; this one is preselected (ADR 0006).
+                        if (r.isDefault) Text('الافتراضية', style: TzType.caption.copyWith(color: t.goldText)),
+                      ],
+                    ),
                     Text(
                       '${durationHms(r.durationMs)}، ${megabytes(r.localBytes)}، '
                       '${library.isOnDevice(r) ? 'على الجهاز' : 'غير منزّل'}',
                       style: TzType.caption.copyWith(color: t.muted),
                     ),
+                    // Picked while another plays: it takes over once its file is verified.
+                    if (library.pending?.id == r.id)
+                      Text('تبدأ بعد اكتمال تنزيلها، عند نهاية البيت', style: TzType.caption.copyWith(color: t.goldText)),
                   ],
                 ),
               ),

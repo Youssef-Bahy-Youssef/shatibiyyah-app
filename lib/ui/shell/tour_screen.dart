@@ -259,7 +259,7 @@ class _PickReciter extends StatelessWidget {
     return AnimatedBuilder(
       animation: library,
       builder: (context, _) {
-        final r = library.current;
+        final r = library.chosen;
         final onDevice = library.isOnDevice(r);
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
@@ -270,7 +270,8 @@ class _PickReciter extends StatelessWidget {
                 style: TzType.commentary.copyWith(color: t.dim)),
             const SizedBox(height: 16),
             for (final rec in library.recordings) ...[
-              ReciterOption(library: library, recording: rec, onPick: () => library.choose(rec)),
+              // The download is offered below, with its size: it does not start by itself here.
+              ReciterOption(library: library, recording: rec, onPick: () => library.choose(rec, startDownload: false)),
               const SizedBox(height: 8),
             ],
             const SizedBox(height: 16),
