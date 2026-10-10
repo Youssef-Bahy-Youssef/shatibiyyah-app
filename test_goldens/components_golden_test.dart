@@ -17,6 +17,7 @@ import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
 import 'package:shatibiyyah/ui/design/components/tz_sheet.dart';
 import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
+import 'package:shatibiyyah/ui/design/components/undo_snackbar.dart';
 import 'package:shatibiyyah/ui/design/components/rubric.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
@@ -29,7 +30,12 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
-  'matn_strip': (390, 261, () => Column(children: [
+  'snackbar': (366, 52, () => UndoSnackbar(message: 'أُزيل المرجع: البيت ١٠٠١', onUndo: () {})),
+  'matn_strip': (
+    390,
+    261,
+    () => Column(
+      children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(14, 10, 14, 0),
           child: MatnStrip(
@@ -43,25 +49,38 @@ final Map<String, (double, double, Widget Function())> components = {
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
           child: MatnStrip(
             number: '٢٣١',
-            hemistichs: const ('وَأَدْغَمَ بَاقِيهِمْ وَبِالنَّقْلِ وَصْلُهُمْ', 'وَبَدْؤُهُمُ وَالْبَدْءُ بِالأَصْلِ فُضِّلاَ'),
+            hemistichs: const (
+              'وَأَدْغَمَ بَاقِيهِمْ وَبِالنَّقْلِ وَصْلُهُمْ',
+              'وَبَدْؤُهُمُ وَالْبَدْءُ بِالأَصْلِ فُضِّلاَ',
+            ),
             caption: 'يشرح الأبيات ٢٣٠–٢٣٣',
             verses: const ['٢٣٠', '٢٣١', '٢٣٢', '٢٣٣'],
             current: 1,
             onVerse: (_) {},
           ),
         ),
-      ])),
-  'chapter_head': (390, 168, () => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12),
-        child: ChapterHead(
-          order: '١١',
-          caption: 'الباب الحادي عشر · الأبيات ٢٢٦–٢٣٤ · ٩ أبيات',
-          title: 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا',
-        ),
-      )),
-  'verse_unit': (390, 332, () => const Padding(
-        padding: EdgeInsets.fromLTRB(12, 4, 12, 0),
-        child: Column(children: [
+      ],
+    ),
+  ),
+  'chapter_head': (
+    390,
+    168,
+    () => const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12),
+      child: ChapterHead(
+        order: '١١',
+        caption: 'الباب الحادي عشر · الأبيات ٢٢٦–٢٣٤ · ٩ أبيات',
+        title: 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا',
+      ),
+    ),
+  ),
+  'verse_unit': (
+    390,
+    332,
+    () => const Padding(
+      padding: EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Column(
+        children: [
           VerseUnit(
             number: '٢٢٦',
             first: 'وَحَرِّكْ لِوَرْشٍ كُلَّ سَاكِنٍ آخِرٍ',
@@ -79,20 +98,33 @@ final Map<String, (double, double, Widget Function())> components = {
             number: '٢٣٠',
             first: 'وَقُلْ عَادًا الأُوْلَى بِإِسْكَانِ لامِهِ',
             second: 'وَتَنْوِينُهُ بِالْكَسْرِ كَاسِيهِ ظَلَّلَا',
-            rubrics: [Rubric.symbol('كَ', inWord: 'كَاسِيهِ'), Rubric.symbol('ظَ', inWord: 'ظَلَّلَا')],
+            rubrics: [
+              Rubric.symbol('كَ', inWord: 'كَاسِيهِ'),
+              Rubric.symbol('ظَ', inWord: 'ظَلَّلَا'),
+            ],
             chosen: true,
           ),
-        ]),
-      )),
-  'stepper': (370, 60, () => BindingStepper(
-        previous: 'البيت ٢٢٥',
-        next: 'البيت ٢٢٧',
-        step: '١',
-        caption: 'من ٩ في الباب',
-        onPrevious: () {},
-        onNext: () {},
-      )),
-  'dock': (390, 560, () => Column(children: [
+        ],
+      ),
+    ),
+  ),
+  'stepper': (
+    370,
+    60,
+    () => BindingStepper(
+      previous: 'البيت ٢٢٥',
+      next: 'البيت ٢٢٧',
+      step: '١',
+      caption: 'من ٩ في الباب',
+      onPrevious: () {},
+      onNext: () {},
+    ),
+  ),
+  'dock': (
+    390,
+    560,
+    () => Column(
+      children: [
         for (final np in <NowPlaying>[
           NpPlaying(
             verse: '٢٢٩',
@@ -111,10 +143,15 @@ final Map<String, (double, double, Widget Function())> components = {
             height: 140,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-              child: Align(alignment: Alignment.bottomCenter, child: Dock(nowPlaying: np, current: DockTab.matn, onTab: (_) {})),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Dock(nowPlaying: np, current: DockTab.matn, onTab: (_) {}),
+              ),
             ),
           ),
-      ])),
+      ],
+    ),
+  ),
   'sheet': (390, 117, () => const _Picker()),
   'switch': (
     390,
@@ -242,10 +279,20 @@ class _Picker extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: TzSheet.picker(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.only(top: 10), child: Text('السرعة', style: TzType.title.copyWith(color: c.ink))),
-          Text('تُحفظ لكل تلاوة على حدة.', style: TzType.caption.copyWith(fontSize: 13, height: 20 / 13, color: c.ink3)),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text('السرعة', style: TzType.title.copyWith(color: c.ink)),
+            ),
+            Text(
+              'تُحفظ لكل تلاوة على حدة.',
+              style: TzType.caption.copyWith(fontSize: 13, height: 20 / 13, color: c.ink3),
+            ),
+          ],
+        ),
       ),
     );
   }
