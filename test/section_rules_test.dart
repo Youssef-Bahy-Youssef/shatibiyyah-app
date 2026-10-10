@@ -1,7 +1,10 @@
 // The section (ADR 0003): the run of verses the player is set to play. It starts
 // where play was pressed. «تكرار المقطع» returns to its first verse, never to a
 // chapter's first verse the listener did not choose.
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 
@@ -100,4 +103,58 @@ void main() {
     expect(r.engine!.plan.verseRepetition, 1);
     await tester.runAsync(r.playPause);
   });
+
+  testWidgets('a section that has ended: ▶ plays it again from its first verse', (tester) async {
+    final audio = _TickingAudio();
+    final r = await data.reader(tester, audio: true, bookmarks: false, port: audio);
+    final windows = r.engine!.windows;
+    await tester.runAsync(() => r.playScope(const PlaybackScope(229, 230)));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    // The player reaches the end of verse 229, then of verse 230: the section is over.
+    for (final end in [windows.verseEnd(229), windows.verseEnd(230)]) {
+      audio.tick(end);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    }
+    expect((r.playing, r.verse, r.engine!.state.finished), (false, 230, true));
+
+    await tester.runAsync(r.playPause);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect((r.playing, r.verse, section(r)), (true, 229, (229, 230, false)));
+    expect(audio.seeks.last, windows.cue(229) - 50);
+    await tester.runAsync(r.playPause);
+  });
+}
+
+/// An audio port whose position the test moves.
+class _TickingAudio implements AudioPort {
+  final _positions = StreamController<int>.broadcast();
+  final seeks = <int>[];
+  int _at = 0;
+  bool _playing = false;
+
+  void tick(int ms) {
+    _at = ms;
+    _positions.add(ms);
+  }
+
+  @override
+  Stream<int> get positionMs => _positions.stream;
+  @override
+  int get currentPositionMs => _at;
+  @override
+  bool get playing => _playing;
+  @override
+  Stream<bool> get playingChanges => const Stream.empty();
+  @override
+  Future<void> seek(int ms) async {
+    seeks.add(ms);
+    _at = ms;
+  }
+
+  @override
+  Future<void> play() async => _playing = true;
+  @override
+  Future<void> pause() async => _playing = false;
+  @override
+  Future<void> setSpeed(double speed) async {}
 }
