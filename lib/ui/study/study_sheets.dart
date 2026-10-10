@@ -53,19 +53,27 @@ String studyTarget(AppContent content, int from, int? to) {
   return to == null || to == from ? 'البيت ${ar(from)}، $chapter' : 'الأبيات ${isolatedRange(from, to)}، $chapter';
 }
 
-/// «أُزيل المرجع · تراجع» for 5 s; «تراجع» restores [b] as it was: the same uuid,
-/// verses, colour and tag (ADR 0009). Deletes ask no confirmation.
-void showBookmarkUndo(ScaffoldMessengerState? messenger, PersonalData personal, Bookmark b, TaysirColors t) {
+/// [message] with «تراجع» for 5 s (ADR 0009). Deletes ask no confirmation.
+void _showUndo(ScaffoldMessengerState? messenger, TaysirColors t, String message, VoidCallback onUndo) {
   messenger
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text('أُزيل المرجع', style: TzType.label.copyWith(color: t.text)),
+      content: Text(message, style: TzType.label.copyWith(color: t.text)),
       backgroundColor: t.raised,
       duration: const Duration(seconds: 5),
       persist: false,
-      action: SnackBarAction(label: 'تراجع', textColor: t.goldText, onPressed: () => personal.restoreBookmark(b)),
+      action: SnackBarAction(label: 'تراجع', textColor: t.goldText, onPressed: onUndo),
     ));
 }
+
+/// «أُزيل المرجع · تراجع»; «تراجع» restores [b] as it was: the same uuid, verses,
+/// colour and tag.
+void showBookmarkUndo(ScaffoldMessengerState? messenger, PersonalData personal, Bookmark b, TaysirColors t) =>
+    _showUndo(messenger, t, 'أُزيل المرجع', () => personal.restoreBookmark(b));
+
+/// «حُذفت الملاحظة · تراجع»; «تراجع» restores [n] as it was: the same uuid and text.
+void showNoteUndo(ScaffoldMessengerState? messenger, PersonalData personal, Note n, TaysirColors t) =>
+    _showUndo(messenger, t, 'حُذفت الملاحظة', () => personal.restoreNote(n));
 
 /// «الأبيات ٢٢٦–٢٣٤» or «البيت ٢٢٩».
 String bookmarkLabel(Bookmark b) =>
@@ -238,19 +246,24 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
   }
 }
 
-/// «ملاحظة على البيت N»: one note per verse; saving it empty removes it.
+/// «ملاحظة على البيت N»: one note per verse. A written note has «حذف», and saving
+/// it empty deletes it too; either way «تراجع» is offered for 5 s (plan 5.1, ADR
+/// 0009): by [onDeleted] when the caller has its own notice, or on a snackbar.
+/// [onDone] receives the notice of a save.
 Future<void> showNoteSheet(
   BuildContext context, {
   required PersonalData personal,
   required AppContent content,
   required int verse,
   required void Function(String notice) onDone,
+  void Function(Note deleted)? onDeleted,
 }) =>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _NoteSheet(personal: personal, content: content, verse: verse, onDone: onDone),
+      builder: (_) =>
+          _NoteSheet(personal: personal, content: content, verse: verse, onDone: onDone, onDeleted: onDeleted),
     );
 
 class _NoteSheet extends StatefulWidget {
@@ -258,14 +271,17 @@ class _NoteSheet extends StatefulWidget {
   final AppContent content;
   final int verse;
   final void Function(String) onDone;
-  const _NoteSheet({required this.personal, required this.content, required this.verse, required this.onDone});
+  final void Function(Note)? onDeleted;
+  const _NoteSheet(
+      {required this.personal, required this.content, required this.verse, required this.onDone, this.onDeleted});
 
   @override
   State<_NoteSheet> createState() => _NoteSheetState();
 }
 
 class _NoteSheetState extends State<_NoteSheet> {
-  late final _field = TextEditingController(text: widget.personal.noteFor(widget.verse)?.body ?? '');
+  late final Note? _existing = widget.personal.noteFor(widget.verse);
+  late final _field = TextEditingController(text: _existing?.body ?? '');
   bool _failed = false;
 
   @override
@@ -276,7 +292,13 @@ class _NoteSheetState extends State<_NoteSheet> {
 
   Future<void> _save() async {
     final navigator = Navigator.of(context);
-    final had = widget.personal.noteFor(widget.verse) != null;
+    if (_field.text.trim().isEmpty) {
+      // Cleared: the note goes, as by «حذف». Never written: nothing to say.
+      final existing = _existing;
+      if (existing != null) return _delete(existing);
+      navigator.pop();
+      return;
+    }
     try {
       await widget.personal.saveNote(widget.verse, _field.text);
     } catch (_) {
@@ -284,15 +306,42 @@ class _NoteSheetState extends State<_NoteSheet> {
       return;
     }
     navigator.pop();
-    final empty = _field.text.trim().isEmpty;
-    if (!empty || had) widget.onDone(empty ? 'حُذفت الملاحظة' : 'حُفظت الملاحظة');
+    widget.onDone('حُفظت الملاحظة');
+  }
+
+  Future<void> _delete(Note note) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final t = TaysirColors.of(context);
+    try {
+      await widget.personal.removeNote(note);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true); // the sheet stays, with its text
+      return;
+    }
+    navigator.pop();
+    if (widget.onDeleted case final deleted?) {
+      deleted(note);
+    } else {
+      showNoteUndo(messenger, widget.personal, note, t);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     return _sheetFrame(context, [
-      Text('ملاحظة على البيت ${ar(widget.verse)}', style: TzType.title.copyWith(color: t.text)),
+      Row(
+        children: [
+          Expanded(child: Text('ملاحظة على البيت ${ar(widget.verse)}', style: TzType.title.copyWith(color: t.text))),
+          if (_existing case final note?)
+            TextButton(
+              onPressed: () => _delete(note),
+              style: TextButton.styleFrom(minimumSize: const Size(64, TzSize.touchTarget)),
+              child: Text('حذف', style: TzType.label.copyWith(color: t.warn)),
+            ),
+        ],
+      ),
       Text(widget.content.matn.chapterOfVerse(widget.verse).shortLabel,
           style: TzType.chapter.copyWith(color: t.dim)),
       const SizedBox(height: 10),

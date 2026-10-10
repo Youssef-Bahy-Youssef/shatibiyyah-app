@@ -23,6 +23,9 @@ out = app / "build" / "handoff"
 out.mkdir(parents=True, exist_ok=True)
 names = sys.argv[1:] or sorted(str(p.relative_to(goldens).with_suffix("")) for p in goldens.rglob("*.png"))
 for name in names:
+    if not (screens / f"{name}.png").exists():
+        print(f"no design render: {name}")  # a state the handoff does not draw (the notes list, the note sheet)
+        continue
     ours, design = Image.open(goldens / f"{name}.png").convert("RGB"), Image.open(screens / f"{name}.png").convert("RGB")
     bar = 28
     sheet = Image.new("RGB", (ours.width + design.width + 12, max(ours.height, design.height) + bar), (255, 0, 255))

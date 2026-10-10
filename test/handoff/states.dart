@@ -2,6 +2,8 @@
 // the tab, whether a recording is on the device, and what to do before looking.
 // The goldens draw each one (test_goldens/handoff_golden_test.dart); the
 // accessibility audit checks each one (test/handoff/states_accessibility_test.dart).
+// Two states have no render in the handoff, which draws the notes tab empty only:
+// «saved-notes-list» and «note-sheet» (plan 5.1) follow the bookmark states.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/user_store.dart';
@@ -18,6 +20,7 @@ import 'package:shatibiyyah/ui/reader/verse_rubrics.dart';
 import 'package:shatibiyyah/ui/share/share_sheet.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import 'package:shatibiyyah/ui/shell/saved_screen.dart';
+import 'package:shatibiyyah/ui/study/study_sheets.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'fixtures.dart';
 
@@ -48,17 +51,15 @@ Future<void> _player(WidgetTester tester, ReaderController r, [String? tile]) as
 
 Future<void> _nothing(WidgetTester _, ReaderController _, HandoffContent _) async {}
 
-/// «المحفوظ» as the design draws it: a bookmark on verse 1001 just swiped away
-/// (its undo notice showing), and the first row held 100 px aside over «حذف».
-Future<void> _savedSwiped(WidgetTester tester, ReaderController r, HandoffContent _) async {
-  await tester.runAsync(() => r.personal!.saveBookmark(1001, color: BookmarkColor.values[1], tag: BookmarkTag.muraja));
-  await tester.pump();
-  await tester.drag(find.text('البيت ١٠٠١'), const Offset(-390, 0));
+/// Swipes the row titled [title] away, waits for [notice] (its undo), then holds
+/// the first row left 100 px aside over «حذف».
+Future<void> _swipeAwayAndHold(WidgetTester tester, String title, String notice) async {
+  await tester.drag(find.text(title), const Offset(-390, 0));
   // The delete is a real database write: wait for its result (the row gone, the
   // undo notice up), not for a fixed time. The clock still ends 1.2 s on, so the
   // notice is drawn at the same moment of its life every time.
   var waited = 0;
-  bool done() => find.text('البيت ١٠٠١').evaluate().isEmpty && find.textContaining('أُزيل').evaluate().isNotEmpty;
+  bool done() => find.text(title).evaluate().isEmpty && find.textContaining(notice).evaluate().isNotEmpty;
   while (!done() && waited < 1000) {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump(const Duration(milliseconds: 20));
@@ -69,6 +70,49 @@ Future<void> _savedSwiped(WidgetTester tester, ReaderController r, HandoffConten
   addTearDown(gesture.removePointer);
   await gesture.moveBy(const Offset(-30, 0)); // taken as the start of a drag
   await gesture.moveBy(const Offset(-100, 0));
+}
+
+/// «المحفوظ» as the design draws it: a bookmark on verse 1001 just swiped away
+/// (its undo notice showing), and the first row held 100 px aside over «حذف».
+Future<void> _savedSwiped(WidgetTester tester, ReaderController r, HandoffContent _) async {
+  await tester.runAsync(() => r.personal!.saveBookmark(1001, color: BookmarkColor.values[1], tag: BookmarkTag.muraja));
+  await tester.pump();
+  await _swipeAwayAndHold(tester, 'البيت ١٠٠١', 'أُزيل');
+}
+
+/// The student's notes, the newest first, written a day apart.
+Future<void> _notes(WidgetTester tester, ReaderController r, Map<int, String> notes) async {
+  final personal = r.personal!;
+  await tester.runAsync(() async {
+    var day = 1;
+    for (final MapEntry(key: verse, value: body) in notes.entries) {
+      await personal.store.saveNote(verse, body, at: DateTime(2026, 1, day++));
+    }
+    await personal.load();
+  });
+  await tester.pump();
+}
+
+/// «الملاحظات» as the bookmarks are drawn: the note on verse 1001 just swiped
+/// away (its undo notice showing), and the first row held 100 px aside over «حذف».
+Future<void> _notesSwiped(WidgetTester tester, ReaderController r, HandoffContent _) async {
+  await _notes(tester, r, const {
+    683: 'يُراجع مع الشيخ في الدرس القادم.',
+    229: 'قارن شرح الوافي بإبراز المعاني في هذا البيت.',
+    1001: 'يُحفظ مع البيت الذي بعده.',
+  });
+  await tester.tap(find.text('الملاحظات ٣'));
+  await tester.pump();
+  await _swipeAwayAndHold(tester, 'البيت ١٠٠١', 'حُذفت');
+}
+
+/// «ملاحظة على البيت ٢٢٩» over the reader, on a written note: its text and «حذف».
+Future<void> _noteSheet(WidgetTester tester, ReaderController r, HandoffContent d) async {
+  await _notes(tester, r, const {229: 'قارن شرح الوافي بإبراز المعاني في هذا البيت.'});
+  showNoteSheet(tester.element(find.byType(AppShell)),
+      personal: r.personal!, content: d.content, verse: 229, onDone: r.showNotice);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 /// The share sheet over the reader, for [from]…[to], in a chosen size, with or
@@ -192,6 +236,8 @@ final Map<String, HandoffState> handoffStates = {
   ),
   'saved-bookmarks': (tab: DockTab.saved, audio: false, download: null, setup: _savedSwiped),
   'saved-notes': (tab: DockTab.saved, audio: false, download: null, setup: (tester, _, _) => tester.tap(find.text('الملاحظات ٠'))),
+  'saved-notes-list': (tab: DockTab.saved, audio: false, download: null, setup: _notesSwiped),
+  'note-sheet': (tab: DockTab.matn, audio: true, download: null, setup: _noteSheet),
   'share-one': (tab: DockTab.matn, audio: true, download: null, setup: (tester, _, d) => _share(tester, d, 226, 226)),
   'share-four': (
     tab: DockTab.matn,

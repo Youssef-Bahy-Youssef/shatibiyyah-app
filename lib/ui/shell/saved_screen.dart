@@ -8,14 +8,15 @@
 // Swiping reveals «حذف» in carmine, and «تراجع» undoes it for five seconds; a
 // long press offers «تعديل» and «حذف»; a tap opens the verse. A delete that
 // fails puts the row back and says «تعذّر الحفظ». The empty states
-// say the exact gesture and offer the way back to the matn. Notes edit, delete
-// and undo arrive with item 5.1.
+// say the exact gesture and offer the way back to the matn. A note is a row the
+// same way (item 5.1): its verse, its text, the first hemistich; «تعديل» opens its
+// sheet, and a delete there is undone here.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../app/personal_data.dart';
-import '../../data/user_store.dart' show Bookmark;
+import '../../data/user_store.dart' show Bookmark, Note;
 import '../../utils/arabic.dart';
 import '../design/components/dock.dart' show DockTab;
 import '../design/components/khatam.dart';
@@ -42,9 +43,12 @@ class SavedScreen extends StatefulWidget {
   State<SavedScreen> createState() => _SavedScreenState();
 }
 
+/// What «تراجع» brings back: the bookmark or the note just deleted.
+typedef _Deleted = ({String uuid, String message, Future<void> Function() restore});
+
 class _SavedScreenState extends State<SavedScreen> {
   late bool _notes = widget.notes;
-  Bookmark? _undo;
+  _Deleted? _undo;
   Timer? _undoTimer;
   // Failed deletes so far, part of each row's key: a swiped row that comes back
   // must be a new Dismissible, the old one is spent.
@@ -67,31 +71,70 @@ class _SavedScreenState extends State<SavedScreen> {
     if (mounted && reader.verse != before) AppShell.of(context)?.select(DockTab.matn);
   }
 
-  Future<void> _delete(PersonalData personal, Bookmark b) async {
+  _Deleted _bookmark(PersonalData personal, Bookmark b) => (
+    uuid: b.uuid,
+    message: 'أُزيل المرجع: ${bookmarkLabel(b)}',
+    restore: () => personal.restoreBookmark(b),
+  );
+
+  _Deleted _note(PersonalData personal, Note n) => (
+    uuid: n.uuid,
+    message: 'حُذفت الملاحظة: البيت ${ar(n.verse)}',
+    restore: () => personal.restoreNote(n),
+  );
+
+  /// Runs [remove], then offers [deleted] back for five seconds.
+  Future<void> _delete(Future<void> Function() remove, _Deleted deleted) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
-      await personal.removeBookmark(b);
+      await remove();
     } catch (_) {
       // Not deleted: the row is back in the list, and there is nothing to undo (F-55).
       if (mounted) setState(() => _revived++);
       messenger?.showSnackBar(const SnackBar(content: Text('تعذّر الحفظ'), duration: Duration(seconds: 2)));
       return;
     }
+    _offerUndo(deleted);
+  }
+
+  void _offerUndo(_Deleted deleted) {
     if (!mounted) return;
     _undoTimer?.cancel();
-    setState(() => _undo = b);
+    setState(() => _undo = deleted);
     _undoTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) setState(() => _undo = null);
     });
   }
 
-  Future<void> _restore(PersonalData personal) async {
-    final b = _undo;
-    if (b == null) return;
+  Future<void> _restore() async {
+    final deleted = _undo;
+    if (deleted == null) return;
     _undoTimer?.cancel();
     setState(() => _undo = null);
-    await personal.restoreBookmark(b);
+    await deleted.restore();
   }
+
+  void _notice(String notice) => ScaffoldMessenger.maybeOf(
+    context,
+  )?.showSnackBar(SnackBar(content: Text(notice), duration: const Duration(seconds: 2)));
+
+  void _editBookmark(PersonalData personal, Bookmark b) => showBookmarkSheet(
+    context,
+    personal: personal,
+    content: reader.content,
+    from: b.fromVerse,
+    to: b.toVerse,
+    onDone: _notice,
+  );
+
+  void _editNote(PersonalData personal, Note n) => showNoteSheet(
+    context,
+    personal: personal,
+    content: reader.content,
+    verse: n.verse,
+    onDone: _notice,
+    onDeleted: (deleted) => _offerUndo(_note(personal, deleted)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -125,16 +168,12 @@ class _SavedScreenState extends State<SavedScreen> {
                   ),
                 ],
               ),
-              if (_undo case final b? when personal != null)
+              if (_undo case final deleted?)
                 PositionedDirectional(
                   start: 12,
                   end: 12,
                   bottom: ShellInset.of(context),
-                  child: UndoSnackbar(
-                    key: ValueKey('undo-${b.uuid}'),
-                    message: 'أُزيل المرجع: ${bookmarkLabel(b)}',
-                    onUndo: () => _restore(personal),
-                  ),
+                  child: UndoSnackbar(key: ValueKey('undo-${deleted.uuid}'), message: deleted.message, onUndo: _restore),
                 ),
             ],
           ),
@@ -175,7 +214,7 @@ class _SavedScreenState extends State<SavedScreen> {
             direction: DismissDirection.horizontal,
             background: _DeleteBackground(c, AlignmentDirectional.centerStart),
             secondaryBackground: _DeleteBackground(c, AlignmentDirectional.centerEnd),
-            onDismissed: (_) => _delete(personal, b),
+            onDismissed: (_) => _delete(() => personal.removeBookmark(b), _bookmark(personal, b)),
             child: SavedRow(
               ribbon: c.bookmarks[b.color.index],
               title: bookmarkLabel(b),
@@ -183,7 +222,11 @@ class _SavedScreenState extends State<SavedScreen> {
               verse: matn.verse(b.fromVerse).firstHemistich,
               caption: plainName(matn.chapterOfVerse(b.fromVerse).shortLabel),
               onTap: () => _openVerse(b.fromVerse),
-              onLongPress: () => _bookmarkActions(c, personal, b),
+              onLongPress: () => _rowActions(
+                c,
+                onEdit: () => _editBookmark(personal, b),
+                onDelete: () => _delete(() => personal.removeBookmark(b), _bookmark(personal, b)),
+              ),
             ),
           ),
       ],
@@ -196,54 +239,59 @@ class _SavedScreenState extends State<SavedScreen> {
       padding: EdgeInsets.only(bottom: ShellInset.of(context)),
       children: [
         for (final n in personal.notes)
-          SavedRow(
-            title: 'البيت ${ar(n.verse)}',
-            body: n.body,
-            caption: matn.verse(n.verse).firstHemistich,
-            onTap: () => _openVerse(n.verse),
+          Dismissible(
+            key: ValueKey('${n.uuid}/$_revived'),
+            direction: DismissDirection.horizontal,
+            background: _DeleteBackground(c, AlignmentDirectional.centerStart),
+            secondaryBackground: _DeleteBackground(c, AlignmentDirectional.centerEnd),
+            onDismissed: (_) => _delete(() => personal.removeNote(n), _note(personal, n)),
+            child: SavedRow(
+              title: 'البيت ${ar(n.verse)}',
+              body: n.body,
+              caption: matn.verse(n.verse).firstHemistich,
+              onTap: () => _openVerse(n.verse),
+              onLongPress: () => _rowActions(
+                c,
+                onEdit: () => _editNote(personal, n),
+                onDelete: () => _delete(() => personal.removeNote(n), _note(personal, n)),
+              ),
+            ),
           ),
       ],
     );
   }
 
-  Future<void> _bookmarkActions(TzColors c, PersonalData personal, Bookmark b) => showModalBottomSheet<void>(
-    context: context,
-    builder: (sheet) => Directionality(
-      textDirection: TextDirection.rtl,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: TzIcon('pen', color: c.lapis),
-              title: Text('تعديل', style: TzType.body.copyWith(color: c.ink)),
-              onTap: () {
-                Navigator.of(sheet).pop();
-                showBookmarkSheet(
-                  context,
-                  personal: personal,
-                  content: reader.content,
-                  from: b.fromVerse,
-                  to: b.toVerse,
-                  onDone: (notice) => ScaffoldMessenger.maybeOf(
-                    context,
-                  )?.showSnackBar(SnackBar(content: Text(notice), duration: const Duration(seconds: 2))),
-                );
-              },
+  /// A long press on a row: «تعديل» and «حذف».
+  Future<void> _rowActions(TzColors c, {required VoidCallback onEdit, required VoidCallback onDelete}) =>
+      showModalBottomSheet<void>(
+        context: context,
+        builder: (sheet) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: TzIcon('pen', color: c.lapis),
+                  title: Text('تعديل', style: TzType.body.copyWith(color: c.ink)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    onEdit();
+                  },
+                ),
+                ListTile(
+                  leading: TzIcon('trash', color: c.carmine),
+                  title: Text('حذف', style: TzType.body.copyWith(color: c.carmine)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    onDelete();
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: TzIcon('trash', color: c.carmine),
-              title: Text('حذف', style: TzType.body.copyWith(color: c.carmine)),
-              onTap: () {
-                Navigator.of(sheet).pop();
-                _delete(personal, b);
-              },
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// The two underline tabs (v2.css .utabs): 24 px apart, a 2 px lapis line under
