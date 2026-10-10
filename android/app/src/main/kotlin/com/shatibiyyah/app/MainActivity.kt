@@ -27,10 +27,18 @@ class MainActivity : AudioServiceActivity() {
                 }
                 // «نسخ احتياطي»: the system's «save as» and «open» pickers, so a backup is a
                 // file wherever the user puts it (Downloads, Drive…), with no storage permission.
-                "saveDocument" -> startDocument(result, call.argument<String>("text") ?: "") {
+                "saveDocument" -> startDocument(result, (call.argument<String>("text") ?: "").toByteArray(Charsets.UTF_8)) {
                     Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE)
                         type = "application/json"
+                        putExtra(Intent.EXTRA_TITLE, call.argument<String>("name"))
+                    }
+                }
+                // «حفظ» of a share card: the same picker, for a PNG.
+                "saveImage" -> startDocument(result, call.argument<ByteArray>("bytes") ?: ByteArray(0)) {
+                    Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "image/png"
                         putExtra(Intent.EXTRA_TITLE, call.argument<String>("name"))
                     }
                 }
@@ -46,15 +54,16 @@ class MainActivity : AudioServiceActivity() {
     }
 
     private var pending: MethodChannel.Result? = null
-    private var pendingText: String? = null
+    private var pendingBytes: ByteArray? = null
 
-    private fun startDocument(result: MethodChannel.Result, text: String?, intent: () -> Intent) {
+    /** Opens a picker; with [bytes] it writes them to the chosen document, without it reads one. */
+    private fun startDocument(result: MethodChannel.Result, bytes: ByteArray?, intent: () -> Intent) {
         if (pending != null) {
             result.error("busy", "a picker is already open", null)
             return
         }
         pending = result
-        pendingText = text
+        pendingBytes = bytes
         startActivityForResult(intent(), REQUEST_DOCUMENT)
     }
 
@@ -63,17 +72,17 @@ class MainActivity : AudioServiceActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_DOCUMENT) return
         val result = pending ?: return
-        val text = pendingText
+        val out = pendingBytes
         pending = null
-        pendingText = null
+        pendingBytes = null
         val uri = data?.data
         if (resultCode != Activity.RESULT_OK || uri == null) {
             result.success(null) // cancelled
             return
         }
         try {
-            if (text != null) {
-                contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+            if (out != null) {
+                contentResolver.openOutputStream(uri, "wt")!!.use { it.write(out) }
                 result.success(uri.lastPathSegment ?: "")
             } else {
                 val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }

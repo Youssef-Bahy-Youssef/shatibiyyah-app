@@ -1,7 +1,7 @@
 // lib/services/device_storage.dart — what the app asks the device, answered by
 // MainActivity on Android ("taysir/device" channel): the recording downloader's
-// two questions (free space, unmetered network) and, for backups, the system's
-// «save as» and «open» document pickers. Elsewhere (iOS not yet in scope, tests)
+// two questions (free space, unmetered network) and the system's «save as» and
+// «open» document pickers, for backups and for a share card's image. Elsewhere (iOS not yet in scope, tests)
 // the answers are "unknown" and "yes", and the pickers are unsupported.
 import 'package:flutter/services.dart';
 
@@ -47,6 +47,18 @@ Future<String?> saveDocument(String name, String text) async {
 Future<String?> openDocument() async {
   try {
     return await _channel.invokeMethod<String>('openDocument');
+  } on MissingPluginException {
+    throw const DocumentError('unsupported');
+  } on PlatformException catch (e) {
+    throw DocumentError(e.code);
+  }
+}
+
+/// Lets the user save the PNG [bytes] as [name] where they choose (the system's
+/// «save as»). False when they cancel.
+Future<bool> saveImage(String name, Uint8List bytes) async {
+  try {
+    return await _channel.invokeMethod<String>('saveImage', {'name': name, 'bytes': bytes}) != null;
   } on MissingPluginException {
     throw const DocumentError('unsupported');
   } on PlatformException catch (e) {

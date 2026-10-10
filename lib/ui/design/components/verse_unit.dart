@@ -41,6 +41,12 @@ class Hemistich extends StatelessWidget {
   /// A phrase washed in gilt (a matn quote being read).
   final String? highlight;
 
+  /// The rubric ink, when it is not the theme's (the share card has its own palette).
+  final Color? rubricColor;
+
+  /// The space above and below the line (v2.css .hm padding-block).
+  final double padBlock;
+
   const Hemistich({
     super.key,
     required this.text,
@@ -50,6 +56,8 @@ class Hemistich extends StatelessWidget {
     this.atEnd = false,
     this.boxKey,
     this.highlight,
+    this.rubricColor,
+    this.padBlock = 1,
   });
 
   @override
@@ -59,7 +67,7 @@ class Hemistich extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth * widthFactor;
-        final spans = rubricate(text, rubrics, tz.rubric, highlight: highlight, wash: tz.colors.giltWash);
+        final spans = rubricate(text, rubrics, rubricColor ?? tz.rubric, highlight: highlight, wash: tz.colors.giltWash);
         final natural = (TextPainter(
           text: TextSpan(style: style, children: spans),
           textDirection: direction,
@@ -71,7 +79,7 @@ class Hemistich extends StatelessWidget {
             key: boxKey,
             width: width,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
+              padding: EdgeInsets.symmetric(vertical: padBlock),
               child: RichText(
                 textAlign: atEnd ? TextAlign.end : TextAlign.start,
                 textDirection: direction,

@@ -14,11 +14,13 @@ import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
+import 'package:shatibiyyah/ui/design/components/share_controls.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/share/share_sheet.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import 'package:shatibiyyah/ui/shell/saved_screen.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
@@ -67,6 +69,24 @@ Future<void> _savedSwiped(WidgetTester tester, ReaderController r, HandoffConten
   addTearDown(gesture.removePointer);
   await gesture.moveBy(const Offset(-30, 0)); // taken as the start of a drag
   await gesture.moveBy(const Offset(-100, 0));
+}
+
+/// The share sheet over the reader, for [from]…[to], in a chosen size, with or
+/// without the quoted opening of the default book.
+Future<void> _share(WidgetTester tester, HandoffContent d, int from, int to, {String? format, bool excerpt = false}) async {
+  showShareSheet(tester.element(find.byType(AppShell)), d.content, from, to: to);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+  if (format != null) {
+    await tester.tap(find.widgetWithText(ShareFormatButton, format));
+    await tester.pump();
+  }
+  if (!excerpt) return;
+  await tester.tap(find.text('بدون'));
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+    await tester.pump(const Duration(milliseconds: 60));
+  }
 }
 
 final Map<String, _State> _states = {
@@ -118,6 +138,20 @@ final Map<String, _State> _states = {
   ),
   'saved-bookmarks': (tab: DockTab.saved, audio: false, download: null, setup: _savedSwiped),
   'saved-notes': (tab: DockTab.saved, audio: false, download: null, setup: (tester, _, _) => tester.tap(find.text('الملاحظات ٠'))),
+  'share-one': (tab: DockTab.matn, audio: true, download: null, setup: (tester, _, d) => _share(tester, d, 226, 226)),
+  'share-four': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, _, d) => _share(tester, d, 226, 229, format: 'مربع')
+  ),
+  'share-excerpt': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, _, d) => _share(tester, d, 226, 226, format: 'قصة', excerpt: true)
+  ),
+  'share-ten': (tab: DockTab.matn, audio: true, download: null, setup: (tester, _, d) => _share(tester, d, 235, 244)),
   'settings-main': (tab: DockTab.settings, audio: false, download: null, setup: _nothing),
   'settings-picker': (
     tab: DockTab.settings,
