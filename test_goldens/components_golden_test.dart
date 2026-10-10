@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/anchored_popover.dart';
 import 'package:shatibiyyah/ui/design/components/binding_stepper.dart';
+import 'package:shatibiyyah/ui/design/components/chapter_head.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
@@ -27,6 +28,14 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'chapter_head': (390, 168, () => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12),
+        child: ChapterHead(
+          order: '١١',
+          caption: 'الباب الحادي عشر · الأبيات ٢٢٦–٢٣٤ · ٩ أبيات',
+          title: 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا',
+        ),
+      )),
   'verse_unit': (390, 332, () => const Padding(
         padding: EdgeInsets.fromLTRB(12, 4, 12, 0),
         child: Column(children: [
