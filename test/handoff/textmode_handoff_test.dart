@@ -130,7 +130,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('textmode-symbol: a symbol lit, its tip 12 dp under it', (tester) async {
+  testWidgets('textmode-symbol: each symbol in its frame, one lit, its tip 12 dp under it', (tester) async {
     final spec = HandoffSpec.load('textmode-symbol-paper');
     if (spec == null) return markTestSkipped('the workspace (design/redesign/handoff/) is not around the app');
     final r = await textMode(tester);
@@ -142,18 +142,48 @@ void main() {
     await tester.pump();
     final c = Conformance(spec);
 
-    // The letter: the rubric ink over a dotted line, on the lapis wash 3 dp past it.
+    // The letter: the rubric ink in its frame (ADR 0024). The frame is measured from the letter and
+    // from its line: the design scrolls its list to another place, and shapes the words a little differently.
     final lit = spec.cls('rb sym on');
     final letter = state.symbolRect(kaf)!;
     c.same('letter width', (letter.width - lit.rect.width).abs() <= 1.5, true);
-    final wash = tester
-        .renderObjectList<RenderPhraseWash>(find.descendant(of: unit(230), matching: find.byType(PhraseWash)))
-        .expand((w) => w.painted)
-        .single;
-    c.same('wash', (wash.$2, wash.$1.width - letter.width, wash.$1.tlRadiusX), (TzTheme.paper.colors.lapisWash, 6.0, 7.0));
+    final washes = tester.renderObjectList<RenderPhraseWash>(find.descendant(of: unit(230), matching: find.byType(PhraseWash)));
+    c.same('nothing else is lit behind the words', washes.expand((w) => w.painted).isEmpty, true);
+    final frames = [
+      for (final w in washes)
+        for (final f in w.frames) (frame: f, box: f.box.outerRect.shift(w.localToGlobal(Offset.zero))),
+    ];
+    final specFrames = [for (final n in spec.nodes) if (n.component == 'SymbolFrame') n];
+    c.same('two symbols, two frames', (frames.length, specFrames.length), (2, 2));
+    final line = rect(tester, find.descendant(of: unit(230), matching: find.byKey(VerseUnit.hemistichKeys[1])));
+    final specLine = spec.id(spec.id(spec.id(specFrames.first.json['parent'] as int).json['parent'] as int).json['parent'] as int);
+    c.same('the frames hang from the second hemistich', specLine.cls, 'hm h2');
+    for (var i = 0; i < 2; i++) {
+      final f = frames[i], n = specFrames[i], span = spec.id(n.json['parent'] as int);
+      final glyphs = state.symbolRect(state.rubrics[i])!;
+      c.same('frame $i: height', (f.box.height - n.rect.height).abs() <= 0.5, true);
+      c.same('frame $i: under the top of its line', ((f.box.top - line.top) - (n.rect.top - specLine.rect.top)).abs() <= 1, true);
+      c.same('frame $i: past the letter on each side',
+          ((glyphs.left - f.box.left) - (span.rect.left - n.rect.left)).abs() <= 0.5 &&
+              ((f.box.right - glyphs.right) - (n.rect.right - span.rect.right)).abs() <= 0.5,
+          true);
+      c.same('frame $i: radius', (f.frame.box.tlRadiusX - double.parse((n.json['radius'] as String).replaceFirst('px', ''))).abs() <= 0.01, true);
+    }
+    // Lit: the lapis wash and a solid 1.5 dp lapis ring. At rest: 9 % and a 28 % hairline of the rubric.
+    final paper = TzTheme.paper.colors;
+    c.same('the lit frame', (frames[0].frame.fill, frames[0].frame.line, frames[0].frame.lineWidth, frames[0].frame.ring),
+        (paper.lapisWash, paper.lapis, 1.5, true));
+    c.same('the lit frame in the spec', (specFrames[0].tokens('background').join(), specFrames[0].json['shadow']),
+        ('lapis-wash', 'rgb(36, 65, 127) 0px 0px 0px 1.5px'));
+    c.same('the frame at rest', (frames[1].frame.fill, frames[1].frame.line, frames[1].frame.lineWidth, frames[1].frame.ring),
+        (paper.rubric.withValues(alpha: 0.09), paper.rubric.withValues(alpha: 0.28), 1.0, false));
+    c.same('the frame at rest in the spec', (specFrames[1].json['background'], specFrames[1].json['shadow']), (
+      'color(srgb 0.556863 0.164706 0.352941 / 0.09)',
+      'color(srgb 0.556863 0.164706 0.352941 / 0.28) 0px 0px 0px 1px inset',
+    ));
     final second = tester.widgetList<RichText>(find.descendant(of: unit(230), matching: find.byType(RichText))).last.text as TextSpan;
     final span = second.children!.cast<TextSpan>().firstWhere((s) => s.text == 'كَ').style!;
-    c.same('letter ink', (span.color, span.decoration, span.decorationStyle), (TzTheme.paper.rubric, TextDecoration.underline, TextDecorationStyle.dotted));
+    c.same('letter ink, no line under it', (span.color, span.decoration), (TzTheme.paper.rubric, null));
 
     // The tip, measured from the letter: the design scrolls its list to another place.
     final tip = spec.component('SymbolTip');

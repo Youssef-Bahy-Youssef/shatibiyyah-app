@@ -28,6 +28,9 @@ void main() {
     'night-portrait-1-jade': (CardFormat.portrait, 226, 226, ShareCardPalette.night(TzNightPage.jade), false),
     'night-square-4-jade': (CardFormat.square, 226, 229, ShareCardPalette.night(TzNightPage.jade), false),
     'night-story-10-wisteria': (CardFormat.story, 235, 244, ShareCardPalette.night(TzNightPage.wisteria), false),
+    // Verse 230's two reader symbols in their frames, in the card's own rubric (ADR 0024).
+    'paper-portrait-1-symbols': (CardFormat.portrait, 230, 230, ShareCardPalette.paper, false),
+    'night-square-4-symbols-lapis': (CardFormat.square, 229, 232, ShareCardPalette.night(TzNightPage.lapis), false),
   };
 
   for (final MapEntry(key: name, value: (format, from, to, palette, quoted)) in cards.entries) {

@@ -31,7 +31,7 @@ import 'chapter_popover.dart';
 import 'display_sheet.dart';
 import '../commentary/commentary_sheet.dart';
 import '../design/components/verse_sheet_surface.dart';
-import '../../app/routes.dart';
+import '../shell/rumuz_screen.dart';
 import '../design/components/rubric.dart';
 import '../design/components/symbol_tip.dart';
 import 'verse_rubrics.dart';
@@ -194,7 +194,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           caption: symbolCaption(content, span),
           onOpenList: () {
             reader.closeSymbol();
-            Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AppRoute.rumuz.build(reader)));
+            // The list opens on this symbol's tab, with it marked.
+            Navigator.of(context)
+                .push(MaterialPageRoute<void>(builder: (_) => RumuzScreen(reader: reader, focus: span.symbol)));
           },
         ),
       ),
