@@ -302,7 +302,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           canPlay: () => reader.audioAvailable,
           onPlayFrom: (v) => showListenSheet(context, reader, v),
           onStartRange: reader.startSelection,
-          onShare: (v) => showShareSheet(context, reader.content, v),
+          onShare: (v) => showShareSheet(context, reader.content, v, onNotice: reader.showNotice),
           onBookmark: reader.personal == null
               ? null
               : (v) => showBookmarkSheet(
@@ -480,15 +480,18 @@ class _SelectionActions extends StatelessWidget {
       );
     }
 
-    Widget action(IconData icon, String label, VoidCallback onTap, {bool primary = false}) => Expanded(
+    // [reason]: why the action cannot be done now; it stays, dimmed, and a tap says so.
+    Widget action(IconData icon, String label, VoidCallback onTap, {bool primary = false, String? reason}) => Expanded(
       child: Semantics(
         button: true,
-        label: label,
+        label: reason == null ? label : '$label، $reason',
         excludeSemantics: true,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
-          child: Column(
+          child: Opacity(
+           opacity: reason == null ? 1 : 0.45,
+           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
@@ -504,6 +507,7 @@ class _SelectionActions extends StatelessWidget {
               const SizedBox(height: 6),
               Text(label, style: TzType.caption.copyWith(color: t.text)),
             ],
+           ),
           ),
         ),
       ),
@@ -522,6 +526,20 @@ class _SelectionActions extends StatelessWidget {
         children: [
           if (reader.audioAvailable) action(LucideIcons.play, 'تشغيل', reader.playSelection, primary: true),
           action(LucideIcons.copy, 'نسخ', copy),
+          // One card of up to ten verses from one chapter (ADR 0010): beyond that the
+          // button stays, dimmed, and says why.
+          if (sel != null)
+            action(
+              LucideIcons.share2,
+              'مشاركة',
+              () {
+                final reason = shareLimitReason(reader.content, sel.from, sel.to);
+                if (reason != null) return reader.showNotice(reason);
+                reader.clearSelection();
+                showShareSheet(context, reader.content, sel.from, to: sel.to, onNotice: reader.showNotice);
+              },
+              reason: shareLimitReason(reader.content, sel.from, sel.to),
+            ),
           if (reader.personal != null && sel != null)
             action(LucideIcons.bookmarkPlus, 'مرجع', () {
               reader.clearSelection();

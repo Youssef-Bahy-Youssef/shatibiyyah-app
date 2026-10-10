@@ -100,6 +100,9 @@ class KhatamPainter extends CustomPainter {
   final double? progress;
   final TextDirection textDirection;
 
+  /// The star's line: 1.3 px on screen, 2 px on the share card.
+  final double strokeWidth;
+
   const KhatamPainter({
     required this.label,
     required this.stroke,
@@ -109,6 +112,7 @@ class KhatamPainter extends CustomPainter {
     required this.textDirection,
     this.fill,
     this.progress,
+    this.strokeWidth = 1.3,
   });
 
   @override
@@ -138,7 +142,7 @@ class KhatamPainter extends CustomPainter {
         star,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
+          ..strokeWidth = strokeWidth
           ..strokeJoin = StrokeJoin.round
           ..color = stroke);
     canvas.restore();
@@ -163,6 +167,7 @@ class KhatamPainter extends CustomPainter {
       old.fill != fill ||
       old.text != text ||
       old.progress != progress ||
+      old.strokeWidth != strokeWidth ||
       old.ringTrack != ringTrack ||
       old.ringColor != ringColor;
 }

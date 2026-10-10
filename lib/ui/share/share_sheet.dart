@@ -1,270 +1,330 @@
-// lib/ui/share/share_sheet.dart — «مشاركة البيت N» (features-v3 share-and-copy).
+// lib/ui/share/share_sheet.dart — «مشاركة» (item 3.11, ADRs 0010, 0023; handoff
+// share-*): one themed card image of 1–10 verses from one chapter.
 //
-// Three formats, as in the prototype: «نص» (the copy text), «بطاقة» (a paper card
-// with the shamsa, shared as an image) and «من المخطوط» (a strip of the original
-// page around the verse, never night-inverted). «مشاركة» hands the text or a PNG to
-// the system share sheet.
+// The sheet shows the card as it will be exported, the three sizes (a size that
+// cannot hold the selection is disabled, with the limits stated), an optional
+// quoted opening of a commentary for up to three verses with its book, and
+// «مشاركة الصورة» and «حفظ». Only the image is sent, so chat apps do not show
+// the verses twice. The card follows the reader's theme; at night its names
+// take the chosen ink.
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/app_content.dart';
-import '../design/tokens.g.dart';
+import '../../data/commentary_repository.dart';
+import '../../domain/commentary_text.dart';
+import '../../services/device_storage.dart';
 import '../../utils/arabic.dart';
-import '../design/taysir_colors.dart';
-import '../reader/shamsa.dart';
-import '../widgets/verse_menu.dart' show verseCopyText;
+import '../design/components/share_card.dart';
+import '../design/components/share_controls.dart';
+import '../design/components/tz_button.dart';
+import '../design/components/tz_sheet.dart';
+import '../design/components/tz_switch.dart';
+import '../design/tokens.g.dart';
+import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
 
-enum ShareFormat { text, card, manuscript }
-
-/// Hands the chosen format to the system; replaceable in tests.
+/// Hands the image to the system; replaceable in tests.
 typedef ShareHandler = Future<void> Function(ShareParams params);
+
+/// Saves the image where the user chooses; false when they cancel.
+typedef SaveHandler = Future<bool> Function(String name, Uint8List png);
 
 Future<void> _systemShare(ShareParams params) async => SharePlus.instance.share(params);
 
-Future<void> showShareSheet(BuildContext context, AppContent content, int verse, {ShareHandler? share}) =>
+/// The most verses one card carries (ADR 0010).
+const int kMaxSharedVerses = 10;
+
+/// Why [from]…[to] cannot be shared, or null when it can: 1–10 verses of one chapter.
+String? shareLimitReason(AppContent content, int from, int to) {
+  final one = content.matn.chapterOfVerse(from).id == content.matn.chapterOfVerse(to).id;
+  return one && to - from + 1 <= kMaxSharedVerses ? null : 'المشاركة حتى ${ar(kMaxSharedVerses)} أبيات من باب واحد';
+}
+
+/// The card of verses [from]…[to] in [format].
+ShareCardData shareCardData(AppContent content, int from, int to, CardFormat format, {CardExcerpt? excerpt}) {
+  final chapter = content.matn.chapterOfVerse(from);
+  final numbered = chapter.orderIndex > 0; // the introduction has no number
+  return ShareCardData(
+    format: format,
+    firstVerse: from,
+    lastVerse: to,
+    verses: [
+      for (var n = from; n <= to; n++) CardVerse(content.matn.verse(n).firstHemistich, content.matn.verse(n).secondHemistich),
+    ],
+    chapterTitle: chapter.title,
+    chapterOrdinal: numbered ? chapterOrdinal(chapter.orderIndex) : content.matn.partOf(chapter).title,
+    chapterNumber: numbered ? ar(chapter.orderIndex) : '',
+    excerpt: excerpt,
+  );
+}
+
+/// The opening of [book]'s explanation of [verse], as written, with its source.
+Future<CardExcerpt?> loadExcerpt(AppContent content, Book book, int verse) async {
+  final blocks = await content.books.blocksForVerse(book.id, verse);
+  for (final block in blocks) {
+    for (final segment in await content.books.segments(block.id)) {
+      final paragraphs = layoutSegment(segment.text, const []);
+      if (paragraphs.isEmpty) continue;
+      final text = paragraphs.first.plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.isEmpty) continue;
+      return CardExcerpt(text: text, source: [book.title, ?book.author].join(' · '));
+    }
+  }
+  return null;
+}
+
+/// The card under [boundary] as an image of exactly its format's pixels.
+Future<ui.Image> captureCard(GlobalKey boundary) =>
+    (boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio: 1);
+
+Future<void> showShareSheet(BuildContext context, AppContent content, int from,
+        {int? to, ShareHandler? share, SaveHandler? save, void Function(String notice)? onNotice}) =>
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ShareSheet(content: content, verse: verse, share: share ?? _systemShare),
+      elevation: 0,
+      builder: (_) => ShareSheet(
+          content: content, from: from, to: to ?? from, share: share ?? _systemShare, save: save ?? saveImage, onNotice: onNotice),
     );
 
 class ShareSheet extends StatefulWidget {
   final AppContent content;
-  final int verse;
+  final int from, to;
   final ShareHandler share;
-  const ShareSheet({super.key, required this.content, required this.verse, required this.share});
+  final SaveHandler save;
+  final void Function(String notice)? onNotice;
+  const ShareSheet(
+      {super.key, required this.content, required this.from, required this.to, required this.share, required this.save, this.onNotice});
+
+  static const frameKey = ValueKey('share-preview-frame');
+  static const formatsKey = ValueKey('share-formats');
+  static const whyKey = ValueKey('share-why');
+
+  /// The most verses that may carry a commentary's opening.
+  static const int excerptVerses = 3;
 
   @override
   State<ShareSheet> createState() => _ShareSheetState();
 }
 
 class _ShareSheetState extends State<ShareSheet> {
-  ShareFormat _format = ShareFormat.card;
   final _card = GlobalKey();
-  Future<Uint8List>? _clip;
+  late CardFormat _format;
+  bool _excerptOn = false, _busy = false;
+  late Book _book = widget.content.books.defaultBook;
+  CardExcerpt? _excerpt;
+  String? _failure;
 
-  Future<Uint8List> get _manuscript => _clip ??= manuscriptClip(widget.content, widget.verse);
+  int get _count => widget.to - widget.from + 1;
+  bool get _excerptAllowed => _count <= ShareSheet.excerptVerses;
 
-  Future<void> _go() async {
-    final text = verseCopyText(widget.content, widget.verse);
-    final name = 'bayt-${widget.verse}.png';
-    final ShareParams params;
-    switch (_format) {
-      case ShareFormat.text:
-        params = ShareParams(text: text);
-      case ShareFormat.card:
-        final boundary = _card.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-        final image = await boundary.toImage(pixelRatio: 3);
-        final png = (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
-        params = ShareParams(files: [XFile.fromData(png, mimeType: 'image/png', name: name)], text: text);
-      case ShareFormat.manuscript:
-        params = ShareParams(
-          files: [XFile.fromData(await _manuscript, mimeType: 'image/png', name: name)],
-          text: text,
-        );
+  @override
+  void initState() {
+    super.initState();
+    // The default is the portrait; a longer selection takes the first size that holds it.
+    _format = CardFormat.portrait.maxVerses >= _count ? CardFormat.portrait : CardFormat.story;
+  }
+
+  Future<void> _setExcerpt(bool on, [Book? book]) async {
+    setState(() {
+      _excerptOn = on;
+      _book = book ?? _book;
+      if (!on) _excerpt = null;
+    });
+    if (!on) return;
+    final wanted = _book;
+    final excerpt = await loadExcerpt(widget.content, wanted, widget.from);
+    if (mounted && _excerptOn && _book.id == wanted.id) setState(() => _excerpt = excerpt);
+  }
+
+  String get _fileName => _count > 1 ? 'taysir-${widget.from}-${widget.to}.png' : 'taysir-${widget.from}.png';
+
+  Future<Uint8List> _png() async {
+    final image = await captureCard(_card);
+    final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+    image.dispose();
+    return bytes;
+  }
+
+  Future<void> _share() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final png = await _png();
+      if (mounted) Navigator.of(context).pop();
+      // The image alone: no text beside it (ADR 0010).
+      await widget.share(
+          ShareParams(files: [XFile.fromData(png, mimeType: 'image/png')], fileNameOverrides: [_fileName]));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    if (mounted) Navigator.of(context).pop();
-    await widget.share(params);
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
+    try {
+      final saved = await widget.save(_fileName, await _png());
+      if (!mounted || !saved) return;
+      Navigator.of(context).pop();
+      widget.onNotice?.call('حُفظت الصورة');
+    } on Object {
+      if (mounted) setState(() => _failure = 'تعذّر الحفظ');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final v = widget.content.matn.verse(widget.verse);
-    final chapter = widget.content.matn.chapterOfVerse(widget.verse).shortLabel;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.panel,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          border: Border(top: BorderSide(color: t.line)),
-        ),
-        padding: EdgeInsets.fromLTRB(16, 10, 16, 24 + MediaQuery.of(context).padding.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 5,
-                decoration: BoxDecoration(color: t.line, borderRadius: BorderRadius.circular(999)),
+    final tz = TzTheme.of(context), c = tz.colors;
+    final media = MediaQuery.of(context);
+    final data = shareCardData(widget.content, widget.from, widget.to, _format, excerpt: _excerptOn ? _excerpt : null);
+    final size = _format.size;
+    return SizedBox(
+      height: media.size.height - statusBarHeight(context) - 8,
+      child: TzSheet.picker(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Expanded(child: Text('مشاركة ${data.label}', style: TzType.title.copyWith(color: c.ink))),
+                  const SizedBox(width: 8),
+                  Text(_failure ?? 'صورة بحجم ${ar(size.width.toInt())}×${ar(size.height.toInt())}',
+                      style: TzType.caption.copyWith(color: _failure == null ? c.ink3 : c.carmine)),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Text('مشاركة البيت ${ar(widget.verse)}', style: TzType.title.copyWith(color: t.text)),
-            const SizedBox(height: 12),
-            _tabs(t),
-            const SizedBox(height: 12),
-            switch (_format) {
-              ShareFormat.text => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: t.panel2,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: t.line),
+              // The card as it will be exported, scaled to the preview.
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 6),
+                child: Center(
+                  child: SharePreviewFrame(
+                    key: ShareSheet.frameKey,
+                    format: _format,
+                    child: RepaintBoundary(
+                      key: _card,
+                      child: ShareCard(
+                          data: data, palette: tz.night ? ShareCardPalette.night(tz.nightInk) : ShareCardPalette.paper),
+                    ),
                   ),
-                  child: Column(
+                ),
+              ),
+              const SizedBox(height: 6),
+              Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: 'المقاس',
+                child: Row(
+                  key: ShareSheet.formatsKey,
+                  children: [
+                    for (final (i, f) in CardFormat.values.indexed) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: ShareFormatButton(
+                          format: f,
+                          selected: f == _format,
+                          enabled: _count <= f.maxVerses,
+                          onTap: () => setState(() => _format = f),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (_count > CardFormat.square.maxVerses)
+                Padding(
+                  key: ShareSheet.whyKey,
+                  padding: const EdgeInsets.fromLTRB(2, 6, 2, 0),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('البيت ${ar(widget.verse)} — $chapter\n${v.firstHemistich}\n${v.secondHemistich}',
-                          style: TzType.verse.copyWith(color: t.text)),
-                      Text('— تيسير الشاطبية', style: TzType.caption.copyWith(color: t.muted)),
+                      TzIcon('chev', size: 22, color: c.ink2),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                            'المربع يتسع حتى ${ar(CardFormat.square.maxVerses)} أبيات؛ الطولي حتى ${ar(CardFormat.portrait.maxVerses)}، '
+                            'والقصة حتى ${ar(CardFormat.story.maxVerses)}.',
+                            style: TzType.caption.copyWith(
+                                color: c.ink2, fontWeight: FontWeight.w400, height: 20 / TzType.caption.fontSize!)),
+                      ),
                     ],
                   ),
                 ),
-              ShareFormat.card => RepaintBoundary(
-                  key: _card,
-                  child: VerseCard(verse: widget.verse, first: v.firstHemistich, second: v.secondHemistich, chapter: chapter),
-                ),
-              ShareFormat.manuscript => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              const SizedBox(height: 6),
+              Container(
+                constraints: const BoxConstraints(minHeight: 52),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: c.lineSoft))),
+                child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: FutureBuilder<Uint8List>(
-                        future: _manuscript,
-                        builder: (_, snap) => snap.hasData
-                            ? Image.memory(snap.data!, fit: BoxFit.fitWidth)
-                            : const SizedBox(height: 110),
+                    TzIcon('book', size: 20, color: c.ink3),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('مقتطف من الشرح', style: TzType.label.copyWith(color: c.ink)),
+                          if (!_excerptAllowed)
+                            Text('متاح حتى ${ar(ShareSheet.excerptVerses)} أبيات', style: TzType.caption.copyWith(color: c.ink3)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text('قصاصة من المخطوط الأصلي، ولا يُطبَّق عليها الوضع الليلي',
-                        style: TzType.caption.copyWith(color: t.muted)),
+                    const SizedBox(width: 12),
+                    TzSwitch(
+                      semanticLabel: 'مقتطف من الشرح',
+                      value: _excerptOn,
+                      onWord: 'مضاف',
+                      offWord: 'بدون',
+                      onChanged: _excerptAllowed ? _setExcerpt : null,
+                    ),
                   ],
                 ),
-            },
-            const SizedBox(height: 14),
-            FilledButton(
-              onPressed: _go,
-              style: FilledButton.styleFrom(
-                backgroundColor: t.gold,
-                foregroundColor: t.onGold,
-                minimumSize: const Size.fromHeight(52),
-                shape: const StadiumBorder(),
               ),
-              child: Text('مشاركة', style: TzType.head.copyWith(color: t.onGold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tabs(TaysirColors t) => Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: t.bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: t.line),
-        ),
-        child: Row(
-          children: [
-            for (final (f, label) in [
-              (ShareFormat.text, 'نص'),
-              (ShareFormat.card, 'بطاقة'),
-              (ShareFormat.manuscript, 'من المخطوط'),
-            ])
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => setState(() => _format = f),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _format == f ? t.gold : null,
-                      borderRadius: BorderRadius.circular(999),
+              if (_excerptOn)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 32, bottom: 8),
+                  child: Transform.translate(
+                    offset: const Offset(0, -4),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final book in widget.content.books.books)
+                          ShareBookChip(label: book.shortTitle, selected: book.id == _book.id, onTap: () => _setExcerpt(true, book)),
+                      ],
                     ),
-                    child: Text(label,
-                        style: TzType.label.copyWith(color: _format == f ? t.onGold : t.text)),
                   ),
                 ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 207,
+                    child: TzButton.primary(label: 'مشاركة الصورة', icon: 'share', onPressed: _busy ? null : _share),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 143, child: TzButton.tonal(label: 'حفظ', icon: 'down', onPressed: _busy ? null : _save)),
+                ],
               ),
-          ],
-        ),
-      );
-}
-
-/// The shareable paper card: the shamsa with the verse number, both hemistichs,
-/// the chapter and the app's name. Always on paper, whatever the theme.
-class VerseCard extends StatelessWidget {
-  final int verse;
-  final String first, second, chapter;
-  const VerseCard({super.key, required this.verse, required this.first, required this.second, required this.chapter});
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = TzColors.paper.ink;
-    final line = TzType.verse.copyWith(color: ink);
-    return Theme(
-      data: Theme.of(context).copyWith(extensions: const [TzTheme.paper]),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 14),
-        // The edge keeps the card distinct on the paper theme's sheet, and in the shared image.
-        decoration: BoxDecoration(
-          color: TzColors.paper.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: TzColors.paper.line),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Shamsa(size: 44, verse: verse, playing: false),
-            const SizedBox(height: 6),
-            SizedBox(width: double.infinity, child: Text(first, textAlign: TextAlign.right, style: line)),
-            SizedBox(width: double.infinity, child: Text(second, textAlign: TextAlign.left, style: line)),
-            const SizedBox(height: 6),
-            Text('$chapter · تيسير الشاطبية', style: TzType.caption.copyWith(color: TzColors.paper.ink3)),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-/// «مشاركة الصفحة»: the scanned page as a PNG, with a line naming it.
-Future<void> sharePage(AppContent content, int page, {ShareHandler? share, AssetBundle? bundle}) async {
-  final png = await pagePng(page, bundle: bundle);
-  final verses = content.layout.versesOnPage(page);
-  final chapter = verses.isEmpty ? '' : ' — ${content.matn.chapterOfVerse(verses.first).shortLabel}';
-  await (share ?? _systemShare)(ShareParams(
-    files: [XFile.fromData(png, mimeType: 'image/png', name: 'page-$page.png')],
-    text: 'ص ${ar(page)}$chapter · تيسير الشاطبية',
-  ));
-}
-
-/// Scanned page [page] (a WebP asset) re-encoded as PNG, which every app accepts.
-Future<Uint8List> pagePng(int page, {AssetBundle? bundle}) async {
-  final image = await _pageImage(page, bundle);
-  return (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
-}
-
-Future<ui.Image> _pageImage(int page, AssetBundle? bundle) async {
-  final data = await (bundle ?? rootBundle).load('assets/pages/page${page.toString().padLeft(3, '0')}.webp');
-  final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-  return (await codec.getNextFrame()).image;
-}
-
-/// A PNG strip of the scanned page around [verse]: the full page width, from a
-/// little above the verse's box to a little below it, at the scan's resolution.
-Future<Uint8List> manuscriptClip(AppContent content, int verse, {AssetBundle? bundle}) async {
-  final region = content.layout.verseRegion(verse);
-  final page = await _pageImage(region.page, bundle);
-  const margin = 40.0;
-  final top = (region.rect.top - margin).clamp(0.0, page.height.toDouble());
-  final bottom = (region.rect.bottom + margin).clamp(0.0, page.height.toDouble());
-  final src = Rect.fromLTRB(0, top, page.width.toDouble(), bottom);
-  final recorder = ui.PictureRecorder();
-  Canvas(recorder).drawImageRect(page, src, Rect.fromLTWH(0, 0, src.width, src.height), Paint());
-  final clip = await recorder.endRecording().toImage(src.width.round(), src.height.round());
-  return (await clip.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
 }
