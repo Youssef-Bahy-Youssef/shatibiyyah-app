@@ -15,7 +15,8 @@ import 'package:sqflite/sqflite.dart';
 
 /// The snapshot schema this build of the app understands.
 /// 2: readers and rumuz (migration 009).
-const int kContentSchemaVersion = 2;
+/// 3: reader-symbol, Quranic-quotation and matn-quote spans (migrations 010–012).
+const int kContentSchemaVersion = 3;
 
 const String kContentAsset = 'assets/content/content.sqlite';
 const String kManifestAsset = 'assets/content/content.json';

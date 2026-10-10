@@ -1,6 +1,6 @@
 {
-  "bytes": 15360000,
-  "content_sha256": "cc7601959ffc5f4a53003790c215bf361d9f9e7f4420157365dd42d99d8afc20",
+  "bytes": 16228352,
+  "content_sha256": "ef0ded276935086252ad2ecd1e817e7489966484366158437a21be54b99c62bd",
   "file": "content.sqlite",
-  "schema_version": 2
+  "schema_version": 3
 }
