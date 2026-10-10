@@ -1,5 +1,7 @@
 // lib/data/rumuz_repository.dart — the reader codes of verses 45–55 (snapshot
-// tables readers and rumuz, migration 009): for «رموز القراء».
+// tables readers and rumuz, migration 009), for «رموز القراء», and where each
+// symbol and reader name sits in the verses (rumuz_spans, schema 3; ADRs 0015,
+// 0021): what the rubric ink marks. A verse still in review has no spans.
 import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
@@ -24,10 +26,41 @@ class Ramz {
   const Ramz(this.code, this.kind, this.readerIds, this.label, this.fromVerse, this.toVerse);
 }
 
+/// A reader symbol or a reader's name in a verse: UTF-16 offsets inside one hemistich.
+class RumuzSpan {
+  final int hemistich; // 1 or 2
+  final int start, end;
+
+  /// The code in [RumuzRepository.rumuz]; null for a name.
+  final String? symbol;
+  final List<String> readerIds;
+  const RumuzSpan(this.hemistich, this.start, this.end, this.symbol, this.readerIds);
+
+  bool get isName => symbol == null;
+}
+
 class RumuzRepository {
   final List<Reader> readers; // in order: each imam, then his two transmitters
   final List<Ramz> rumuz; // in the poem's order
-  const RumuzRepository(this.readers, this.rumuz);
+  final Map<int, List<RumuzSpan>> _spans; // by verse number, in reading order
+  const RumuzRepository(this.readers, this.rumuz, [this._spans = const {}]);
+
+  /// The symbols and names of verse [verse], in reading order; empty when it has none or is in review.
+  List<RumuzSpan> spansOf(int verse) => _spans[verse] ?? const [];
+
+  Ramz? byCode(String code) {
+    for (final r in rumuz) {
+      if (r.code == code) return r;
+    }
+    return null;
+  }
+
+  Reader? reader(String id) {
+    for (final r in readers) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
 
   static Future<RumuzRepository> load(Database db) async {
     final readers = [
@@ -46,7 +79,20 @@ class RumuzRepository {
           r['source_to_verse'] as int,
         ),
     ];
-    return RumuzRepository(readers, rumuz);
+    final spans = <int, List<RumuzSpan>>{};
+    for (final r in await db.rawQuery(
+        'SELECT v.verse_number, s.hemistich, s.start_utf16, s.end_utf16, s.symbol, s.reader_ids_json '
+        'FROM rumuz_spans s JOIN matn_verses v ON v.id = s.matn_verse_id '
+        'ORDER BY v.verse_number, s.hemistich, s.start_utf16')) {
+      spans.putIfAbsent(r['verse_number'] as int, () => []).add(RumuzSpan(
+            r['hemistich'] as int,
+            r['start_utf16'] as int,
+            r['end_utf16'] as int,
+            r['symbol'] as String?,
+            (jsonDecode(r['reader_ids_json'] as String) as List).cast<String>(),
+          ));
+    }
+    return RumuzRepository(readers, rumuz, spans);
   }
 
   List<Ramz> ofKind(RamzKind kind) => [for (final r in rumuz) if (r.kind == kind) r];

@@ -65,6 +65,26 @@ class BlockSource {
   const BlockSource(this.provider, this.sourcePage, this.url, this.printedPage);
 }
 
+/// A Quranic quotation in a segment (ADR 0014): UTF-16 offsets into its text.
+/// [start]…[end] are the words; [outerStart]…[outerEnd] also cover the book's
+/// own marks around them, which ﴿ ﴾ replace.
+class QuranSpan {
+  final String segmentId;
+  final int start, end, outerStart, outerEnd;
+  final int surah, ayah;
+  const QuranSpan(this.segmentId, this.start, this.end, this.outerStart, this.outerEnd, this.surah, this.ayah);
+}
+
+/// A commentary's quotation of the verse it explains (ADR 0022): where it is in
+/// the segment, and the canonical words it quotes, inside one hemistich of [verse].
+class MatnQuoteSpan {
+  final String segmentId;
+  final int start, end, outerStart, outerEnd;
+  final int verse, hemistich, verseStart, verseEnd;
+  const MatnQuoteSpan(this.segmentId, this.start, this.end, this.outerStart, this.outerEnd, this.verse,
+      this.hemistich, this.verseStart, this.verseEnd);
+}
+
 class CommentaryRepository {
   final Database db;
   final List<Book> books; // in display order
@@ -128,6 +148,37 @@ class CommentaryRepository {
       for (final r in rows)
         Footnote(r['id'] as String, r['commentary_segment_id'] as String?, r['order_index'] as int,
             r['marker'] as String?, r['anchor_utf16'] as int?, r['display_text'] as String),
+    ];
+  }
+
+  /// The approved Quranic quotations in [blockId]'s segments, in reading order.
+  Future<List<QuranSpan>> quranSpans(String blockId) async {
+    final rows = await db.rawQuery(
+        'SELECT q.commentary_segment_id, q.start_utf16, q.end_utf16, q.outer_start_utf16, q.outer_end_utf16, '
+        'q.surah, q.ayah FROM quran_spans q JOIN commentary_segments s ON s.id = q.commentary_segment_id '
+        'WHERE s.commentary_block_id = ? ORDER BY s.order_index, q.start_utf16',
+        [blockId]);
+    return [
+      for (final r in rows)
+        QuranSpan(r['commentary_segment_id'] as String, r['start_utf16'] as int, r['end_utf16'] as int,
+            r['outer_start_utf16'] as int, r['outer_end_utf16'] as int, r['surah'] as int, r['ayah'] as int),
+    ];
+  }
+
+  /// The approved quotations of the verse in [blockId]'s segments, in reading order.
+  Future<List<MatnQuoteSpan>> matnQuotes(String blockId) async {
+    final rows = await db.rawQuery(
+        'SELECT q.commentary_segment_id, q.start_utf16, q.end_utf16, q.outer_start_utf16, q.outer_end_utf16, '
+        'v.verse_number, q.hemistich, q.verse_start_utf16, q.verse_end_utf16 FROM matn_quote_spans q '
+        'JOIN commentary_segments s ON s.id = q.commentary_segment_id '
+        'JOIN matn_verses v ON v.id = q.matn_verse_id '
+        'WHERE s.commentary_block_id = ? ORDER BY s.order_index, q.start_utf16',
+        [blockId]);
+    return [
+      for (final r in rows)
+        MatnQuoteSpan(r['commentary_segment_id'] as String, r['start_utf16'] as int, r['end_utf16'] as int,
+            r['outer_start_utf16'] as int, r['outer_end_utf16'] as int, r['verse_number'] as int,
+            r['hemistich'] as int, r['verse_start_utf16'] as int, r['verse_end_utf16'] as int),
     ];
   }
 

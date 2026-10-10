@@ -9,6 +9,7 @@ import 'package:shatibiyyah/data/content_store.dart';
 import 'package:shatibiyyah/data/layout_repository.dart';
 import 'package:shatibiyyah/data/matn_repository.dart';
 import 'package:shatibiyyah/data/recording_repository.dart';
+import 'package:shatibiyyah/data/rumuz_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<ByteData> _loadFromDisk(String key) async {
@@ -24,6 +25,7 @@ void main() {
   late LayoutRepository layout;
   late CommentaryRepository books;
   late RecordingRepository recordings;
+  late RumuzRepository rumuz;
 
   setUpAll(() async {
     support = await Directory.systemTemp.createTemp('content_store_test');
@@ -32,6 +34,7 @@ void main() {
     layout = await LayoutRepository.load(store.db);
     books = await CommentaryRepository.load(store.db);
     recordings = await RecordingRepository.load(store.db);
+    rumuz = await RumuzRepository.load(store.db);
   });
 
   tearDownAll(() async {
@@ -192,6 +195,86 @@ void main() {
       for (final r in recordings.recordings) {
         expect((await recordings.announcements(r.id)).length, 77);
       }
+    });
+  });
+
+  // The spans of snapshot schema 3 (plans 2.2, 2.3, 2.6; plan 2.4's lookups).
+  group('spans', () {
+    test('the snapshot is schema 3', () => expect(store.manifest.schemaVersion, 3));
+
+    test('verse 226: «لِوَرْشٍ» is a name in the first hemistich, naming Warsh', () {
+      final spans = rumuz.spansOf(226);
+      expect(spans, hasLength(1));
+      final s = spans.single;
+      expect((s.hemistich, s.isName, s.symbol), (1, true, null));
+      expect(matn.verse(226).firstHemistich.substring(s.start, s.end), 'لِوَرْشٍ');
+      expect([for (final id in s.readerIds) rumuz.reader(id)!.name], ['ورش']);
+    });
+
+    test('verse 230: two letter symbols in the second hemistich, each with its code and readers', () {
+      final spans = rumuz.spansOf(230);
+      final second = matn.verse(230).secondHemistich;
+      expect([for (final s in spans) (s.hemistich, s.symbol, second.substring(s.start, s.end))], [(2, 'ك', 'كَ'), (2, 'ظ', 'ظَ')]);
+      expect(spans.every((s) => !s.isName), isTrue);
+      final kaf = rumuz.byCode('ك')!;
+      expect(spans.first.readerIds, kaf.readerIds);
+      expect(rumuz.reader(kaf.readerIds.single)!.name, 'ابن عامر');
+      expect(rumuz.byCode('ظ')!.readerIds, hasLength(4));
+    });
+
+    test('every span lies inside its hemistich; a verse in review has none', () {
+      var total = 0, verses = 0;
+      for (var n = 1; n <= matn.lastVerse; n++) {
+        final v = matn.verse(n), spans = rumuz.spansOf(n);
+        if (spans.isNotEmpty) verses++;
+        for (final s in spans) {
+          total++;
+          final half = s.hemistich == 1 ? v.firstHemistich : v.secondHemistich;
+          expect(s.start >= 0 && s.start < s.end && s.end <= half.length, isTrue, reason: 'verse $n');
+          if (!s.isName) expect(rumuz.byCode(s.symbol!), isNotNull, reason: 'verse $n');
+        }
+      }
+      expect((total, verses), (1306, 531));
+    });
+
+    test('Quranic quotations of a block: approved spans inside their segment', () async {
+      final wafi = books.defaultBook;
+      final block = (await books.blocksForVerse(wafi.id, 226)).first;
+      final segments = {for (final s in await books.segments(block.id)) s.id: s};
+      final spans = await books.quranSpans(block.id);
+      expect(spans, isNotEmpty);
+      for (final q in spans) {
+        final text = segments[q.segmentId]!.text;
+        expect(q.outerStart <= q.start && q.start < q.end && q.end <= q.outerEnd && q.outerEnd <= text.length, isTrue);
+        expect(q.surah >= 1 && q.surah <= 114 && q.ayah >= 1, isTrue);
+        expect(text.substring(q.start, q.end).trim().split(RegExp(r'\s+')).length, greaterThanOrEqualTo(2));
+      }
+    });
+
+    test('matn quotes of a block: each names its verse, hemistich and the canonical words', () async {
+      final wafi = books.defaultBook;
+      final block = (await books.blocksForVerse(wafi.id, 226)).first;
+      final segments = {for (final s in await books.segments(block.id)) s.id: s};
+      final quotes = await books.matnQuotes(block.id);
+      expect(quotes, isNotEmpty);
+      final said = <String>{};
+      for (final q in quotes) {
+        final text = segments[q.segmentId]!.text;
+        expect(q.outerStart <= q.start && q.start < q.end && q.end <= q.outerEnd && q.outerEnd <= text.length, isTrue);
+        expect(q.verse, 226);
+        final v = matn.verse(q.verse);
+        final half = q.hemistich == 1 ? v.firstHemistich : v.secondHemistich;
+        expect(q.verseStart >= 0 && q.verseStart < q.verseEnd && q.verseEnd <= half.length, isTrue);
+        said.add('${text.substring(q.start, q.end)} → ${half.substring(q.verseStart, q.verseEnd)}');
+      }
+      // Al-Wafi's «(مسهلا)» and «(واحذفه)» point at the verse's own vocalized words.
+      expect(said, containsAll(['مسهلا → مُسْهِلَا', 'واحذفه → واحْذِفْهُ']));
+    });
+
+    test('the counts of the full build', () async {
+      Future<int> count(String table) async =>
+          (await store.db.rawQuery('SELECT count(*) AS n FROM $table')).first['n']! as int;
+      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (1306, 4124, 1819));
     });
   });
 }
