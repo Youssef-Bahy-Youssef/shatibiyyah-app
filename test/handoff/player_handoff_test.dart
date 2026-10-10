@@ -12,6 +12,7 @@ import 'package:shatibiyyah/ui/design/components/tz_button.dart';
 import 'package:shatibiyyah/ui/design/components/tz_picker.dart';
 import 'package:shatibiyyah/ui/design/components/tz_sheet.dart';
 import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/player_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
@@ -139,7 +140,24 @@ void main() {
     }
     expect(tester.widget<PickerOption>(inPicker(find.widgetWithText(PickerOption, '٣'))).selected, isTrue);
     c.box('«تم»', rect(tester, inPicker(find.widgetWithText(TzButton, 'تم'))), spec.text('تم').rect, tol: 1.5);
+
+    // One scrim, not two: the picker's falls on the player alone, and the reader
+    // behind keeps the player's (the design's render: 161 behind, 166 on the sheet).
+    final host = find.byKey(PickerHost.scrimKey);
+    c.same('the player wears the scrim', tester.widget<AnimatedOpacity>(host).opacity, 1.0);
+    c.box('scrim over the player sheet', rect(tester, host), rect(tester, find.descendant(of: find.byType(PlayerSheet), matching: find.byKey(TzSheet.surfaceKey))));
+    // Two sheets are open, and one coloured barrier: the player's. The picker's is clear.
+    final coloured = [for (final b in tester.widgetList<AnimatedModalBarrier>(find.byType(AnimatedModalBarrier))) b.color.value];
+    c.same('coloured barriers', coloured.length, 1);
+    c.same('the player keeps its scrim', coloured.single, TzTheme.paper.colors.scrim);
     c.done();
+
+    // Closed, the player is clear again.
+    await tester.tap(inPicker(find.widgetWithText(TzButton, 'تم')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(TzPicker), findsNothing);
+    expect(tester.widget<AnimatedOpacity>(host).opacity, 0.0);
     await unmount(tester);
   });
 

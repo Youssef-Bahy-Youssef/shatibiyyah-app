@@ -57,7 +57,10 @@ class PlayerSheet extends StatelessWidget {
     final media = MediaQuery.of(context);
     return SizedBox(
       height: media.size.height - statusBarHeight(context) - 40,
-      child: TzSheet(
+      // A picker over the player dims the player, not the reader behind it again.
+      child: PickerHost(
+        radius: TzRadius.sheet,
+        child: TzSheet(
         child: ListenableBuilder(
           listenable: Listenable.merge([reader, ?reader.library]),
           builder: (context, _) {
@@ -80,6 +83,7 @@ class PlayerSheet extends StatelessWidget {
               ),
             );
           },
+        ),
         ),
       ),
     );
