@@ -86,6 +86,8 @@ void main() {
     final by = spec.childrenOf(spec.cls('c-by t-cap'));
     final byline = rect(tester, find.byKey(CommentarySheet.bylineKey));
     c.same('byline: from the start edge on its line', ((byline.right - by[0].rect.right).abs() <= 1, (byline.top - by[0].rect.top).abs() <= 1, byline.height), (true, true, 16.0));
+    // The author and his death year, as the design writes them.
+    c.same('byline', tester.widget<Text>(find.byKey(CommentarySheet.bylineKey)).data, by[0].text);
     c.box('the verse', rect(tester, find.byKey(CommentarySheet.rangeKey)), by[1].rect, tol: 1.5);
     expect(tester.widget<Text>(find.byKey(CommentarySheet.rangeKey)).data, range);
     c.box('progress line', rect(tester, find.byKey(CommentarySheet.progressKey)), spec.cls('c-prog').rect);

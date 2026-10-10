@@ -197,7 +197,7 @@ void main() {
     final r = await shell(tester);
     r.openCommentary(226);
     await loaded(tester);
-    expect(tester.widget<Text>(find.byKey(CommentarySheet.bylineKey)).data, 'عبد الفتاح القاضي');
+    expect(tester.widget<Text>(find.byKey(CommentarySheet.bylineKey)).data, 'عبد الفتاح القاضي · ت ١٤٠٣هـ');
     await tester.tap(inSheet(find.text('سراج القارئ')));
     await loaded(tester);
     expect(tester.widget<Text>(find.byKey(CommentarySheet.bylineKey)).data, 'ابن القاصح العذري · ت ٨٠١هـ');
