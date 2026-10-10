@@ -194,7 +194,9 @@ void main() {
     final r = await reader(tester);
     await host(tester, Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => SearchScreen(reader: r))));
     await tester.pump();
-    expect(find.text('جرّب: ${kSearchSuggestions.join(' · ')}'), findsOneWidget); // the empty state
+    // The empty state offers nothing but the recent queries, and there are none yet.
+    expect(find.byType(OutlinedButton), findsNothing);
+    expect(find.textContaining('جرّب'), findsNothing);
     expect(find.text('الانتقال السريع إلى صفحة أو بيت'), findsNothing); // a number in the field does that job
 
     await tester.enterText(find.byType(TextField), 'بدات ببسم');

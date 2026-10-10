@@ -4,8 +4,7 @@
 // chapters, the user's notes and the three books, with a count per group; a verse,
 // chapter or note opens the reader there, a book passage opens that book at its
 // verse. Long groups show a page and «عرض المزيد». A number alone is not searched
-// for: it offers the verse and the page of that number. Empty, it offers the recent queries and
-// the prototype's suggestions.
+// for: it offers the verse and the page of that number. Empty, it offers the recent queries.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -24,8 +23,6 @@ import '../reader/reader_controller.dart';
 import '../reader/split_panel.dart' show kSplitMinWidth;
 import '../shell/app_shell.dart';
 import '../shell/shell_page.dart' show readingPadding;
-
-const List<String> kSearchSuggestions = ['ورش', 'النقل', 'حمزة', 'بدأت'];
 
 /// Verses shown before «عرض المزيد», and how many more each tap shows.
 const int kVersePageSize = 40;
@@ -242,15 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ],
           ),
           Wrap(spacing: 8, runSpacing: 8, children: [for (final s in recent) _chip(t, s)]),
-          const SizedBox(height: 18),
         ],
-        Text('جرّب: ${kSearchSuggestions.join(' · ')}', style: TzType.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [for (final s in kSearchSuggestions) _chip(t, s)],
-        ),
       ];
 
   List<Widget> _resultList(TaysirColors t) {
