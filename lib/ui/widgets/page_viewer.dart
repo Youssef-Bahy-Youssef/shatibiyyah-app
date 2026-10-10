@@ -7,6 +7,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show HapticFeedback;
 
@@ -122,6 +123,11 @@ class PageViewerController extends ChangeNotifier {
   final Stopwatch _clock = Stopwatch()..start();
   AnimationController? _xform; // transform animation
   Ticker? _overlay; // highlight repaint
+  final _Repaint _repaint = _Repaint();
+
+  /// Fires when the highlight layer must be painted again (a new verse, a frame
+  /// of its glide, a ribbon, a selection): nothing is rebuilt for it.
+  Listenable get repaint => _repaint;
   Ticker? _momentum;
   double _zoom0 = 1, _tx0 = 0, _ty0 = 0, _zoomT = 1, _txT = 0, _tyT = 0;
 
@@ -133,9 +139,16 @@ class PageViewerController extends ChangeNotifier {
   void attach(TickerProvider vsync) {
     _vsync = vsync;
     _xform = AnimationController(vsync: vsync)..addListener(_onXformTick);
-    _overlay = vsync.createTicker((_) {
-      notifyListeners();
-      if (!_needsAnim(_now())) _overlay?.stop();
+    // A frame of the highlight's glide is a repaint of its layer, not a rebuild.
+    _overlay = vsync.createTicker((elapsed) {
+      final at = elapsed.inMicroseconds / 1000.0;
+      _animMs += at - _tickerAt;
+      _tickerAt = at;
+      _repaint.now();
+      if (!_needsAnim(_animNow())) {
+        _overlay?.stop();
+        _clearFinished();
+      }
     });
   }
 
@@ -153,6 +166,12 @@ class PageViewerController extends ChangeNotifier {
   }
 
   double _now() => _clock.elapsedMilliseconds.toDouble();
+
+  // The highlight's glide and the pulse run on frame time: this clock moves only
+  // with the frames of their ticker, so they last their length in frames shown
+  // (and in tests), whatever the wall clock does.
+  double _animMs = 0, _tickerAt = 0;
+  double _animNow() => _animMs;
 
   void _emit(StreamController c) => c.add(null);
 
@@ -312,7 +331,7 @@ class PageViewerController extends ChangeNotifier {
     activeId = id;
     prevBox = reduceMotion ? null : activeBox;
     activeBox = Rect.fromLTWH(box.x, box.y, box.w, box.h);
-    hiliteStart = _now();
+    hiliteStart = _animNow();
 
     if (pageChanged) {
       // v3: a page turn shows the whole new page; the view only zooms by the
@@ -331,7 +350,7 @@ class PageViewerController extends ChangeNotifier {
     if (b == null) return;
     if (b.page != currentPage) setActiveVerse(id);
     if (reduceMotion) return;
-    pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+    pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
     _invalidate();
   }
 
@@ -375,15 +394,23 @@ class PageViewerController extends ChangeNotifier {
 
   // ── overlay invalidation (ported: _invalidate / _needsAnim) ──
   void _invalidate() {
+    _repaint.now();
     notifyListeners();
-    if (_needsAnim(_now())) {
-      if (!(_overlay?.isActive ?? false)) _overlay?.start();
+    if (_needsAnim(_animNow())) {
+      if (!(_overlay?.isActive ?? false)) {
+        _tickerAt = 0;
+        _overlay?.start();
+      }
     } else {
-      // clear finished transient boxes
-      final now = _now();
-      if (prevBox != null && now - hiliteStart >= _glideMs) prevBox = null;
-      if (pulse != null && now - pulse!.start >= _pulseMs) pulse = null;
+      _clearFinished();
     }
+  }
+
+  // Finished transient boxes go: the glide's start, a pulse.
+  void _clearFinished() {
+    final now = _animNow();
+    if (prevBox != null && now - hiliteStart >= _glideMs) prevBox = null;
+    if (pulse != null && now - pulse!.start >= _pulseMs) pulse = null;
   }
 
   bool _needsAnim(double now) {
@@ -513,7 +540,7 @@ class PageViewerController extends ChangeNotifier {
     }
     final b = data.getBox(hit);
     if (b != null) {
-      pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+      pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
       _invalidate();
     }
     _verseTap.add(hit);
@@ -534,7 +561,7 @@ class PageViewerController extends ChangeNotifier {
   void _pulseOn(int id) {
     final b = data.getBox(id);
     if (b == null) return;
-    pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+    pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
     _invalidate();
   }
 
@@ -581,7 +608,7 @@ class PageViewerController extends ChangeNotifier {
       _longPressed = true;
       final b = data.getBox(hit);
       if (b != null) {
-        pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _now());
+        pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
         _invalidate();
       }
       HapticFeedback.selectionClick();
@@ -820,12 +847,44 @@ class PageViewer extends StatefulWidget {
   final String Function(int verse)? verseLabel;
   const PageViewer({super.key, required this.controller, this.verseLabel});
 
+  /// The scan and the highlight are two layers, each behind its own repaint
+  /// boundary (item 3.13): a new highlight never repaints the scan.
+  static const imageKey = ValueKey('page-image-layer');
+  static const overlayKey = ValueKey('page-highlight-layer');
+
+  /// How often the stage and the image were built, and which pages were fetched
+  /// ahead (for the performance tests).
+  @visibleForTesting
+  static int debugStageBuilds = 0, debugImageBuilds = 0;
+
+  /// How often each layer was really painted (a repaint boundary's own counters
+  /// also count the times only its parent was).
+  @visibleForTesting
+  static int debugImagePaints = 0, debugOverlayPaints = 0;
+  @visibleForTesting
+  static final Set<int> debugPrecached = {};
+
   @override
-  State<PageViewer> createState() => _PageViewerState();
+  State<PageViewer> createState() => PageViewerState();
 }
 
-class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
+class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
   PageViewerController get c => widget.controller;
+
+  // What the stage and the image were last built from: a rebuild with the same
+  // values hands back the same widgets, so nothing below them is touched.
+  Object? _stageOf, _imageOf;
+  Widget? _stage, _image;
+
+  // The page whose scan has arrived. The highlight layer draws that page only,
+  // so its boxes never sit on another page's scan.
+  final _arrived = ValueNotifier<int>(0);
+  int _watched = 0;
+  ImageStream? _stream;
+  late final ImageStreamListener _onImage = ImageStreamListener((_, _) => _arrived.value = _watched, onError: (_, _) {});
+
+  /// The page the highlight layer is drawing: the one on screen once its scan is there.
+  int get overlayPage => _arrived.value;
 
   @override
   void initState() {
@@ -835,8 +894,24 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _stream?.removeListener(_onImage);
+    _arrived.dispose();
     c.detach(); // before super.dispose(): the mixin asserts its tickers are gone
     super.dispose();
+  }
+
+  /// Follows [page]'s scan until it is decoded, and fetches its neighbours ahead.
+  void _watch(int page) {
+    if (page == _watched) return;
+    _watched = page;
+    _stream?.removeListener(_onImage);
+    // Already decoded (a neighbour fetched ahead): the listener is called at once.
+    _stream = AssetImage(_pageAsset(page)).resolve(createLocalImageConfiguration(context))..addListener(_onImage);
+    for (final n in [page - 1, page + 1]) {
+      if (n < 1 || n > c.data.pageCount) continue;
+      PageViewer.debugPrecached.add(n);
+      precacheImage(AssetImage(_pageAsset(n)), context, onError: (_, _) {});
+    }
   }
 
   String _pageAsset(int n) =>
@@ -875,6 +950,16 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     if (c.baseW <= 0 || c.currentPage == 0) {
       return const SizedBox.expand();
     }
+    _watch(c.currentPage);
+    // Everything the stage is drawn from. The highlight's own moving parts (the
+    // glide, a pulse, ribbons, a selection) are not here: they repaint its layer.
+    final of = (
+      c.currentPage, c.zoom, c.tx, c.ty, c.baseW, c.baseH, c.viewW, c.viewH, c.baseScale, //
+      c.night, c.nightInk, c.pageBg, c.showPlaying, c.showBoxes, c.activeId, widget.verseLabel != null,
+    );
+    if (of == _stageOf && _stage != null) return _stage!;
+    _stageOf = of;
+    PageViewer.debugStageBuilds++;
     // column-major: scale(zoom) on x/y + translation (tx,ty) — avoids the deprecated
     // Matrix4.translate/scale helpers. screen = base·zoom + (tx,ty).
     final m = Matrix4(
@@ -895,21 +980,7 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
       0,
       1,
     );
-    Widget image = Image.asset(
-      _pageAsset(c.currentPage),
-      width: c.baseW,
-      height: c.baseH,
-      fit: BoxFit.fill,
-      gaplessPlayback: true,
-      filterQuality: FilterQuality.medium,
-    );
-    if (c.night) {
-      image = ColorFiltered(
-        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk)),
-        child: image,
-      );
-    }
-    return SizedBox(
+    return _stage = SizedBox(
       width: c.viewW,
       height: c.viewH,
       child: Transform(
@@ -928,11 +999,14 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
             ),
             child: Stack(
               children: [
-                ExcludeSemantics(child: image), // the scan itself says nothing; the verses below do
+                _buildImage(),
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _HighlightPainter(c),
-                    isComplex: false,
+                  child: RepaintBoundary(
+                    key: PageViewer.overlayKey,
+                    child: CustomPaint(
+                      painter: _HighlightPainter(c, of, _arrived),
+                      isComplex: false,
+                    ),
                   ),
                 ),
                 if (widget.verseLabel case final label?)
@@ -961,16 +1035,70 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     );
   }
 
+  /// The scan, in its own layer: built again only for another page, size or ink.
+  Widget _buildImage() {
+    final of = (c.currentPage, c.baseW, c.baseH, c.night, c.nightInk);
+    if (of == _imageOf && _image != null) return _image!;
+    _imageOf = of;
+    PageViewer.debugImageBuilds++;
+    Widget image = Image.asset(
+      _pageAsset(c.currentPage),
+      width: c.baseW,
+      height: c.baseH,
+      fit: BoxFit.fill,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+    );
+    if (c.night) {
+      image = ColorFiltered(
+        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk)),
+        child: image,
+      );
+    }
+    // The scan itself says nothing; the verses over it do.
+    return _image = RepaintBoundary(key: PageViewer.imageKey, child: _PaintCount(child: ExcludeSemantics(child: image)));
+  }
+}
+
+/// Counts the paints of the scan's layer (for the performance tests).
+class _PaintCount extends SingleChildRenderObjectWidget {
+  const _PaintCount({required Widget super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderPaintCount();
+}
+
+class _RenderPaintCount extends RenderProxyBox {
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    PageViewer.debugImagePaints++;
+    super.paint(context, offset);
+  }
+}
+
+/// The highlight layer's own signal.
+class _Repaint extends ChangeNotifier {
+  void now() => notifyListeners();
 }
 
 // ───────────────────────── overlay painter (ported: _render) ─────────────────────────
 class _HighlightPainter extends CustomPainter {
   final PageViewerController c;
-  _HighlightPainter(this.c) : super(repaint: c);
+
+  /// What the stage was built from: the fields this painter was made for.
+  final Object of;
+
+  /// The page whose scan has arrived.
+  final ValueNotifier<int> arrived;
+
+  _HighlightPainter(this.c, this.of, this.arrived) : super(repaint: Listenable.merge([c.repaint, arrived]));
 
   @override
   void paint(Canvas canvas, Size size) {
-    final now = c._now();
+    PageViewer.debugOverlayPaints++;
+    // Another page's scan is still on screen: its boxes are not this page's.
+    if (arrived.value != c.currentPage) return;
+    final now = c._animNow();
     final col = _playingCol(c.night);
     final s = c.baseScale;
 
@@ -1142,5 +1270,5 @@ class _HighlightPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _HighlightPainter old) => true;
+  bool shouldRepaint(covariant _HighlightPainter old) => old.c != c || old.of != of || old.arrived != arrived;
 }

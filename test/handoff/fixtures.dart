@@ -87,7 +87,12 @@ class HandoffContent {
   /// With [library], the downloads are there, nothing downloaded yet; with
   /// [download], the chosen recording is in that state (a [FixedLibrary]).
   Future<ReaderController> reader(WidgetTester tester,
-      {bool audio = false, bool bookmarks = true, bool note = false, bool library = false, DownloadProgress? download}) async {
+      {bool audio = false,
+      bool bookmarks = true,
+      bool note = false,
+      bool library = false,
+      DownloadProgress? download,
+      AudioPort? port}) async {
     SharedPreferences.setMockInitialValues({});
     late ReaderController r;
     await tester.runAsync(() async {
@@ -113,7 +118,7 @@ class HandoffContent {
         store: SettingsStore(prefs),
         user: user,
         engine: audio
-            ? PlaybackEngine(SilentAudio(), PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings()))
+            ? PlaybackEngine(port ?? SilentAudio(), PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings()))
             : null,
         initialVerse: 226,
       )..personal = personal;
