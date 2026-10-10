@@ -29,4 +29,13 @@ void main() {
     expect(chapterOrdinal(70), 'الباب السبعون');
     expect(chapterOrdinal(77), 'الباب السابع والسبعون');
   });
+
+  test('plain names: no tashkeel; the bar title also drops a leading «باب»', () {
+    const label = 'باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا';
+    expect(plainName(label), 'باب نقل حركة الهمزة إلى الساكن قبلها');
+    expect(chapterBarTitle(label), 'نقل حركة الهمزة إلى الساكن قبلها');
+    expect(chapterBarTitle('سورة الْبَقَرَةِ'), 'سورة البقرة');
+    expect(chapterBarTitle('خطبة الكتاب'), 'خطبة الكتاب');
+    expect(plainName('آلانَ بِالنَّقْلِ'), 'آلان بالنقل'); // the madda and the letters stay
+  });
 }

@@ -1,7 +1,7 @@
 // lib/ui/reader/tools_sheet.dart — «أدوات العرض والصوت» (features-v3: console-sheet, advanced-control-cards).
 //
 // One bottom sheet, three tabs:
-//   العرض  — theme (dark / paper), page night mode, text mode, night brightness 40–100 %
+//   العرض  — theme (dark / paper; the page follows it), text mode, night brightness 40–100 %
 //   الصوت  — the full player: big medallion, chapter, reciter, transport with stop, and
 //            four tap-to-cycle cards (gap, speed, verse repeat, section repeat) whose
 //            live counters also show on the medallion
@@ -100,7 +100,6 @@ class _ToolsSheetState extends State<ToolsSheet> {
             onSelect: r.setTheme,
           ),
           const SizedBox(height: 10),
-          _SwitchRow(icon: LucideIcons.moon, label: 'الوضع الليلي للصفحة', value: r.night, onChanged: r.setNight),
           _SwitchRow(icon: LucideIcons.alignJustify, label: 'العرض النصي', value: r.textMode, onChanged: r.setTextMode),
           Row(
             children: [

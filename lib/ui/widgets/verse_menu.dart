@@ -6,7 +6,8 @@
 // below the verse, else above it: the verse number in a khatam, where it is
 // (chapter and page), its bookmark tag in carmine when it has one, both
 // hemistichs, four 64 px tiles with «الشرح» the only filled one, then «نسخ»,
-// «مشاركة», «تحديد أبيات» as 44 px text buttons. A tap outside or Back closes it.
+// «مشاركة», «تحديد أبيات» as text buttons drawn 44 px high in 48 px targets. A
+// tap outside or Back closes it. Measured in handoff specs/verse-*.json.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -128,6 +129,8 @@ class VerseMenu extends StatelessWidget {
                 // A verse not drawn on this page (text mode has no row for it): from the bottom.
                 anchor: rect ?? Rect.fromCenter(center: Offset(size.width / 2, size.height - avoid - 24), width: 0, height: 0),
                 avoidBottom: avoid,
+                // 6, not 8, at the bottom: the last row is a 48 dp target around 44 dp of drawing.
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
                 child: _body(context, c, verse),
               ),
             ),
@@ -173,14 +176,14 @@ class VerseMenu extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('البيت ${ar(verse)}', style: TzType.head.copyWith(color: c.ink)),
-                  Text('${chapter.shortLabel} · ص ${ar(page)}',
+                  Text('${plainName(chapter.shortLabel)} · ص ${ar(page)}',
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.caption.copyWith(color: c.ink3)),
                 ],
               ),
             ),
             if (tag case final word?) ...[
               const SizedBox(width: 8),
-              TzIcon('bookmark', filled: true, size: 14, color: c.carmine),
+              TzIcon('bookmark', filled: true, size: 22, color: c.carmine),
               const SizedBox(width: 4),
               Text(word, style: TzType.caption.copyWith(color: c.carmine)),
             ],
@@ -201,7 +204,7 @@ class VerseMenu extends StatelessWidget {
             _Tile(label: 'ملاحظة', icon: 'pen', marked: false, onTap: onNote == null ? null : () { onClose(); onNote!(verse); }),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         // Each button flexes, so the row fits a narrow body or large system text.
         Row(
           children: [
@@ -251,7 +254,9 @@ class _Tile extends StatelessWidget {
                         Text(label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TzType.caption.copyWith(fontWeight: FontWeight.w600, color: primary ? c.onAction : c.ink)),
+                            // The caption role on the spec's 20 dp line, which centres the pair in the tile.
+                            style: TzType.caption
+                                .copyWith(height: 20 / 12, fontWeight: FontWeight.w600, color: primary ? c.onAction : c.ink)),
                       ],
                     ),
                   ),

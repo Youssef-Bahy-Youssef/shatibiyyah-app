@@ -48,6 +48,9 @@ class ReaderScreen extends StatefulWidget {
 
   const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools, this.dock});
 
+  static const folioKey = ValueKey('reader-folio');
+  static const backSheetKey = ValueKey('reader-back-sheet');
+
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
@@ -149,13 +152,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final t = TaysirColors.of(context);
     final mq = MediaQuery.of(context);
     final layout = ReaderLayout.compute(mq.size, mq.padding);
-    final c = TzTheme.of(context).colors;
+    final tz = TzTheme.of(context);
+    final c = tz.colors;
+    // At night the page itself is the night page (ADRs 0019, 0020): it follows the
+    // theme, in the reader's chosen ink. There is no separate page switch.
+    reader.viewer
+      ..night = tz.night
+      ..nightInk = tz.nightInk
+      ..showPlaying = reader.audioAvailable && reader.menuVerse == null && reader.headingChapter == null;
     return Stack(
       fit: StackFit.expand,
       children: [
         // The back sheet (v2.css .sheetback): 3 px down and across, page-bg, a hairline, 90 %.
         if (!reader.textMode)
           Positioned.fromRect(
+            key: ReaderScreen.backSheetKey,
             rect: layout.page.shift(const Offset(3, 3)),
             child: IgnorePointer(
               child: Opacity(
@@ -563,9 +574,11 @@ class _Chrome extends StatelessWidget {
   }
 }
 
-/// The top bar (v2.css .topbar): the chapter's short name in Naskh 700, under it
-/// the gilt folio tag «ص ١٩» and «القسم · الباب ١١ من ٧٨»; then «بحث» and «العرض».
-/// No surface of its own: it sits on the screen's background above the page.
+/// The top bar (v2.css .topbar; handoff specs/reader-*.json): the chapter's
+/// name in short form in Naskh 700 (18/26), under it the folio tag «ص ١٩» and
+/// «القسم · الباب ١١ من ٧٨» (12/16); then «بحث» and «العرض», drawn 44 dp at 52 and
+/// 6 dp from the end with 2 dp between them, each in a 48 dp target (the two
+/// targets overlap by 2 dp). No surface of its own.
 class _TopBar extends StatelessWidget {
   final ReaderController reader;
   final VoidCallback? onSearch, onTools;
@@ -579,12 +592,12 @@ class _TopBar extends StatelessWidget {
     final caption = chapter.orderIndex == 0
         ? part.title
         : '${part.title} · الباب ${ar(chapter.orderIndex)} من ${ar(reader.content.matn.chapters.length)}';
-    // A fixed-height bar (56 px for 26 + 16 of text): its text follows the system
+    // A fixed-height bar (56 dp for 26 + 16 of text): its text follows the system
     // size up to 1.25×, like the dock's 1.3× (item 3.12 revisits).
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.25)),
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(start: 16, end: 6),
+        padding: const EdgeInsetsDirectional.only(start: 16, end: 4),
         child: Row(
           children: [
             Expanded(
@@ -593,7 +606,7 @@ class _TopBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    chapter.shortLabel,
+                    chapterBarTitle(chapter.shortLabel),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TzType.chapter.copyWith(fontWeight: FontWeight.w700, height: 26 / 18, color: c.ink),
@@ -618,10 +631,17 @@ class _TopBar extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 2),
-            _BarButton(icon: 'search', label: 'بحث', onPressed: onSearch),
-            const SizedBox(width: 2),
-            _BarButton(icon: 'aa', label: 'العرض', onPressed: onTools),
+            // 44 + 2 + 44 of drawing, plus 2 dp of target at each end.
+            SizedBox(
+              width: 94,
+              height: TzSize.touchTarget,
+              child: Stack(
+                children: [
+                  PositionedDirectional(start: 0, child: _BarButton(icon: 'search', label: 'بحث', onPressed: onSearch)),
+                  PositionedDirectional(end: 0, child: _BarButton(icon: 'aa', label: 'العرض', onPressed: onTools)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -643,6 +663,7 @@ class _Folio extends StatelessWidget {
     final tz = TzTheme.of(context);
     final c = tz.colors;
     return Stack(
+      key: ReaderScreen.folioKey,
       children: [
         Positioned.fill(
           child: ExcludeSemantics(

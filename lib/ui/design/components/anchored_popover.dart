@@ -25,7 +25,15 @@ class AnchoredPopover extends StatefulWidget {
   /// Room kept clear at the bottom (e.g. the dock).
   final double avoidBottom;
 
-  const AnchoredPopover({super.key, required this.anchor, required this.child, this.avoidBottom = 0});
+  /// The body's padding (v2.css .pop: 14 14 8).
+  final EdgeInsets padding;
+
+  const AnchoredPopover(
+      {super.key,
+      required this.anchor,
+      required this.child,
+      this.avoidBottom = 0,
+      this.padding = const EdgeInsets.fromLTRB(14, 14, 14, 8)});
 
   static const bodyKey = ValueKey('anchored-popover-body');
 
@@ -65,7 +73,7 @@ class _AnchoredPopoverState extends State<AnchoredPopover> with SingleTickerProv
         container: true,
         child: Container(
           key: AnchoredPopover.bodyKey,
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+          padding: widget.padding,
           decoration: BoxDecoration(color: c.raised, borderRadius: BorderRadius.circular(18), boxShadow: c.float),
           child: widget.child,
         ),

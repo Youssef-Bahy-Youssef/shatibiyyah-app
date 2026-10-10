@@ -162,7 +162,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(r.chromeVisible, isFalse);
     expect(dockOpacity(tester), 0);
-    expect(find.text('باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا').hitTestable(), findsNothing);
+    expect(find.text('نقل حركة الهمزة إلى الساكن قبلها').hitTestable(), findsNothing);
     await tester.tap(find.text('الفهرس'), warnIfMissed: false); // hidden: not a target
     await tester.pumpAndSettle();
     expect(find.byType(IndexScreen), findsNothing);

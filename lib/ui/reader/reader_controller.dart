@@ -246,6 +246,7 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The night page follows the theme (ReaderScreen); kept for the viewer's own tests.
   void setNight(bool on) {
     viewer.setNightMode(on);
     notifyListeners();

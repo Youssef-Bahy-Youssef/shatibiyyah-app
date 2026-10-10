@@ -92,6 +92,11 @@ class PageViewerController extends ChangeNotifier {
   late bool night;
   late int brightnessPct;
 
+  /// Whether the playing wash is drawn: only with a recitation loaded, and not
+  /// under a popover's spotlight (handoff specs: reader-none has no wash, verse
+  /// and heading show the spotlight alone).
+  bool showPlaying = true;
+
   /// The ink the night page is drawn in (ADR 0020); item 3.6 sets the reader's choice.
   TzNightInk nightInk = TzNightPage.jade;
   late bool showBoxes;
@@ -433,6 +438,16 @@ class PageViewerController extends ChangeNotifier {
     return Rect.fromLTWH(b.x * eff + tx, b.y * eff + ty, b.w * eff, b.h * eff);
   }
 
+  /// The ribbon of verse [id] at scale [s] (page pixels × s), if it has a box here.
+  Rect? ribbonBox(int id, double s) {
+    final b = data.getBox(id);
+    if (b == null || b.page != currentPage) return null;
+    return Rect.fromLTWH((b.x + b.w) * s - 10, b.y * s - 3, 8, 18);
+  }
+
+  /// Where verse [id]'s ribbon is drawn on screen (unzoomed: the ribbon keeps its size).
+  Rect? ribbonRect(int id) => ribbonBox(id, baseScale)?.shift(Offset(tx, ty));
+
   /// Where chapter [idx]'s printed heading is drawn on screen, if on this page.
   Rect? viewRectOfChapter(int idx) {
     final b = data.chapterBox(idx);
@@ -453,10 +468,13 @@ class PageViewerController extends ChangeNotifier {
     return Rect.lerp(from, to, TzMotion.emphasized.transform(t))!;
   }
 
-  /// The night page's colour matrix: the ink's 4×5 matrix from the tokens
-  /// (ADR 0020), its colour rows scaled by [brightness].
-  static List<double> nightPageMatrix(TzNightInk ink, double brightness) =>
-      [for (var i = 0; i < 20; i++) i < 15 ? ink.matrix[i] * brightness : ink.matrix[i]];
+  /// The night page's colour matrix for ColorFilter.matrix: the ink's 4×5 matrix
+  /// from the tokens (ADR 0020), its colour rows scaled by [brightness]. The
+  /// tokens hold an SVG feColorMatrix, whose offset column is on a 0…1 scale;
+  /// Flutter's is on 0…255.
+  static List<double> nightPageMatrix(TzNightInk ink, double brightness) => [
+        for (var i = 0; i < 20; i++) ink.matrix[i] * (i % 5 == 4 ? 255 : 1) * (i < 15 ? brightness : 1),
+      ];
 
   // ── hit-testing (ported: _imageCoords / _hitVerse / _hitChapter / _handleTap) ──
   ({double ix, double iy}) _imageCoords(Offset local) {
@@ -981,7 +999,9 @@ class _HighlightPainter extends CustomPainter {
     if (c.selection != null) _drawSelection(canvas, c.selection!, s);
     if (c.ribbons.isNotEmpty) _drawRibbons(canvas, s);
 
-    if (c.playingRectAt(now) case final playing?) _drawPlaying(canvas, playing, s);
+    if (c.showPlaying) {
+      if (c.playingRectAt(now) case final playing?) _drawPlaying(canvas, playing, s);
+    }
 
     if (c.pulse != null) {
       final pp = clampd((now - c.pulse!.start) / _pulseMs, 0, 1);
@@ -1027,24 +1047,21 @@ class _HighlightPainter extends CustomPainter {
     }
   }
 
-  /// A small ribbon just outside the start (right) edge of each bookmarked verse's
-  /// box, clear of the verse number, as in the prototype: 10 × 20 with a notch.
+  /// A bookmark's ribbon (v2.js page(), v2.css .ribbon): 8 × 18 with a notch at
+  /// 72 %, hanging 3 px above the verse's box, 10 px in from its start (right) edge.
   void _drawRibbons(Canvas canvas, double s) {
     for (final id in c.data.versesOnPage(c.currentPage)) {
       final mark = c.ribbons[id];
-      if (mark == null) continue;
-      final color = _pageTokens(c.night).bookmarks[mark];
-      final b = c.data.getBox(id);
-      if (b == null) continue;
-      final x = (b.x + b.w) * s - 1, y = b.y * s - 4;
+      final r = c.ribbonBox(id, s);
+      if (mark == null || r == null) continue;
       final path = Path()
-        ..moveTo(x, y)
-        ..lineTo(x + 10, y)
-        ..lineTo(x + 10, y + 20)
-        ..lineTo(x + 5, y + 15)
-        ..lineTo(x, y + 20)
+        ..moveTo(r.left, r.top)
+        ..lineTo(r.right, r.top)
+        ..lineTo(r.right, r.bottom)
+        ..lineTo(r.center.dx, r.top + r.height * 0.72)
+        ..lineTo(r.left, r.bottom)
         ..close();
-      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(path, Paint()..color = _pageTokens(c.night).bookmarks[mark]);
     }
   }
 

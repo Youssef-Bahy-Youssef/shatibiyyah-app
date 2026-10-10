@@ -55,6 +55,18 @@ String chaptersCount(int n) => _counted(n, 'باب واحد', 'بابان', 'أ�
 String selectedVersesCount(int n) =>
     _counted(n, 'بيت واحد محدد', 'بيتان محددان', 'أبيات محددة', 'بيتًا محددًا', 'بيت محدد');
 
+/// [s] without its tashkeel (fatha … sukun and the dagger alif): how a chapter's
+/// name is set in the interface face and in the top bar, as the handoff draws it
+/// («باب نقل حركة الهمزة إلى الساكن قبلها»).
+String plainName(String s) => s.replaceAll(RegExp('[\u064B-\u0652\u0670]'), '');
+
+/// A chapter's name for the reading screen's top bar: plain, and without a
+/// leading «باب», since the full title is printed on the page just below.
+String chapterBarTitle(String shortLabel) {
+  final plain = plainName(shortLabel);
+  return plain.startsWith('باب ') ? plain.substring(4) : plain;
+}
+
 /// The chapter's ordinal, «الباب الأول» … «الباب السابع والسبعون» (1…99); the
 /// introduction (0) has none.
 String chapterOrdinal(int n) {

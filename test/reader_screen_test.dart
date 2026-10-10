@@ -139,7 +139,8 @@ void main() {
   testWidgets('top bar: the chapter in short, the gilt folio «ص ١٩» and «القسم · الباب N من ٧٨»', (tester) async {
     final r = await reader(tester);
     await show(tester, r);
-    expect(find.text('باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
+    // In short form: no «باب», no tashkeel; the full title is printed on the page below.
+    expect(find.text('نقل حركة الهمزة إلى الساكن قبلها'), findsOneWidget);
     expect(find.text('ص ١٩'), findsOneWidget);
     expect(find.text('الأصول · الباب ١١ من ${ar(content.matn.chapters.length)}'), findsOneWidget);
     expect(tester.widget<Text>(find.text('ص ١٩')).style!.color, TzColors.night.gilt); // gilt at night; ink on paper (ADR 0019)
@@ -175,7 +176,7 @@ void main() {
     expect(find.text('ص ٢١'), findsOneWidget);
     expect(find.text('${content.matn.partOf(ch).title} · الباب ${ar(ch.orderIndex)} من ${ar(content.matn.chapters.length)}'),
         findsOneWidget);
-    expect(find.text(ch.shortLabel), findsOneWidget);
+    expect(find.text(chapterBarTitle(ch.shortLabel)), findsOneWidget);
     expect(r.verse, 226); // browsing does not move the reader
     await unmount(tester);
   });
@@ -340,7 +341,7 @@ void main() {
       r.openMenu(229);
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('البيت ٢٢٩'), findsOneWidget);
-      expect(find.text('${content.matn.chapterOfVerse(229).shortLabel} · ص ١٩'), findsOneWidget);
+      expect(find.text('باب نقل حركة الهمزة إلى الساكن قبلها · ص ١٩'), findsOneWidget);
       expect(find.text(content.matn.verse(229).firstHemistich), findsOneWidget);
       expect(find.text(content.matn.verse(229).secondHemistich), findsOneWidget);
       for (final label in ['الشرح', 'استمع', 'المرجع', 'ملاحظة', 'نسخ', 'مشاركة', 'تحديد أبيات']) {

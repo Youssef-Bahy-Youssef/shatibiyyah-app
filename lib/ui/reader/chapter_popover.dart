@@ -7,7 +7,7 @@
 // page, the first words of its first verse, then «تشغيل الباب» (filled) and
 // «الشرح» (tonal). Without a recording the filled action reads «نزّل التلاوة»
 // (ADR 0011), and is absent where nothing can download. A tap outside, Back, a
-// page turn or a zoom closes it.
+// page turn or a zoom closes it. Measured in handoff specs/heading-*.json.
 import 'package:flutter/material.dart';
 
 import '../../data/matn_repository.dart';
@@ -17,7 +17,6 @@ import '../design/components/khatam.dart';
 import '../design/components/tz_button.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_theme.dart';
-import '../design/tz_type.dart';
 import '../widgets/verse_menu.dart' show SpotlightScrim;
 
 class ChapterPopover extends StatelessWidget {
@@ -90,8 +89,11 @@ class ChapterPopover extends StatelessWidget {
                     ),
                   ],
                 ),
+                // 6 dp under the header, a 34 dp line, 12 dp above the actions. The first
+                // words take the chapter role (the nearest Naskh role to the prototype's
+                // off-scale 17 px, and its weight) on that line.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
+                  padding: const EdgeInsets.fromLTRB(0, 6, 0, 12),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
@@ -100,23 +102,36 @@ class ChapterPopover extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(firstHemistich,
-                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.verse.scaled(17 / 19).copyWith(color: c.ink2)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TzType.chapter.copyWith(height: 34 / 18, color: c.ink2)),
                       ),
                     ],
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      if (audio)
-                        Expanded(flex: 13, child: TzButton.primary(label: 'تشغيل الباب', icon: 'play', iconFilled: true, onPressed: onPlay))
-                      else if (onDownload case final download?)
-                        Expanded(flex: 13, child: TzButton.primary(label: 'نزّل التلاوة', icon: 'down', onPressed: download)),
-                      if (audio || onDownload != null) const SizedBox(width: 8),
-                      Expanded(flex: 10, child: TzButton.tonal(label: 'الشرح', icon: 'book', onPressed: onExplain)),
-                    ],
-                  ),
+                  child: LayoutBuilder(builder: (context, box) {
+                    final Widget? first = audio
+                        ? TzButton.primary(label: 'تشغيل الباب', icon: 'play', iconFilled: true, onPressed: onPlay)
+                        : onDownload == null
+                            ? null
+                            : TzButton.primary(label: 'نزّل التلاوة', icon: 'down', onPressed: onDownload);
+                    final explain = TzButton.tonal(label: 'الشرح', icon: 'book', onPressed: onExplain);
+                    if (first == null) return explain;
+                    // The prototype's `flex: 1.3` and `flex: 1` share what is left after
+                    // the gap and each button's own 36 dp of padding (182 and 148 of 338).
+                    const gap = 8.0, pad = 36.0;
+                    final free = box.maxWidth - gap - 2 * pad;
+                    final primary = free * 1.3 / 2.3 + pad;
+                    return Row(
+                      children: [
+                        SizedBox(width: primary, child: first),
+                        const SizedBox(width: gap),
+                        Expanded(child: explain),
+                      ],
+                    );
+                  }),
                 ),
               ],
             ),
