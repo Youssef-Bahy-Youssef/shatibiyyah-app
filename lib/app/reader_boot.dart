@@ -59,7 +59,10 @@ Future<ReaderController> bootReader() async {
     background.onUnattendedComplete = library.backgroundFinished;
     // A download still running since before the app was closed: show it again.
     for (final r in library.recordings) {
-      if (!library.isOnDevice(r) && await background.isActive(library.downloads.partFileFor(r))) {
+      // A paused one stays paused until «متابعة».
+      if (!library.isOnDevice(r) &&
+          !library.isPaused(r) &&
+          await background.isActive(library.downloads.partFileFor(r))) {
         unawaited(library.download(r));
       }
     }

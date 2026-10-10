@@ -1,6 +1,7 @@
 // The recordings library: choosing a reciter keeps the verse and swaps the audio;
 // one not on the device leaves the reader without audio; deleting the chosen one
 // takes its audio away; offline, a download fails cleanly (no test reaches the network).
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -23,7 +24,7 @@ import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// No network in unit tests: every mirror fails at once.
-class _OfflineTransfer implements Transfer {
+class _OfflineTransfer extends Transfer {
   int attempts = 0;
   @override
   Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
@@ -282,6 +283,71 @@ void main() {
     expect(library.isOnDevice(library.current), isFalse);
     expect(reader.audioAvailable, isFalse);
     expect(find.text('التلاوات على الجهاز: ٠ م.ب'), findsOneWidget);
+  });
+
+  /// What a download stopped part-way leaves (ADR 0007): the part file, and the
+  /// sidecar that ties it to its delivery file.
+  Future<void> keepPartial(DownloadManager dm, Recording r, int bytes, {required bool paused}) async {
+    final part = dm.partFileFor(r);
+    await part.parent.create(recursive: true);
+    final raf = await part.open(mode: FileMode.write);
+    await raf.truncate(bytes);
+    await raf.close();
+    await File(part.path.replaceFirst(RegExp(r'\.mp3\.part$'), '.part.json')).writeAsString(jsonEncode({
+      'delivery_sha256': r.delivery!.sha256,
+      'delivery_bytes': r.delivery!.bytes,
+      'received': bytes,
+      'paused': paused,
+    }));
+  }
+
+  Future<void> confirmDelete(WidgetTester tester) async {
+    await tester.tap(find.text('حذف').last);
+    await tester.pumpAndSettle();
+    expect(find.text('حذف التلاوة؟'), findsOneWidget);
+    await tester.tap(find.text('حذف').last);
+  }
+
+  testWidgets('«حذف» for a paused recording: «متوقف عند ٦٠٪», then deleted', (tester) async {
+    late AudioLibrary library;
+    late DownloadManager dm;
+    late Recording other;
+    await tester.runAsync(() async {
+      (library, _, dm, _) = await setUpLibrary();
+      other = library.recordings.firstWhere((r) => !r.isDefault);
+      await keepPartial(dm, other, (other.localBytes * 0.6).ceil(), paused: true);
+      await library.refresh(); // as after a relaunch
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.text('متوقف عند ٦٠٪'), findsOneWidget);
+    expect(find.text('متابعة'), findsOneWidget);
+    expect(find.text('حذف'), findsNWidgets(2)); // Atiq on the device, and the paused one
+
+    await confirmDelete(tester);
+    await settle(tester);
+    expect(dm.partFileFor(other).existsSync(), isFalse);
+    expect(find.text('غير منزّل'), findsOneWidget);
+    expect(find.text('حذف'), findsOneWidget);
+  });
+
+  testWidgets('«حذف» for a failed recording that holds bytes', (tester) async {
+    late AudioLibrary library;
+    late DownloadManager dm;
+    late Recording other;
+    await tester.runAsync(() async {
+      (library, _, dm, _) = await setUpLibrary();
+      other = library.recordings.firstWhere((r) => !r.isDefault);
+      await keepPartial(dm, other, 4000000, paused: false);
+      await library.download(other); // offline in the test: fails, the bytes stay
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.text('تعذّر الاتصال؛ يُستأنف من حيث توقف'), findsOneWidget);
+    expect(find.text('حذف'), findsNWidgets(2));
+
+    await confirmDelete(tester);
+    await settle(tester);
+    expect(dm.partFileFor(other).existsSync(), isFalse);
+    expect(find.text('غير منزّل'), findsOneWidget);
   });
 
   testWidgets('«القارئ»: choosing one not on the device keeps the verse and opens «التنزيلات»', (tester) async {
