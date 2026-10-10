@@ -13,6 +13,7 @@ import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
+import 'package:shatibiyyah/ui/commentary/commentary_sheet.dart';
 import 'package:shatibiyyah/ui/commentary/compare_screen.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
@@ -114,16 +115,16 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('phone: «الشرح» still opens the commentary screen', (tester) async {
+  testWidgets('phone: «الشرح» opens the commentary sheet, never the split', (tester) async {
     final r = await reader(tester);
     await show(tester, ReaderScreen(reader: r), const Size(390, 844));
     r.openMenu(226);
     await tester.pump();
     await tester.tap(find.text('الشرح'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(CommentaryScreen), findsOneWidget);
-    expect(r.splitOpen, isFalse);
+    await settle(tester);
+    expect(find.byType(CommentarySheet), findsOneWidget);
+    expect(find.byType(SplitPanel), findsNothing);
+    expect((r.splitOpen, r.commentaryVerse), (false, 226));
     await unmount(tester);
   });
 

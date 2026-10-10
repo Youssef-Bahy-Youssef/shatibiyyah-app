@@ -11,6 +11,7 @@ import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/domain/commentary_text.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
+import 'package:shatibiyyah/ui/commentary/commentary_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
@@ -134,7 +135,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('long-press a verse on the page → menu → «الشرح» → commentary; «نسخ» copies', (tester) async {
+  testWidgets('long-press a verse on the page → menu → «الشرح» → the commentary sheet; «نسخ» copies', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -185,11 +186,14 @@ void main() {
     await again.up();
     await tester.pump();
     expect(reader.menuVerse, 3);
+    // On a phone the explanation is a sheet over the page, tied to the verse (item 3.9).
     await tester.tap(find.text('الشرح'));
     await frames(tester);
-    expect(find.byType(CommentaryScreen), findsOneWidget);
     await settle(tester);
-    expect(find.text('الوافي · البيت ٣'), findsOneWidget);
+    expect(find.byType(CommentarySheet), findsOneWidget);
+    expect(find.byType(CommentaryScreen), findsNothing);
+    expect((reader.commentaryVerse, reader.menuVerse), (3, null));
+    expect(tester.widget<Text>(find.byKey(CommentarySheet.rangeKey)).data, 'البيت ٣');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 10));
