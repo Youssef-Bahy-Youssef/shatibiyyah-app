@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import 'shell_page.dart';
@@ -38,7 +38,7 @@ class _DebugToolsScreenState extends State<DebugToolsScreen> {
     final reminders = r.reminders;
     Widget action(IconData icon, String label, VoidCallback? onTap) => ListTile(
       leading: Icon(icon, color: onTap == null ? t.muted : t.goldText),
-      title: Text(label, style: kufi(size: 14.5, weight: 500, color: onTap == null ? t.muted : t.text)),
+      title: Text(label, style: TzType.label.copyWith(color: onTap == null ? t.muted : t.text)),
       onTap: onTap,
       enabled: onTap != null,
     );
@@ -51,7 +51,7 @@ class _DebugToolsScreenState extends State<DebugToolsScreen> {
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
             child: Text(
               'نسخ التطوير فقط؛ لا تظهر في نسخة المتجر.',
-              style: kufi(size: 12.5, weight: 400, color: t.muted),
+              style: TzType.caption.copyWith(color: t.muted),
             ),
           ),
           action(
@@ -84,7 +84,7 @@ class _DebugToolsScreenState extends State<DebugToolsScreen> {
           if (_last != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(_last!, style: kufi(size: 14, weight: 500, color: t.goldText)),
+              child: Text(_last!, style: TzType.label.copyWith(color: t.goldText)),
             ),
         ],
       ),

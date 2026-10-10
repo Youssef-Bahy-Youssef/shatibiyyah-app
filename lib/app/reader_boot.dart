@@ -59,19 +59,24 @@ Future<ReaderController> bootReader() async {
     background.onUnattendedComplete = library.backgroundFinished;
     // A download still running since before the app was closed: show it again.
     for (final r in library.recordings) {
-      if (!library.isOnDevice(r) && await background.isActive(library.downloads.partFileFor(r))) {
+      // A paused one stays paused until «متابعة».
+      if (!library.isOnDevice(r) &&
+          !library.isPaused(r) &&
+          await background.isActive(library.downloads.partFileFor(r))) {
         unawaited(library.download(r));
       }
     }
   }
   final recording = library.current;
-  final windows = await content.windowsFor(recording);
+  final windows = await content.windowsOrNull(recording); // null: no audio for an unusable one (F-41)
 
   final initial = _restoreVerse(prefs, content.matn.lastVerse);
   final chapter = content.matn.chapterOfVerse(initial);
-  final engine = await library.openCurrent(
-    PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
-  );
+  final engine = windows == null
+      ? null
+      : await library.openCurrent(
+          PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
+        );
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
   final reader = ReaderController(
@@ -95,7 +100,7 @@ Future<ReaderController> bootReader() async {
   await personal.load();
   reader.personal = personal;
   CommentaryScreen.onOpened = () => unawaited(rating.used());
-  void ribbons() => viewer.setRibbons(personal.ribbons);
+  void ribbons() => viewer.setRibbons({for (final e in personal.ribbons.entries) e.key: e.value.index});
   personal.addListener(ribbons);
   ribbons();
   final reminders = Reminders(prefs: prefs, port: LocalNotifications(), content: content, verse: () => reader.verse);

@@ -6,6 +6,49 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+/// Migration 1 exactly as the release before 2.1 shipped it: one string, which that
+/// release ran by splitting on «;». A database made from it is a real v1 database.
+const String _shippedV1 = '''
+  CREATE TABLE bookmarks (
+    uuid TEXT PRIMARY KEY,
+    from_verse_id TEXT NOT NULL,
+    to_verse_id TEXT,
+    color TEXT NOT NULL CHECK (color IN ('gold','green','orange','blue','rose','sand')),
+    tag TEXT NOT NULL CHECK (tag IN ('hifz','muraja','ishkal')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER
+  );
+  CREATE UNIQUE INDEX ux_bookmark_live ON bookmarks (from_verse_id, ifnull(to_verse_id, '')) WHERE deleted_at IS NULL;
+  CREATE TABLE notes (
+    uuid TEXT PRIMARY KEY, matn_verse_id TEXT NOT NULL, commentary_block_id TEXT,
+    body TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER
+  );
+  CREATE INDEX ix_notes_verse ON notes (matn_verse_id) WHERE deleted_at IS NULL;
+  CREATE TABLE activity_log (
+    uuid TEXT PRIMARY KEY, at INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('listen','commentary')),
+    from_verse_id TEXT, to_verse_id TEXT, recording_id TEXT, commentary_id TEXT,
+    seconds INTEGER
+  );
+  CREATE INDEX ix_activity_at ON activity_log (at);
+  CREATE TABLE verse_listens (
+    recording_id TEXT NOT NULL, matn_verse_id TEXT NOT NULL,
+    first_completed_at INTEGER NOT NULL, completions INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (recording_id, matn_verse_id)
+  );
+  CREATE TABLE downloads (
+    item_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('none','queued','downloading','paused','verifying','ready','failed','update_available')),
+    bytes_done INTEGER NOT NULL DEFAULT 0, sha256 TEXT, local_path TEXT, error TEXT, updated_at INTEGER NOT NULL
+  );
+''';
+
+/// The schema as SQLite records it, with whitespace runs collapsed.
+Future<Map<String, String>> _schema(Database db) async => {
+      for (final r in await db.rawQuery(
+          "SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'android_%' ORDER BY name"))
+        r['name'] as String: (r['sql'] as String).replaceAll(RegExp(r'\s+'), ' ').replaceAll('( ', '(').replaceAll(' )', ')').trim(),
+    };
+
 void main() {
   sqfliteFfiInit();
   late Directory dir;
@@ -39,7 +82,7 @@ void main() {
       options: OpenDatabaseOptions(
         version: 1,
         onCreate: (db, _) async {
-          for (final s in kUserMigrations.first.split(';')) {
+          for (final s in _shippedV1.split(';')) {
             if (s.trim().isNotEmpty) await db.execute(s);
           }
         },
@@ -66,6 +109,32 @@ void main() {
     expect((await store.db.rawQuery('PRAGMA user_version')).first.values.first, 2);
     expect((await store.bookmarks()).single.fromVerse, 229);
     expect((await store.notes()).single.body, 'قارن بالوافي');
+
+    // The upgraded database has the schema a new install gets.
+    final fresh = await Directory.systemTemp.createTemp('user_store_fresh');
+    addTearDown(() => fresh.delete(recursive: true));
+    final installed = await UserStore.open(directory: fresh.path, factory: databaseFactoryFfi);
+    addTearDown(installed.close);
+    expect(await _schema(store.db), await _schema(installed.db));
+  });
+
+  test('migration 2 is three statements, one per dropped table', () {
+    expect(kUserMigrations[1], ['DROP TABLE activity_log', 'DROP TABLE verse_listens', 'DROP TABLE downloads']);
+  });
+
+  test('a migration is a list of statements: a «;» inside a literal applies (F-58)', () async {
+    final other = await Directory.systemTemp.createTemp('user_store_semicolon');
+    addTearDown(() => other.delete(recursive: true));
+    final s = await UserStore.open(directory: other.path, factory: databaseFactoryFfi, migrations: [
+      ...kUserMigrations,
+      [
+        'CREATE TABLE t (body TEXT NOT NULL)',
+        "INSERT INTO t (body) VALUES ('a; b')",
+      ],
+    ]);
+    addTearDown(s.close);
+    expect((await s.db.rawQuery('SELECT body FROM t')).single['body'], 'a; b');
+    expect((await s.db.rawQuery('PRAGMA user_version')).first.values.first, kUserMigrations.length + 1);
   });
 
   test('a bookmark colour or tag outside the design is refused', () async {
@@ -123,6 +192,21 @@ void main() {
       expect(all.first.covers(230), isFalse);
       await store.deleteBookmark(226, to: 234);
       expect((await store.bookmarks()).single.toVerse, isNull);
+    });
+
+    test('delete by uuid, then restore: the same row; refused when its verses were taken', () async {
+      await store.saveBookmark(226, to: 234, color: BookmarkColor.blue, tag: BookmarkTag.muraja);
+      final b = (await store.bookmarks()).single;
+      await store.deleteBookmarkById(b.uuid);
+      expect(await store.bookmarks(), isEmpty);
+      expect(await store.restoreBookmark(b.uuid), isTrue);
+      final back = (await store.bookmarks()).single;
+      expect((back.uuid, back.fromVerse, back.toVerse, back.color, back.tag), (b.uuid, 226, 234, b.color, b.tag));
+
+      await store.deleteBookmarkById(b.uuid);
+      await store.saveBookmark(226, to: 234, color: BookmarkColor.gold, tag: BookmarkTag.hifz); // a new one
+      expect(await store.restoreBookmark(b.uuid), isFalse); // one live bookmark per range
+      expect((await store.bookmarks()).single.color, BookmarkColor.gold);
     });
 
     test('uuids are random version-4', () {

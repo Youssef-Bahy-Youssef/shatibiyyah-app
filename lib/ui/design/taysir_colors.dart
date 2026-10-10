@@ -1,110 +1,65 @@
-// lib/ui/design/taysir_colors.dart — the v3 design's two palettes as a ThemeExtension.
+// lib/ui/design/taysir_colors.dart — the names the screens written before the
+// redesign use for colours, each answered by one design token (plan item 3.1,
+// decision D1 option A: one token per legacy role).
 //
-// Values are the prototype's `D` (dark: espresso and gold) and `L` (paper) token
-// maps (Prototype - Full App.dc.html). New screens read colours from here, never
-// from constants, so the paper theme works everywhere they are used. The old
-// screens still use lib/theme.dart's dark-only `C` constants until P4 redraws them.
+// No colour value lives here: every getter returns a field of tokens.g.dart.
+// Items 3.4–3.11 rebuild the screens from the components, which read the tokens
+// directly (`TzTheme.of(context)`); this file goes when the last of them has.
 import 'package:flutter/material.dart';
 
+import 'tokens.g.dart';
+import 'tz_theme.dart';
+
 @immutable
-class TaysirColors extends ThemeExtension<TaysirColors> {
-  final Color bg, panel, panel2, raised, line;
-  final Color gold, goldBright, goldDeep, goldText;
-  final Color text, dim, muted;
-  final Color teal, tealBg, warn, quran, glass;
+class TaysirColors {
+  final TzColors tokens;
 
-  /// Text on a gold fill (the same in both themes).
-  final Color onGold;
+  const TaysirColors(this.tokens);
 
-  const TaysirColors({
-    required this.bg,
-    required this.panel,
-    required this.panel2,
-    required this.raised,
-    required this.line,
-    required this.gold,
-    required this.goldBright,
-    required this.goldDeep,
-    required this.goldText,
-    required this.text,
-    required this.dim,
-    required this.muted,
-    required this.teal,
-    required this.tealBg,
-    required this.warn,
-    required this.quran,
-    required this.glass,
-    this.onGold = const Color(0xFF1A1304),
-  });
+  static const dark = TaysirColors(TzColors.night);
+  static const paper = TaysirColors(TzColors.paper);
 
-  static const dark = TaysirColors(
-    bg: Color(0xFF1B1307),
-    panel: Color(0xFF2A1E0E),
-    panel2: Color(0xFF33260F),
-    raised: Color(0xFF3F2F15),
-    line: Color(0xFF4A3719),
-    gold: Color(0xFFFFAB2E),
-    goldBright: Color(0xFFFADBAE),
-    goldDeep: Color(0xFF965F0D),
-    goldText: Color(0xFFFFAB2E),
-    text: Color(0xFFF4F1EB),
-    dim: Color(0xFFD6CCB8),
-    muted: Color(0xFFB39A6B),
-    teal: Color(0xFF86B07A),
-    tealBg: Color(0x2986B07A), // rgba(134,176,122,.16)
-    warn: Color(0xFFE08A5A),
-    quran: Color(0xFF7CCBD8),
-    glass: Color(0xF0241A0C), // rgba(36,26,12,.94)
-  );
+  static TaysirColors of(BuildContext context) => TaysirColors(TzTheme.of(context).colors);
 
-  static const paper = TaysirColors(
-    bg: Color(0xFFF3EAD7),
-    panel: Color(0xFFFBF7EE),
-    panel2: Color(0xFFF4EBD8),
-    raised: Color(0xFFE9DABB),
-    line: Color(0xFFD9C49C),
-    gold: Color(0xFFFFAB2E),
-    goldBright: Color(0xFF7A4A06),
-    goldDeep: Color(0xFFB87A1C),
-    goldText: Color(0xFF825107),
-    text: Color(0xFF241A0C),
-    dim: Color(0xFF4E3613),
-    muted: Color(0xFF735629),
-    teal: Color(0xFF3F6A37),
-    tealBg: Color(0x1F3F6A37), // rgba(63,106,55,.12)
-    warn: Color(0xFF963F10),
-    quran: Color(0xFF1C6674),
-    glass: Color(0xF2FBF7EE), // rgba(251,247,238,.95)
-  );
+  // surfaces
+  Color get bg => tokens.bg;
+  Color get panel => tokens.surface;
+  Color get panel2 => tokens.tonal;
+  Color get raised => tokens.raised;
+  Color get line => tokens.line;
 
-  static TaysirColors of(BuildContext context) =>
-      Theme.of(context).extension<TaysirColors>() ?? TaysirColors.dark;
+  // the amber accent family: its fill is the action fill, its text the state colour
+  Color get gold => tokens.action;
+  Color get onGold => tokens.onAction;
+  Color get goldText => tokens.lapis;
+  Color get goldDeep => tokens.gilt;
+  Color get goldBright => tokens.ink;
+
+  // text
+  Color get text => tokens.ink;
+  Color get dim => tokens.ink2;
+  Color get muted => tokens.ink3;
+
+  // state
+  Color get teal => tokens.lapis;
+  Color get warn => tokens.carmine;
+  Color get quran => tokens.lapis;
+
+  /// The old interaction accent (the selection on the paper page).
+  Color get accent => tokens.lapis;
+
+  /// What dims the page behind a menu or a sheet.
+  Color get scrim => tokens.scrim;
+
+  /// The shadow under floating elements.
+  List<BoxShadow> get float => tokens.float;
+
+  /// The ribbon colour of the bookmark colour at [index] (BookmarkColor's order is the tokens').
+  Color bookmark(int index) => tokens.bookmarks[index];
 
   @override
-  TaysirColors copyWith() => this;
+  bool operator ==(Object other) => other is TaysirColors && identical(other.tokens, tokens);
 
   @override
-  TaysirColors lerp(TaysirColors? other, double t) {
-    if (other == null) return this;
-    Color l(Color a, Color b) => Color.lerp(a, b, t)!;
-    return TaysirColors(
-      bg: l(bg, other.bg),
-      panel: l(panel, other.panel),
-      panel2: l(panel2, other.panel2),
-      raised: l(raised, other.raised),
-      line: l(line, other.line),
-      gold: l(gold, other.gold),
-      goldBright: l(goldBright, other.goldBright),
-      goldDeep: l(goldDeep, other.goldDeep),
-      goldText: l(goldText, other.goldText),
-      text: l(text, other.text),
-      dim: l(dim, other.dim),
-      muted: l(muted, other.muted),
-      teal: l(teal, other.teal),
-      tealBg: l(tealBg, other.tealBg),
-      warn: l(warn, other.warn),
-      quran: l(quran, other.quran),
-      glass: l(glass, other.glass),
-    );
-  }
+  int get hashCode => identityHashCode(tokens);
 }

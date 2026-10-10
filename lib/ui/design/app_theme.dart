@@ -5,8 +5,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/settings_store.dart';
-import 'taysir_colors.dart';
+import 'tz_theme.dart';
 
 final ValueNotifier<ReaderTheme> appTheme = ValueNotifier(ReaderTheme.dark);
 
-TaysirColors colorsFor(ReaderTheme theme) => theme == ReaderTheme.paper ? TaysirColors.paper : TaysirColors.dark;
+/// The token theme of [theme]: paper, or night for the dark choice.
+TzTheme tzThemeFor(ReaderTheme theme) => theme == ReaderTheme.paper ? TzTheme.paper : TzTheme.dark;

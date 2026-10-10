@@ -10,13 +10,15 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_update.dart';
 import '../../app/personal_data.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../../data/user_store.dart' show Bookmark;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import '../reader/shamsa.dart';
 import '../search/search_screen.dart';
+import '../study/study_sheets.dart';
 import 'shell_page.dart' show readingPadding;
 
 class HomeScreen extends StatefulWidget {
@@ -84,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 56,
       child: Row(
         children: [
-          Expanded(child: Text('تيسير الشاطبية', style: kufi(size: 20, weight: 600, color: t.text))),
+          Expanded(child: Text('تيسير الشاطبية', style: TzType.display.copyWith(color: t.text))),
           icon(LucideIcons.bookOpen, 'القارئ', () => Navigator.of(context).popUntil((r) => r.isFirst)),
           icon(LucideIcons.search, 'بحث', () => SearchScreen.open(context, reader)),
         ],
@@ -104,10 +106,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(LucideIcons.download, size: 18, color: t.goldText),
             const SizedBox(width: 10),
-            Expanded(child: Text('إصدار جديد من التطبيق متاح', style: kufi(size: 13.5, weight: 500, color: t.text))),
+            Expanded(child: Text('إصدار جديد من التطبيق متاح', style: TzType.label.copyWith(color: t.text))),
             TextButton(
               onPressed: update.update,
-              child: Text('تحديث', style: kufi(size: 14, weight: 600, color: t.goldText)),
+              child: Text('تحديث', style: TzType.label.copyWith(color: t.goldText)),
             ),
             IconButton(
               tooltip: 'إخفاء',
@@ -136,13 +138,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('تابع من حيث توقفت', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                    Text('تابع من حيث توقفت', style: TzType.caption.copyWith(color: t.muted)),
                     Text(reader.chapter.shortLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: naskh(size: 18, weight: FontWeight.w700, color: t.text, height: 1.6)),
+                        style: TzType.chapter.copyWith(color: t.text)),
                     Text('البيت ${ar(v)}، ص ${ar(reader.content.layout.pageOfVerse(v))}',
-                        style: kufi(size: 12.5, weight: 400, color: t.dim)),
+                        style: TzType.caption.copyWith(color: t.dim)),
                   ],
                 ),
               ),
@@ -164,7 +166,6 @@ class _HomeScreenState extends State<HomeScreen> {
       options: {for (var i = 0; i < labels.length; i++) i: labels[i]},
       selected: _tab,
       onSelect: (i) => setState(() => _tab = i),
-      fontSize: 13.5,
     );
   }
 
@@ -174,23 +175,31 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(icon, size: 32, color: t.goldText),
             const SizedBox(height: 10),
-            Text(title, style: kufi(size: 15, weight: 600, color: t.text)),
+            Text(title, style: TzType.body.copyWith(color: t.text)),
             const SizedBox(height: 4),
-            Text(how, textAlign: TextAlign.center, style: kufi(size: 13, weight: 400, color: t.muted)),
+            Text(how, textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.muted)),
             const SizedBox(height: 14),
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
               icon: Icon(LucideIcons.bookOpen, size: 17, color: t.goldText),
-              label: Text('افتح القارئ', style: kufi(size: 14, weight: 500, color: t.text)),
+              label: Text('افتح القارئ', style: TzType.label.copyWith(color: t.text)),
               style: OutlinedButton.styleFrom(side: BorderSide(color: t.line), shape: const StadiumBorder()),
             ),
           ],
         ),
       );
 
-  Widget _entry(TaysirColors t, {Widget? leading, required String title, String? chip, String? body, required String meta, required VoidCallback onTap}) =>
+  Widget _entry(TaysirColors t,
+          {Widget? leading,
+          required String title,
+          String? chip,
+          String? body,
+          required String meta,
+          required VoidCallback onTap,
+          VoidCallback? onLongPress}) =>
       InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.line))),
@@ -204,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Row(
                       children: [
-                        Flexible(child: Text(title, style: kufi(size: 14.5, weight: 600, color: t.text))),
+                        Flexible(child: Text(title, style: TzType.label.copyWith(color: t.text))),
                         if (chip != null) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -213,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(color: t.line),
                             ),
-                            child: Text(chip, style: kufi(size: 11.5, weight: 500, color: t.goldText)),
+                            child: Text(chip, style: TzType.caption.copyWith(color: t.goldText)),
                           ),
                         ],
                       ],
@@ -222,8 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(body,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: naskh(size: 17, color: t.text, height: 1.6)),
-                    Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: kufi(size: 12, weight: 400, color: t.muted)),
+                          style: TzType.commentary.copyWith(color: t.text)),
+                    Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -241,20 +250,71 @@ class _HomeScreenState extends State<HomeScreen> {
     final matn = reader.content.matn;
     return Column(children: [
       for (final b in personal.bookmarks)
-        _entry(
-          t,
-          leading: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: CustomPaint(size: const Size(12, 24), painter: _RibbonMark(kBookmarkColors[b.color]!)),
+        // A swipe deletes; a long press offers «تعديل» / «حذف»; a tap opens the verse (ADR 0009).
+        Dismissible(
+          key: ValueKey(b.uuid),
+          onDismissed: (_) => _deleteBookmark(personal, b),
+          background: Container(color: t.warn.withValues(alpha: 0.18)),
+          child: _entry(
+            t,
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: CustomPaint(size: const Size(12, 24), painter: _RibbonMark(t.bookmark(b.color.index))),
+            ),
+            title: _what(b.fromVerse, b.lastVerse),
+            chip: kBookmarkTagLabels[b.tag],
+            body: matn.verse(b.fromVerse).firstHemistich,
+            meta: matn.chapterOfVerse(b.fromVerse).shortLabel,
+            onTap: () => _openVerse(b.fromVerse),
+            onLongPress: () => _bookmarkActions(t, personal, b),
           ),
-          title: _what(b.fromVerse, b.lastVerse),
-          chip: kBookmarkTagLabels[b.tag],
-          body: matn.verse(b.fromVerse).firstHemistich,
-          meta: matn.chapterOfVerse(b.fromVerse).shortLabel,
-          onTap: () => _openVerse(b.fromVerse),
         ),
     ]);
   }
+
+  Future<void> _deleteBookmark(PersonalData personal, Bookmark b) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final t = TaysirColors.of(context);
+    await personal.removeBookmark(b);
+    showBookmarkUndo(messenger, personal, b, t);
+  }
+
+  Future<void> _bookmarkActions(TaysirColors t, PersonalData personal, Bookmark b) => showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: t.panel,
+        builder: (sheet) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(LucideIcons.pencil, color: t.goldText),
+                  title: Text('تعديل', style: TzType.body.copyWith(color: t.text)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    showBookmarkSheet(context,
+                        personal: personal,
+                        content: reader.content,
+                        from: b.fromVerse,
+                        to: b.toVerse,
+                        onDone: (notice) => ScaffoldMessenger.maybeOf(context)
+                            ?.showSnackBar(SnackBar(content: Text(notice), duration: const Duration(seconds: 2))));
+                  },
+                ),
+                ListTile(
+                  leading: Icon(LucideIcons.trash2, color: t.warn),
+                  title: Text('حذف', style: TzType.body.copyWith(color: t.warn)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    _deleteBookmark(personal, b);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 
   Widget _notes(TaysirColors t, PersonalData personal) {
     if (personal.notes.isEmpty) {

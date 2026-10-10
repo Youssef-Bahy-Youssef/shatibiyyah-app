@@ -8,7 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/routes.dart';
 import '../../data/settings_store.dart';
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/app_theme.dart';
 import '../design/pill_tabs.dart';
@@ -32,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
     final t = TaysirColors.of(context);
     Widget label(String s) => Padding(
           padding: const EdgeInsets.only(top: 18, bottom: 8),
-          child: Text(s, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+          child: Text(s, style: TzType.caption.copyWith(color: t.muted)),
         );
     return ListenableBuilder(
       listenable: Listenable.merge([reader, appTheme]),
@@ -154,8 +154,8 @@ class _Row extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(title, style: kufi(size: 15, weight: 500, color: t.text)),
-                    if (subtitle != null) Text(subtitle!, style: kufi(size: 12, weight: 400, color: t.muted)),
+                    Text(title, style: TzType.body.copyWith(color: t.text)),
+                    if (subtitle != null) Text(subtitle!, style: TzType.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
