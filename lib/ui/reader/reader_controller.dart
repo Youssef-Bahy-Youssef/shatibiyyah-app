@@ -480,6 +480,39 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── the commentary sheet (item 3.9, ADR 0022): tied to one verse ──
+  int? _commentaryVerse;
+  String? _commentaryBook;
+
+  /// The verse whose explanation is open in the sheet, if any.
+  int? get commentaryVerse => _commentaryVerse;
+
+  /// The book last read (ADR 0018).
+  String? get commentaryBook => _commentaryBook ?? store?.commentaryBook;
+
+  /// «الشرح»: opens the sheet on [verse], or moves it there.
+  void openCommentary(int verse) {
+    _menuVerse = null;
+    closeHeading();
+    _commentaryVerse = verse;
+    _chromeVisible = true;
+    // On the page, the verse's page is shown.
+    final page = content.layout.pageOfVerse(verse);
+    if (!_textMode && page != viewer.currentPage) viewer.setPage(page, false);
+    notifyListeners();
+  }
+
+  void closeCommentary() {
+    if (_commentaryVerse == null) return;
+    _commentaryVerse = null;
+    notifyListeners();
+  }
+
+  void setCommentaryBook(String id) {
+    _commentaryBook = id;
+    store?.commentaryBook = id;
+  }
+
   // ── the tablet split: page and commentary side by side (plan P8, commentary-split-screen) ──
   bool _splitOpen = false;
   bool _splitFollow = true;

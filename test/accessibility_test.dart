@@ -128,6 +128,8 @@ void main() {
     'about': (r) => AboutScreen(reader: r),
     'debug tools': (r) => DebugToolsScreen(reader: r),
     'commentary': (r) => CommentaryScreen(content: content, verse: 226),
+    'commentary sheet': (r) => ReaderScreen(reader: r..setTextMode(true)..openCommentary(226)),
+    'commentary sheet (several verses)': (r) => ReaderScreen(reader: r..setTextMode(true)..openCommentary(231)),
     'compare (phone: pages)': (r) => CompareScreen(content: content, verse: 226),
   };
 

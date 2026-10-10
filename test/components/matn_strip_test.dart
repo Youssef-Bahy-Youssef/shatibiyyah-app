@@ -4,9 +4,11 @@
 // (one verse) or «يشرح الأبيات …» with a chip per verse (a group); then the
 // 24 px khatam and the two hemistichs at 0.92 × the verse size, 94 % wide.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/matn_strip.dart';
+import 'package:shatibiyyah/ui/design/components/phrase_wash.dart';
 import 'package:shatibiyyah/ui/design/components/rubric.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -77,10 +79,18 @@ void main() {
       const SizedBox(width: 362, child: MatnStrip(number: '٢٢٦', hemistichs: h226, caption: 'البيت ٢٢٦', highlight: 'صَحِيحٍ')),
       reducedMotion: true,
     );
-    final rich = tester.widgetList<RichText>(find.descendant(of: find.byType(MatnStrip), matching: find.byType(RichText)))
-        .firstWhere((r) => r.text.toPlainText() == h226.$2);
-    final mark = (rich.text as TextSpan).children!.cast<TextSpan>().firstWhere((s) => s.text == 'صَحِيحٍ');
-    expect(mark.style!.backgroundColor, TzColors.paper.giltWash);
+    // The second hemistich has the phrase: a rounded wash behind its words, 2 px wider all round.
+    final washes = tester.widgetList<PhraseWash>(find.descendant(of: find.byType(MatnStrip), matching: find.byType(PhraseWash))).toList();
+    final at = h226.$2.indexOf('صَحِيحٍ');
+    expect([for (final w in washes) w.range], [null, (start: at, end: at + 'صَحِيحٍ'.length)]);
+    expect(washes[1].color, TzColors.paper.giltWash);
+    final box = tester.renderObject(find.byWidget(washes[1])) as dynamic;
+    final wash = (box.washes as List<RRect>).single;
+    final words = tester.renderObject<RenderParagraph>(find.descendant(of: find.byWidget(washes[1]), matching: find.byType(RichText)));
+    final glyphs = words.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 'صَحِيحٍ'.length)).first.toRect();
+    expect(wash.left, closeTo(glyphs.left - 2, 0.01));
+    expect(wash.right, closeTo(glyphs.right + 2, 0.01));
+    expect(wash.tlRadiusX, 6.0);
     await expectInstant(tester);
   });
 }

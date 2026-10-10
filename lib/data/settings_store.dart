@@ -54,6 +54,11 @@ class SettingsStore {
   String? get nightInk => prefs.getString(kNightInkPref);
   set nightInk(String? id) => id == null ? prefs.remove(kNightInkPref) : prefs.setString(kNightInkPref, id);
 
+  /// The commentary last read (ADR 0018), or null before any.
+  String? get commentaryBook => prefs.getString('v2.commentary.book');
+  set commentaryBook(String? id) =>
+      id == null ? prefs.remove('v2.commentary.book') : prefs.setString('v2.commentary.book', id);
+
   bool get textMode => prefs.getString('v2.reader.view') == 'text';
   set textMode(bool on) => prefs.setString('v2.reader.view', on ? 'text' : 'scan');
 

@@ -30,22 +30,32 @@ class BindingStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
-    return Container(
-      key: bindingKey,
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(color: c.cover, borderRadius: BorderRadius.circular(22), boxShadow: c.dock),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _button(c, previous, onPrevious, leading: 'back'),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Khatam(step, size: 30, onCover: true),
-            const SizedBox(width: 8),
-            Text(caption, style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
-          ]),
-          _button(c, next, onNext, trailing: 'fwd'),
-        ],
+    // A fixed-height binding, like the dock: its text follows the system size up
+    // to 1.3×, and each of its three parts shrinks to its share before it overflows.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3)),
+      child: Container(
+        key: bindingKey,
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(color: c.cover, borderRadius: BorderRadius.circular(22), boxShadow: c.dock),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(child: _button(c, previous, onPrevious, leading: 'back')),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Khatam(step, size: 30, onCover: true),
+                  const SizedBox(width: 8),
+                  Text(caption, style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
+                ]),
+              ),
+            ),
+            Flexible(child: _button(c, next, onNext, trailing: 'fwd')),
+          ],
+        ),
       ),
     );
   }
@@ -62,13 +72,16 @@ class BindingStepper extends StatelessWidget {
               child: Container(
                 height: TzSize.touchTarget,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (leading != null) TzIcon(leading, size: 22, color: c.onCover),
-                  if (leading != null) const SizedBox(width: 2),
-                  Text(label, style: TzType.label.copyWith(fontSize: 13.5, color: c.onCover)),
-                  if (trailing != null) const SizedBox(width: 2),
-                  if (trailing != null) TzIcon(trailing, size: 22, color: c.onCover),
-                ]),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (leading != null) TzIcon(leading, size: 22, color: c.onCover),
+                    if (leading != null) const SizedBox(width: 2),
+                    Text(label, style: TzType.label.copyWith(fontSize: 13.5, color: c.onCover)),
+                    if (trailing != null) const SizedBox(width: 2),
+                    if (trailing != null) TzIcon(trailing, size: 22, color: c.onCover),
+                  ]),
+                ),
               ),
             ),
           ),

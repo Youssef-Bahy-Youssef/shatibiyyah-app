@@ -19,7 +19,6 @@ import '../design/components/tz_motion.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../../data/settings_store.dart' show kSplitDefault;
-import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
@@ -30,6 +29,8 @@ import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'chapter_popover.dart';
 import 'display_sheet.dart';
+import '../commentary/commentary_sheet.dart';
+import '../design/components/verse_sheet_surface.dart';
 import 'fixed_page_layout.dart';
 import 'listen_sheet.dart';
 import 'reader_controller.dart';
@@ -50,6 +51,8 @@ class ReaderScreen extends StatefulWidget {
 
   static const folioKey = ValueKey('reader-folio');
   static const backSheetKey = ValueKey('reader-back-sheet');
+  static const explainedRingKey = ValueKey('reader-explained-ring');
+  static const commentaryKey = ValueKey('reader-commentary-sheet');
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -78,14 +81,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // Back closes the verse menu, then the selection, before it leaves the reader
           // (neither is a route).
           builder: (context, _) => PopScope(
-            canPop:
-                reader.menuVerse == null && reader.headingChapter == null && !reader.selecting && !_splitOn(context),
+            canPop: reader.menuVerse == null &&
+                reader.headingChapter == null &&
+                !reader.selecting &&
+                !_splitOn(context) &&
+                reader.commentaryVerse == null,
             onPopInvokedWithResult: (didPop, _) {
               if (didPop) return;
               if (reader.menuVerse != null) {
                 reader.closeMenu();
               } else if (_splitOn(context)) {
                 reader.closeSplit();
+              } else if (reader.commentaryVerse != null) {
+                reader.closeCommentary();
               } else if (reader.headingChapter != null) {
                 reader.closeHeading();
               } else {
@@ -146,6 +154,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  /// «الشرح» from a verse or a chapter: the split on a tablet, the sheet on a phone.
+  void _explain(int verse) => _wide ? reader.openSplit(verse) : reader.openCommentary(verse);
+
+  /// Where the commentary sheet's top stands at rest (handoff commentary-half,
+  /// commentary-page): just under half the screen over the text; 102 px under the
+  /// verse over the page, between a third and half of the screen.
+  double _sheetTop(Size screen, Rect? verse) {
+    final high = screen.height * 300 / 844, low = screen.height * 418 / 844;
+    if (reader.textMode || verse == null) return low;
+    return (verse.bottom + 102).clamp(high, low);
+  }
+
   /// The reader: the page (or text mode), the bars, the menu and the cards.
   Widget _stack(BuildContext context) {
     final reader = widget.reader;
@@ -159,7 +179,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     reader.viewer
       ..night = tz.night
       ..nightInk = tz.nightInk
-      ..showPlaying = reader.audioAvailable && reader.menuVerse == null && reader.headingChapter == null;
+      ..showPlaying = reader.audioAvailable &&
+          reader.menuVerse == null &&
+          reader.headingChapter == null &&
+          // The verse under the commentary sheet shows its ring alone, like a spotlight.
+          (_wide || reader.commentaryVerse != reader.verse);
+    // The commentary sheet (item 3.9): tied to its verse, which stays ringed behind it.
+    final explained = _wide ? null : reader.commentaryVerse;
+    final explainedRect =
+        explained == null || reader.textMode ? null : reader.viewer.viewRectOfVerse(explained)?.shift(layout.page.topLeft);
+    final sheetTop = _sheetTop(mq.size, explainedRect);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -201,7 +230,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
         if (reader.textMode)
           Positioned.fromRect(
             rect: layout.textZone,
-            child: TextReader(key: _text, reader: reader, bottomInset: layout.textInset),
+            child: TextReader(
+              key: _text,
+              reader: reader,
+              // Under the commentary sheet the column ends at the sheet's top.
+              bottomInset: explained == null ? layout.textInset : layout.textZone.bottom - sheetTop + 8,
+            ),
           ),
         if (!reader.chromeVisible && !reader.textMode)
           Positioned(
@@ -226,7 +260,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   onTools: widget.onTools ?? () => showDisplaySheet(context, reader),
                 ),
         ),
-        if (widget.dock case final dock? when !reader.selecting)
+        if (widget.dock case final dock? when !reader.selecting && explained == null)
           Positioned(
             left: ReaderTokens.dockSide,
             right: ReaderTokens.dockSide,
@@ -269,11 +303,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               onPlay: () => reader.playChapter(chapter),
               onExplain: () {
                 reader.closeHeading();
-                if (_wide) {
-                  reader.openSplit(chapter.fromVerse);
-                } else {
-                  CommentaryScreen.open(context, reader.content, chapter.fromVerse);
-                }
+                _explain(chapter.fromVerse);
               },
               onDownload: reader.library == null
                   ? null
@@ -328,8 +358,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
             return b == null ? null : kBookmarkTagLabels[b.tag];
           },
           hasNote: (v) => reader.personal?.noteFor(v) != null,
-          onExplain: _wide ? reader.openSplit : null,
+          onExplain: _explain,
         ),
+        if (explainedRect != null)
+          Positioned.fromRect(
+            key: ReaderScreen.explainedRingKey,
+            rect: VerseRing.around(explainedRect),
+            child: VerseRing(
+              color: tz.night ? tz.nightInk.accent : c.lapis,
+              tint: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : null,
+            ),
+          ),
+        if (explained != null)
+          Positioned.fill(
+            child: CommentarySheet(
+              key: ReaderScreen.commentaryKey,
+              reader: reader,
+              half: (mq.size.height - sheetTop) / mq.size.height,
+              notchX: mq.size.width / 2,
+              // A verse low on the page is behind the sheet: the strip carries it.
+              verseVisible: reader.textMode || explainedRect == null || explainedRect.bottom <= sheetTop - 8,
+              legend: reader.textMode,
+            ),
+          ),
       ],
     );
   }

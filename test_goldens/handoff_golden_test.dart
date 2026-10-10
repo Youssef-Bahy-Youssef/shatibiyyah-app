@@ -13,6 +13,7 @@ import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
+import 'package:shatibiyyah/ui/design/components/commentary_inline.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/share_controls.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
@@ -89,6 +90,34 @@ Future<void> _share(WidgetTester tester, HandoffContent d, int from, int to, {St
   }
 }
 
+/// «الشرح» open on [verse] as a sheet: at rest, or at [full] height with the
+/// quotation [chip] of the verse lit in the matn strip.
+Future<void> _commentary(WidgetTester tester, ReaderController r, HandoffContent d,
+    {int verse = 226, bool text = true, String? book, bool full = false, String? chip}) async {
+  Future<void> loaded() async {
+    for (var i = 0; i < 8; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+  }
+
+  r.setTextMode(text);
+  if (book != null) r.setCommentaryBook(d.content.books.books.firstWhere((b) => b.shortTitle == book).id);
+  await tester.pump(const Duration(milliseconds: 400));
+  r.openCommentary(verse);
+  await loaded();
+  if (full) {
+    await tester.tap(find.byTooltip('ملء الشاشة'));
+    await loaded();
+  }
+  if (chip == null) return;
+  final quote = find.byWidgetPredicate((w) => w is QuoteChip && w.words == chip);
+  await tester.ensureVisible(quote);
+  await tester.pump();
+  await tester.tap(quote);
+  await loaded();
+}
+
 final Map<String, _State> _states = {
   'reader-playing': (
     tab: DockTab.matn,
@@ -152,6 +181,31 @@ final Map<String, _State> _states = {
     setup: (tester, _, d) => _share(tester, d, 226, 226, format: 'قصة', excerpt: true)
   ),
   'share-ten': (tab: DockTab.matn, audio: true, download: null, setup: (tester, _, d) => _share(tester, d, 235, 244)),
+  'commentary-half': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, d) => _commentary(tester, r, d)),
+  'commentary-page': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, d) => _commentary(tester, r, d, text: false)
+  ),
+  'commentary-full': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, d) => _commentary(tester, r, d, full: true, chip: 'مسهلا')
+  ),
+  'commentary-grouped': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, d) => _commentary(tester, r, d, verse: 231, full: true, chip: 'والبدء بالأصل فضّلا')
+  ),
+  'commentary-siraj': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, d) => _commentary(tester, r, d, book: 'سراج القارئ', full: true)
+  ),
   'settings-main': (tab: DockTab.settings, audio: false, download: null, setup: _nothing),
   'settings-picker': (
     tab: DockTab.settings,

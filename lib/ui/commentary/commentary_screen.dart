@@ -18,6 +18,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/app_content.dart';
 import '../../data/commentary_repository.dart';
+import '../../data/settings_store.dart' show kDefaultVerseSize;
 import '../design/tokens.g.dart';
 import '../design/tz_type.dart';
 import '../../utils/arabic.dart';
@@ -265,7 +266,8 @@ class _CommentaryPaneState extends State<CommentaryPane> {
     if (view == null) {
       return Center(child: CircularProgressIndicator(color: t.gold));
     }
-    final parts = CommentaryParts(context, t, scale: widget.textScale);
+    final parts = CommentaryParts(context,
+        verseSize: kDefaultVerseSize * widget.textScale, quran: view.quran, quotes: view.quotes);
     final language = view.language;
     final shown = _language && language.isNotEmpty ? language : view.main;
     final items = <Widget>[

@@ -14,6 +14,7 @@ import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'khatam.dart';
 import 'rubric.dart';
+import 'tap_reach.dart';
 import 'verse_unit.dart';
 
 class MatnStrip extends StatelessWidget {
@@ -29,8 +30,10 @@ class MatnStrip extends StatelessWidget {
   final int current;
   final ValueChanged<int>? onVerse;
 
-  /// A phrase of the verse washed in gilt (the matn quote being read).
+  /// A phrase of the verse washed in gilt (the matn quote being read), and the
+  /// hemistich it is in (1 or 2; either when null).
   final String? highlight;
+  final int? highlightHemistich;
   final double verseSize;
 
   const MatnStrip({
@@ -43,6 +46,7 @@ class MatnStrip extends StatelessWidget {
     this.current = 0,
     this.onVerse,
     this.highlight,
+    this.highlightHemistich,
     this.verseSize = kVerseSize,
   });
 
@@ -77,18 +81,18 @@ class MatnStrip extends StatelessWidget {
                 children: [
                   Hemistich(
                     text: hemistichs.$1,
-                    rubrics: rubrics,
+                    rubrics: rubricsOf(rubrics, 1),
                     style: style,
                     widthFactor: 0.94,
-                    highlight: highlight,
+                    highlight: highlightHemistich == 2 ? null : highlight,
                   ),
                   Hemistich(
                     text: hemistichs.$2,
-                    rubrics: rubrics,
+                    rubrics: rubricsOf(rubrics, 2),
                     style: style,
                     widthFactor: 0.94,
                     atEnd: true,
-                    highlight: highlight,
+                    highlight: highlightHemistich == 1 ? null : highlight,
                   ),
                 ],
               ),
@@ -135,40 +139,46 @@ class MatnStrip extends StatelessWidget {
     );
   }
 
+  /// How far a verse chip's target overhangs its pill on each side: a three-digit
+  /// pill is 37 px wide, its target 48.
+  static const double _chipReach = 5.5;
+
   Widget _chip(TzColors c, int i, String label) {
     final on = i == current;
-    return MergeSemantics(
-      child: Semantics(
-        button: true,
-        selected: on,
-        label: 'البيت $label',
-        child: InkWell(
-          onTap: onVerse == null ? null : () => onVerse!(i),
-          borderRadius: BorderRadius.circular(TzRadius.pill),
-          // A 48 px target around the 32 px pill (narrow pills get a wider target, so wider gaps).
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: TzSize.touchTarget, minHeight: TzSize.touchTarget),
-            child: Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: Container(
-                key: ValueKey('matn-chip-$i'),
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: on ? c.action : c.surface,
-                  borderRadius: BorderRadius.circular(TzRadius.pill),
-                ),
-                child: ExcludeSemantics(
-                  child: Center(
-                    widthFactor: 1,
-                    child: Text(
-                      label,
-                      style: TzType.caption.copyWith(
-                        fontWeight: FontWeight.w600,
-                        height: 1,
-                        color: on ? c.onAction : c.ink2,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+    // The pills stand 6 px apart as drawn; each target overhangs its pill to 48 px.
+    return TapReach(
+      reach: _chipReach,
+      child: MergeSemantics(
+        child: Semantics(
+          button: true,
+          selected: on,
+          label: 'البيت $label',
+          child: InkWell(
+            onTap: onVerse == null ? null : () => onVerse!(i),
+            borderRadius: BorderRadius.circular(TzRadius.pill),
+            // A 48 px target around the 32 px pill.
+            child: Container(
+              constraints: const BoxConstraints(minWidth: TzSize.touchTarget, minHeight: TzSize.touchTarget),
+              padding: const EdgeInsets.symmetric(horizontal: _chipReach),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Container(
+                  key: ValueKey('matn-chip-$i'),
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(color: on ? c.action : c.surface, borderRadius: BorderRadius.circular(TzRadius.pill)),
+                  child: ExcludeSemantics(
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text(
+                        label,
+                        style: TzType.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          height: 1,
+                          color: on ? c.onAction : c.ink2,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                   ),
