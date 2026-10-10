@@ -1,11 +1,12 @@
-// lib/ui/reader/reader_screen.dart — the v3 reader: the page, the top bar and the player.
+// lib/ui/reader/reader_screen.dart — the reader: the page and the top bar.
 //
-// features-v3: fixed-page-layout, immersive-mode, page-header-info, mini-bar,
-// now-playing-medallion, detach-resume-chip. The page sits in a rectangle computed
-// once (ReaderLayout); the bar and the player fade over their reserved zones
-// (show 180 ms cubic(.2,0,0,1) with −6 / +8 px of travel, hide 150 ms
-// cubic(.4,0,1,1), reduced motion: opacity only in 100 ms), so nothing ever moves
-// or covers the page.
+// features-v3: fixed-page-layout, immersive-mode, page-header-info,
+// detach-resume-chip. The page sits in a rectangle computed once (ReaderLayout)
+// between the top bar's zone and the dock's; the top bar fades over its zone
+// (show 180 ms cubic(.2,0,0,1) with −6 px of travel, hide 150 ms cubic(.4,0,1,1),
+// reduced motion: opacity only in 100 ms), so nothing ever moves or covers the
+// page. The dock itself, with now playing and the tabs, is the shell's
+// (lib/ui/shell/app_shell.dart, item 3.4); the selection bar takes its zone.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -18,8 +19,6 @@ import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
 import '../search/search_screen.dart';
 import '../share/share_sheet.dart';
-import '../shell/app_drawer.dart';
-import '../shell/downloads_screen.dart';
 import '../study/study_sheets.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
@@ -36,11 +35,10 @@ const _hideCurve = Cubic(.4, 0, 1, 1);
 
 class ReaderScreen extends StatefulWidget {
   final ReaderController reader;
-  final VoidCallback? onMenu;
   final VoidCallback? onSearch;
   final VoidCallback? onTools;
 
-  const ReaderScreen({super.key, required this.reader, this.onMenu, this.onSearch, this.onTools});
+  const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools});
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -48,7 +46,6 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   final _text = GlobalKey<TextReaderState>();
-  final _scaffold = GlobalKey<ScaffoldState>();
 
   ReaderController get reader => widget.reader;
 
@@ -63,9 +60,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        key: _scaffold,
         backgroundColor: t.bg,
-        drawer: AppDrawer(reader: reader),
         body: DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
@@ -204,26 +199,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ? _SelectionHeader(reader: reader)
               : _TopBar(
                   reader: reader,
-                  onMenu: widget.onMenu ?? () => _scaffold.currentState?.openDrawer(),
                   onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
                   onTools: widget.onTools ?? () => showToolsSheet(context, reader),
                 ),
         ),
-        // While selecting, the player makes way for the selection bar.
-        _Chrome(
-          rect: layout.player,
-          visible: reader.chromeVisible && !reader.selecting,
-          travel: 8,
-          child: _PlayerBar(
-            reader: reader,
-            onOpen: () => reader.audioAvailable || reader.library == null
-                ? showToolsSheet(context, reader, tab: ToolsTab.audio)
-                : DownloadsScreen.open(context, reader.library!),
-          ),
-        ),
+        // While selecting, the selection bar takes the dock's zone.
         if (reader.selecting)
           _Chrome(
-            rect: layout.player,
+            rect: layout.dock,
             visible: reader.selectionComplete,
             travel: 8,
             child: _SelectionActions(reader: reader),
@@ -239,7 +222,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Positioned(
             left: 0,
             right: 0,
-            top: layout.player.top - 24,
+            top: layout.dock.top - 24,
             child: Center(child: _ResumeChip(reader: reader)),
           ),
         if (reader.headingChapter != null) ...[
@@ -261,7 +244,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Positioned(
             left: 16,
             right: 16,
-            bottom: mq.size.height - layout.player.top + 16,
+            bottom: mq.size.height - layout.dock.top + 16,
             child: IgnorePointer(child: Center(child: _Notice(text: reader.notice!))),
           ),
         VerseMenu(
@@ -596,8 +579,8 @@ class _Chrome extends StatelessWidget {
 
 class _TopBar extends StatelessWidget {
   final ReaderController reader;
-  final VoidCallback? onMenu, onSearch, onTools;
-  const _TopBar({required this.reader, this.onMenu, this.onSearch, this.onTools});
+  final VoidCallback? onSearch, onTools;
+  const _TopBar({required this.reader, this.onSearch, this.onTools});
 
   @override
   Widget build(BuildContext context) {
@@ -622,7 +605,7 @@ class _TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          icon(LucideIcons.menu, 'القائمة', onMenu),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -645,185 +628,6 @@ class _TopBar extends StatelessWidget {
           icon(LucideIcons.search, 'بحث وانتقال', onSearch),
           icon(LucideIcons.slidersHorizontal, 'أدوات العرض والصوت', onTools),
         ],
-      ),
-    );
-  }
-}
-
-class _PlayerBar extends StatelessWidget {
-  final ReaderController reader;
-  final VoidCallback? onOpen;
-  const _PlayerBar({required this.reader, this.onOpen});
-
-  @override
-  Widget build(BuildContext context) {
-    // Download progress comes from the library, not the reader.
-    final library = reader.library;
-    return library == null ? _bar(context) : AnimatedBuilder(animation: library, builder: (context, _) => _bar(context));
-  }
-
-  Widget _bar(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final chapter = reader.chapter;
-    final audio = reader.audioAvailable;
-    final repeats = reader.settings.verseRepeats;
-    final sections = reader.settings.sectionRepeats;
-    final library = reader.library;
-    final downloading = library?.isDownloading(reader.recording) ?? false;
-    final progress = library?.progressOf(reader.recording);
-    final String line1, line2;
-    if (!audio) {
-      line1 = downloading && progress != null
-          ? 'تُنزَّل التلاوة ${ar((progress.fraction * 100).floor())}٪'
-          : 'التلاوة غير منزّلة بعد';
-      line2 = downloading ? reader.recording.reciterName : 'المتن والشروح تعمل دون تنزيل';
-    } else if (reader.playing) {
-      line1 = reader.inTitle ? chapter.shortLabel : 'البيت ${ar(reader.verse)} من ${ar(chapter.toVerse)}';
-      line2 = reader.recording.reciterName;
-    } else {
-      line1 = 'متوقّف · البيت ${ar(reader.verse)}';
-      line2 = reader.recording.reciterName;
-    }
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: t.panel,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: t.line),
-        boxShadow: t.float,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 12, 4),
-            child: Row(
-              children: [
-                if (audio)
-                  Shamsa(
-                    size: 50,
-                    verse: reader.verse,
-                    playing: reader.playing,
-                    chip: (repeats == null || repeats > 1) && reader.playing
-                        ? 'البيت ${ar(reader.verseRepetition)}/${repeats == null ? '∞' : ar(repeats)}'
-                        : null,
-                    ring: (sections == null || sections > 1) ? reader.sectionRepetition / (sections ?? 1) : null,
-                  )
-                else
-                  // The single «تنزيل» button of the no-audio player (features-v3 audio-downloads).
-                  Semantics(
-                    button: true,
-                    label: 'التنزيلات',
-                    child: GestureDetector(
-                      onTap: onOpen,
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration:
-                            BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.gold, width: 1.5)),
-                        child: Icon(LucideIcons.download, size: 22, color: t.goldText),
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onOpen,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 50), // as tall as the shamsa beside it
-                      child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(line1,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TzType.label.copyWith(color: t.text)),
-                        Text(line2,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TzType.caption.copyWith(color: t.muted)),
-                      ],
-                    ),
-                    ),
-                  ),
-                ),
-                if (audio) _Transport(reader: reader),
-              ],
-            ),
-          ),
-          if (audio) _ScopeProgress(reader: reader),
-        ],
-      ),
-    );
-  }
-}
-
-class _Transport extends StatelessWidget {
-  final ReaderController reader;
-  const _Transport({required this.reader});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    Widget step(IconData icon, String label, VoidCallback onTap) => IconButton(
-          tooltip: label,
-          onPressed: onTap,
-          icon: Icon(icon, size: 20, color: t.goldText),
-          constraints: const BoxConstraints.tightFor(width: 44, height: 48),
-        );
-    return Directionality(
-      textDirection: TextDirection.ltr, // transport and scrubber stay left-to-right
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        step(LucideIcons.skipBack, 'البيت السابق', reader.previous),
-        Semantics(
-          button: true,
-          label: reader.playing ? 'إيقاف مؤقت' : 'تشغيل',
-          excludeSemantics: true,
-          child: GestureDetector(
-            onTap: reader.playPause,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [t.goldBright, t.gold]),
-                boxShadow: [BoxShadow(color: t.gold.withValues(alpha: 0.5), blurRadius: 18, offset: const Offset(0, 6))],
-              ),
-              child: Icon(reader.playing ? LucideIcons.pause : LucideIcons.play, size: 22, color: t.onGold),
-            ),
-          ),
-        ),
-        step(LucideIcons.skipForward, 'البيت التالي', reader.next),
-      ]),
-    );
-  }
-}
-
-/// Where playback is inside the current chapter (verse-based; exact scrubbing arrives with the tools sheet).
-class _ScopeProgress extends StatelessWidget {
-  final ReaderController reader;
-  const _ScopeProgress({required this.reader});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final c = reader.chapter;
-    final fraction = ((reader.verse - c.fromVerse + 0.4) / c.verseCount).clamp(0.0, 1.0);
-    return Semantics(
-      label: 'موضع التلاوة في الباب',
-      value: '${ar(reader.verse - c.fromVerse + 1)} من ${ar(c.verseCount)}',
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(value: fraction, minHeight: 4, color: t.gold, backgroundColor: t.line),
-          ),
-        ),
       ),
     );
   }

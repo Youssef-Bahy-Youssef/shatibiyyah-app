@@ -12,7 +12,9 @@ import '../../data/matn_repository.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
+import '../design/components/dock.dart' show DockTab;
 import '../reader/reader_controller.dart';
+import 'app_shell.dart';
 import 'shell_page.dart';
 
 class IndexScreen extends StatefulWidget {
@@ -37,6 +39,7 @@ class _IndexScreenState extends State<IndexScreen> {
 
   void _open(MatnChapter c) {
     widget.reader.tapVerse(c.fromVerse);
+    AppShell.of(context)?.select(DockTab.matn);
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
@@ -46,10 +49,12 @@ class _IndexScreenState extends State<IndexScreen> {
     final part = _matn.parts[_part];
     final chapters = _matn.chapters.where((c) => c.partId == part.id).toList();
     final current = _matn.chapterOfVerse(widget.reader.verse);
-    return ShellPage(
+    return ShellPage.topLevel(
       title: 'الفهرس',
+      trailing: Text('${chaptersCount(_matn.chapters.length)} · ${versesCount(_matn.lastVerse)}',
+          maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.caption.copyWith(color: t.muted)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
+        padding: EdgeInsets.fromLTRB(14, 8, 14, 24 + ShellInset.of(context)),
         children: [
           SizedBox(
             height: 40,

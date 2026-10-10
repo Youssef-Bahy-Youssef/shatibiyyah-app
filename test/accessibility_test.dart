@@ -31,7 +31,8 @@ import 'package:shatibiyyah/ui/shell/about_screen.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
 import 'package:shatibiyyah/ui/shell/debug_tools_screen.dart';
 import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
-import 'package:shatibiyyah/ui/shell/home_screen.dart';
+import 'package:shatibiyyah/ui/shell/app_shell.dart';
+import 'package:shatibiyyah/ui/shell/saved_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
@@ -113,9 +114,9 @@ void main() {
   }
 
   final screens = <String, Widget Function(ReaderController)>{
-    'reader': (r) => ReaderScreen(reader: r),
+    'reader': (r) => AppShell(reader: r),
     'reader (text mode)': (r) => ReaderScreen(reader: r..setTextMode(true)),
-    'home': (r) => HomeScreen(reader: r),
+    'saved': (r) => SavedScreen(reader: r),
     'index': (r) => IndexScreen(reader: r),
     'search': (r) => SearchScreen(reader: r),
     'settings': (r) => SettingsScreen(reader: r),

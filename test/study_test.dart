@@ -15,7 +15,7 @@ import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
-import 'package:shatibiyyah/ui/shell/home_screen.dart';
+import 'package:shatibiyyah/ui/shell/saved_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -143,7 +143,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('home: continue card, then bookmarks and notes, each opening its verse', (tester) async {
+  testWidgets('saved: bookmarks and notes, each opening its verse', (tester) async {
     final (r, personal) = await open(tester);
     await tester.runAsync(() async {
       await personal.saveBookmark(229, color: BookmarkColor.green, tag: BookmarkTag.muraja);
@@ -151,22 +151,20 @@ void main() {
     });
     await tester.pumpWidget(MaterialApp(
       theme: tzThemeData(TzTheme.dark),
-      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
+      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => SavedScreen(reader: r))),
     ));
     await tester.pump();
-    expect(find.text('تابع من حيث توقفت'), findsOneWidget);
-    expect(find.text('البيت ٢٢٦، ص ١٩'), findsOneWidget);
-    expect(find.text('المراجع (١)'), findsOneWidget);
-    expect(find.text('الملاحظات (١)'), findsOneWidget);
+    expect(find.text('المراجع ١'), findsOneWidget);
+    expect(find.text('الملاحظات ١'), findsOneWidget);
     expect(find.text('مراجعة'), findsOneWidget); // the tag
 
-    await tester.tap(find.text('الملاحظات (١)'));
+    await tester.tap(find.text('الملاحظات ١'));
     await tester.pump();
     expect(find.text('قارن بالوافي'), findsOneWidget);
 
     expect(find.text('السجل'), findsNothing); // the history tab is gone (ADR 0008)
 
-    await tester.tap(find.text('المراجع (١)'));
+    await tester.tap(find.text('المراجع ١'));
     await tester.pump();
     await tester.tap(find.text('البيت ٢٢٩'));
     await tester.pump();
@@ -193,7 +191,7 @@ void main() {
     await tester.tap(find.text('حذف'));
     await settle(tester);
     expect(personal.bookmarks, isEmpty);
-    expect(find.text('أُزيل المرجع'), findsOneWidget);
+    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
     expect(find.text('تراجع'), findsOneWidget);
     await unmount(tester);
   });
@@ -218,7 +216,7 @@ void main() {
   Future<void> openHome(WidgetTester tester, ReaderController r) async {
     await tester.pumpWidget(MaterialApp(
       theme: tzThemeData(TzTheme.dark),
-      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
+      home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => SavedScreen(reader: r))),
     ));
     await tester.pump();
   }
@@ -232,7 +230,7 @@ void main() {
     await settle(tester);
     expect(personal.bookmarks, isEmpty);
     expect(find.text('لا مراجع بعد'), findsOneWidget);
-    expect(find.text('أُزيل المرجع'), findsOneWidget);
+    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
 
     await tester.tap(find.text('تراجع'));
     await settle(tester);
@@ -247,7 +245,7 @@ void main() {
     await tester.tap(find.text('حذف'));
     await settle(tester);
     expect(personal.bookmarks, isEmpty);
-    expect(find.text('أُزيل المرجع'), findsOneWidget);
+    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
     await tester.pump(const Duration(seconds: 6)); // the undo lasts 5 s
     await tester.pumpAndSettle();
     expect(find.text('تراجع'), findsNothing);
@@ -311,23 +309,23 @@ void main() {
     await tester.tap(find.text('حذف'));
     await settle(tester);
     expect(find.text('تعذّر الحفظ'), findsOneWidget); // the sheet is still open
-    expect(find.text('أُزيل المرجع'), findsNothing);
+    expect(find.textContaining('أُزيل المرجع'), findsNothing);
     expect(personal.bookmarks.single.uuid, before.uuid); // still there, ribbon included
     expect(personal.ribbons.containsKey(226), isTrue); // the ribbon sits on the bookmark's first verse
     await unmount(tester);
   });
 
-  testWidgets('home: empty states say how to add', (tester) async {
+  testWidgets('saved: empty states say how to add', (tester) async {
     final (r, _) = await open(tester);
     await tester.pumpWidget(MaterialApp(
       theme: tzThemeData(TzTheme.dark),
-      home: HomeScreen(reader: r),
+      home: SavedScreen(reader: r),
     ));
     await tester.pump();
     expect(find.text('لا مراجع بعد'), findsOneWidget);
-    await tester.tap(find.text('الملاحظات (٠)'));
+    await tester.tap(find.text('الملاحظات ٠'));
     await tester.pump();
-    expect(find.text('لا ملاحظات بعد'), findsOneWidget);
+    expect(find.text('لم تكتب ملاحظة بعد'), findsOneWidget);
     await unmount(tester);
   });
 
