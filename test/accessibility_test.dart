@@ -36,7 +36,9 @@ import 'package:shatibiyyah/ui/shell/saved_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
+import 'package:shatibiyyah/ui/shell/night_ink_sheet.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
+import 'package:shatibiyyah/ui/shell/text_size_sheet.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -203,6 +205,8 @@ void main() {
     'tools sheet (more)': (c, r) => showToolsSheet(c, r, tab: ToolsTab.more),
     'listen sheet': (c, r) => showListenSheet(c, r, 229),
     'verse menu': (c, r) async => r.openMenu(229),
+    'night-ink picker': (c, r) => showNightInkSheet(c, r),
+    'text-size sheet': (c, r) => showTextSizeSheet(c, r),
   };
   for (final MapEntry(key: name, value: open) in sheets.entries) {
     testWidgets('$name: labelled tap targets of 48 × 48 or more; 200 % text fits', (tester) async {

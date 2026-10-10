@@ -209,13 +209,15 @@ void main() {
     await open(tester);
     await tester.tap(find.text('الإعدادات'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('التنبيهات'), 200); // the last row, under the dock
+    await tester.pumpAndSettle();
     await tester.tap(find.text('التنبيهات'));
     await tester.pumpAndSettle();
     expect(find.text('قريبًا في تحديث قادم'), findsOneWidget);
     await tester.tap(find.byTooltip('رجوع'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
-    await tester.tap(find.text('حول التطبيق'));
+    await tester.tap(find.text('حول تيسير الشاطبية'));
     await tester.pumpAndSettle();
     expect(find.byType(AboutScreen), findsOneWidget);
     expect(find.text(versionLabel(kAppVersion)), findsOneWidget);

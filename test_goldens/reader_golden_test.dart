@@ -29,6 +29,7 @@ import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart' show DockTab;
+import 'package:shatibiyyah/ui/design/components/night_crop.dart';
 import 'package:shatibiyyah/app/reminders.dart';
 import 'package:shatibiyyah/services/notifications.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
@@ -306,8 +307,13 @@ void main() {
         tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
         addTearDown(tester.view.reset);
         SharedPreferences.setMockInitialValues({});
+        // This reader has no settings store: what «المظهر» shows is set here, not left by an earlier test.
         appTheme.value = theme;
-        addTearDown(() => appTheme.value = ReaderTheme.dark);
+        appThemeChoice.value = theme == ReaderTheme.paper ? ThemeChoice.paper : ThemeChoice.night;
+        addTearDown(() {
+          appTheme.value = ReaderTheme.dark;
+          appThemeChoice.value = ThemeChoice.auto;
+        });
         late ReaderController r;
         await tester.runAsync(() async {
           final prefs = await Prefs.create();
@@ -325,6 +331,9 @@ void main() {
           theme: tzThemeData(tzThemeFor(theme)),
           home: screen == 'settings' ? AppShell(reader: r, initialTab: DockTab.settings) : BackupScreen(reader: r),
         ));
+        // «لون الحبر الليلي» shows a crop of a scanned page: decode it for real, whatever ran before.
+        final home = tester.element(find.byType(screen == 'settings' ? AppShell : BackupScreen));
+        await tester.runAsync(() => precacheImage(const AssetImage(NightCrop.page), home));
         await tester.pumpAndSettle();
         await expectLater(find.byType(screen == 'settings' ? AppShell : BackupScreen),
             matchesGoldenFile('goldens/$name.png'));

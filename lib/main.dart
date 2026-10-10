@@ -67,14 +67,40 @@ void applyOrientationPolicy() {
 /// The shortest side (dp) from which the device counts as a tablet.
 const double kTabletShortestSide = 600;
 
-class ShatibiyyahApp extends StatelessWidget {
+class ShatibiyyahApp extends StatefulWidget {
   const ShatibiyyahApp({super.key});
 
   @override
+  State<ShatibiyyahApp> createState() => _ShatibiyyahAppState();
+}
+
+class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    applyThemeChoice(appThemeChoice.value); // the splash is already in the system's palette
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// «تلقائي» follows the system as it changes, the app open or not.
+  @override
+  void didChangePlatformBrightness() => applyThemeChoice(appThemeChoice.value);
+
+  @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ReaderTheme>(
-      valueListenable: appTheme,
-      builder: (context, theme, _) => MaterialApp(
+    return ListenableBuilder(
+      listenable: Listenable.merge([appTheme, appNightInk]),
+      builder: (context, _) => _app(appTheme.value),
+    );
+  }
+
+  Widget _app(ReaderTheme theme) => MaterialApp(
         title: 'تيسير الشاطبية',
         navigatorKey: appNavigator,
         debugShowCheckedModeBanner: false,
@@ -86,16 +112,14 @@ class ShatibiyyahApp extends StatelessWidget {
           GlobalCupertinoLocalizations.delegate,
         ],
         // The one theme source: the tokens (item 3.1).
-        theme: tzThemeData(tzThemeFor(theme)),
+        theme: tzThemeData(tzThemeFor(theme, ink: appNightInk.value)),
         // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
           child: Directionality(textDirection: TextDirection.rtl, child: child!),
         ),
         home: const _Boot(),
-      ),
-    );
-  }
+      );
 }
 
 /// Boot: open the content and build the reader under the launch splash.

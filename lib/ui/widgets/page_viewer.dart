@@ -14,6 +14,7 @@ import '../../models/playback_settings.dart' show K, clampd;
 import '../../services/data_service.dart';
 import '../../services/preferences_service.dart';
 import '../design/dashed.dart';
+import '../design/night_page.dart';
 import '../design/tokens.g.dart';
 
 const double _pageW = 1130;
@@ -468,13 +469,8 @@ class PageViewerController extends ChangeNotifier {
     return Rect.lerp(from, to, TzMotion.emphasized.transform(t))!;
   }
 
-  /// The night page's colour matrix for ColorFilter.matrix: the ink's 4×5 matrix
-  /// from the tokens (ADR 0020), its colour rows scaled by [brightness]. The
-  /// tokens hold an SVG feColorMatrix, whose offset column is on a 0…1 scale;
-  /// Flutter's is on 0…255.
-  static List<double> nightPageMatrix(TzNightInk ink, double brightness) => [
-        for (var i = 0; i < 20; i++) ink.matrix[i] * (i % 5 == 4 ? 255 : 1) * (i < 15 ? brightness : 1),
-      ];
+  /// The night page's colour matrix in [ink] at [brightness] (design/night_page.dart).
+  static List<double> nightPageMatrix(TzNightInk ink, double brightness) => nightInkMatrix(ink, brightness: brightness);
 
   // ── hit-testing (ported: _imageCoords / _hitVerse / _hitChapter / _handleTap) ──
   ({double ix, double iy}) _imageCoords(Offset local) {

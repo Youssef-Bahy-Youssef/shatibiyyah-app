@@ -8,7 +8,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
+import 'package:shatibiyyah/ui/design/app_theme.dart';
+import 'package:shatibiyyah/ui/design/components/dock.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
@@ -16,16 +20,28 @@ import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import '../test/handoff/fixtures.dart';
 import 'golden_fonts.dart';
 
-/// A state of the handoff: whether a recording is on the device, and what to do
-/// to the reader before the shot.
-typedef _State = ({bool audio, Future<void> Function(WidgetTester, ReaderController, HandoffContent) setup});
+/// A state of the handoff: the tab it is on, whether a recording is on the device,
+/// and what to do before the shot.
+typedef _State = ({DockTab tab, bool audio, Future<void> Function(WidgetTester, ReaderController, HandoffContent) setup});
+
+Future<void> _nothing(WidgetTester _, ReaderController _, HandoffContent _) async {}
 
 final Map<String, _State> _states = {
-  'reader-playing': (audio: true, setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))),
-  'reader-none': (audio: false, setup: (_, _, _) async {}),
-  'verse': (audio: true, setup: (_, r, _) async => r.openMenu(229)),
-  'heading': (audio: true, setup: (_, r, d) async => r.openHeading(d.content.matn.chapters.indexWhere((c) => c.fromVerse == 226))),
+  'reader-playing': (tab: DockTab.matn, audio: true, setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))),
+  'reader-none': (tab: DockTab.matn, audio: false, setup: _nothing),
+  'verse': (tab: DockTab.matn, audio: true, setup: (_, r, _) async => r.openMenu(229)),
+  'heading': (
+    tab: DockTab.matn,
+    audio: true,
+    setup: (_, r, d) async => r.openHeading(d.content.matn.chapters.indexWhere((c) => c.fromVerse == 226))
+  ),
+  'settings-main': (tab: DockTab.settings, audio: false, setup: _nothing),
+  'settings-picker': (tab: DockTab.settings, audio: false, setup: (tester, _, _) => tester.tap(find.text(TzNightPage.pickerTitle))),
 };
+
+/// The night states the handoff shows once per ink (screens/inks/): the page in
+/// the ink, the chosen verse's ring, and the picker with that ink chosen.
+const List<String> _inkStates = ['reader-playing', 'verse', 'settings-picker'];
 
 void main() {
   final data = HandoffContent();
@@ -38,44 +54,65 @@ void main() {
   });
   tearDownAll(data.close);
 
-  for (final MapEntry(key: state, value: spec) in _states.entries) {
-    for (final (theme, tz) in [('paper', TzTheme.paper), ('night', TzTheme.dark)]) {
-      final name = '$state-$theme';
-      testWidgets(name, (tester) async {
-        tester.view.physicalSize = const Size(390, 844);
-        tester.view.devicePixelRatio = 1;
-        tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
-        addTearDown(tester.view.reset);
-        // Shadows with their blur, as on a device (flutter_test draws them flat by default).
-        debugDisableShadows = false;
-        final r = await data.reader(tester, audio: spec.audio);
-        await tester.pumpWidget(RepaintBoundary(
-          key: boundary,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: tzThemeData(tz),
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: true),
-              child: Directionality(textDirection: TextDirection.rtl, child: child!),
-            ),
-            home: AppShell(reader: r),
-          ),
-        ));
-        // The scanned page is an asset image: decode it for real, then draw.
-        await tester.runAsync(
-            () => precacheImage(const AssetImage('assets/pages/page019.webp'), tester.element(find.byType(AppShell))));
-        await spec.setup(tester, r, data);
-        for (var i = 0; i < 8; i++) {
-          await tester.pump(const Duration(milliseconds: 60));
-        }
-        // At 2×, as the handoff's images are.
-        final ui.Image image = (await tester.runAsync(
-            () => (boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio: 2)))!;
-        await expectLater(image, matchesGoldenFile('goldens/handoff/$name.png'));
-        debugDisableShadows = true;
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump(const Duration(seconds: 3));
-      });
+  /// Pumps [state] in [tz] and compares it, at 2× as the handoff's images are, with goldens/handoff/[name].png.
+  Future<void> shoot(WidgetTester tester, String name, _State state, TzTheme tz) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
+    addTearDown(tester.view.reset);
+    // Shadows with their blur, as on a device (flutter_test draws them flat by default).
+    debugDisableShadows = false;
+    final onSettings = state.tab == DockTab.settings;
+    final r = await data.reader(tester, audio: state.audio, library: onSettings);
+    if (tz.night) r.setNightInk(tz.nightInk); // the settings row and the picker name the chosen ink
+    addTearDown(() => appNightInk.value = TzNightPage.jade);
+    await tester.pumpWidget(RepaintBoundary(
+      key: boundary,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: tzThemeData(tz),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: Directionality(textDirection: TextDirection.rtl, child: child!),
+        ),
+        home: AppShell(reader: r, initialTab: state.tab),
+      ),
+    ));
+    await state.setup(tester, r, data);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // The scanned page is an asset image (the page itself, and each crop of it at
+    // its own size): decode them for real, then draw.
+    final shell = tester.element(find.byType(AppShell));
+    await tester.runAsync(() async {
+      await precacheImage(const AssetImage('assets/pages/page019.webp'), shell);
+      for (final e in find.byType(Image, skipOffstage: false).evaluate()) {
+        await precacheImage((e.widget as Image).image, e);
+      }
+    });
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+    final ui.Image image = (await tester.runAsync(
+        () => (boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio: 2)))!;
+    try {
+      await expectLater(image, matchesGoldenFile('goldens/handoff/$name.png'));
+    } finally {
+      debugDisableShadows = true; // the framework checks it is back before the test ends
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }
+
+  for (final MapEntry(key: name, value: state) in _states.entries) {
+    testWidgets('$name-paper', (tester) => shoot(tester, '$name-paper', state, TzTheme.paper));
+    testWidgets('$name-night', (tester) => shoot(tester, '$name-night', state, TzTheme.dark));
+  }
+
+  for (final name in _inkStates) {
+    for (final ink in TzNightPage.inks) {
+      testWidgets('inks/$name-night-${ink.id}',
+          (tester) => shoot(tester, 'inks/$name-night-${ink.id}', _states[name]!, tzThemeFor(ReaderTheme.dark, ink: ink)));
     }
   }
 }

@@ -1,27 +1,33 @@
-// lib/ui/shell/settings_screen.dart — «الإعدادات» (features-v3 settings-screen).
-//
-// The theme (داكنة · ورقية) and the text-mode size (١٠٠٪ · ١٥٠٪ · ٢٠٠٪), both
-// kept by the settings store; then the way to the downloads, reminders, backup,
-// reader codes and about. When Google Play has a newer version, a banner at the
-// top offers it (lib/app/app_update.dart; the only screen that shows it, since
-// the home screen went in item 3.4).
+// lib/ui/shell/settings_screen.dart — «الإعدادات» (items 3.6 and 3.10; handoff
+// settings-main): four groups of rows under the unwan header.
+//   العرض          المظهر (ورقي · ليلي · تلقائي) · العرض عند الفتح · حجم نص المتن
+//   الوضع الليلي    لون الحبر الليلي, with the night page in the chosen ink
+//   الاستماع        التلاوة · التنزيلات · عناوين الأبواب
+//   التطبيق         رموز القراء · نسخ احتياطي واستعادة · حول تيسير الشاطبية
+// «التنبيهات» is the one row the design does not draw: the reminder is a kept
+// feature and this is its only way in, so it stands last in «التطبيق».
+// When Google Play has a newer version, a banner above the groups offers it
+// (lib/app/app_update.dart; the only screen that shows it).
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_update.dart';
 import '../../app/routes.dart';
 import '../../data/settings_store.dart';
-import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/app_theme.dart';
-import '../design/pill_tabs.dart';
-import '../design/taysir_colors.dart';
+import '../design/components/min_segmented.dart';
+import '../design/components/night_crop.dart';
+import '../design/components/settings_row.dart';
+import '../design/components/tz_switch.dart';
+import '../design/tokens.g.dart';
+import '../design/tz_icon.dart';
+import '../design/tz_theme.dart';
 import '../reader/reader_controller.dart';
 import 'backup_screen.dart';
+import 'downloads_screen.dart';
+import 'night_ink_sheet.dart';
 import 'shell_page.dart';
-
-/// The text-mode sizes offered here; the ± in text mode steps between others too.
-const List<double> kSettingsTextScales = [1, 1.5, 2];
+import 'text_size_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   final ReaderController reader;
@@ -32,69 +38,93 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    Widget label(String s) => Padding(
-          padding: const EdgeInsets.only(top: 18, bottom: 8),
-          child: Text(s, style: TzType.caption.copyWith(color: t.muted)),
-        );
+    final library = reader.library;
     return ListenableBuilder(
-      listenable: Listenable.merge([reader, appTheme, ?reader.update]),
+      listenable: Listenable.merge([reader, appThemeChoice, appNightInk, ?library, ?reader.update]),
       builder: (context, _) {
-        final scale = kSettingsTextScales.where((s) => (s - reader.textScale).abs() < 0.01).firstOrNull;
+        final c = TzTheme.of(context).colors;
+        final ink = reader.nightInk;
         return ShellPage.topLevel(
           title: 'الإعدادات',
           body: ListView(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + ShellInset.of(context)),
+            padding: EdgeInsets.only(bottom: 32 + ShellInset.of(context)),
             children: [
-              if (reader.update case final update? when update.showBanner) _updateBanner(t, update),
-              label('السمة'),
-              PillTabs<ReaderTheme>(
-                options: const {ReaderTheme.dark: 'داكنة', ReaderTheme.paper: 'ورقية'},
-                selected: appTheme.value,
-                onSelect: reader.setTheme,
-              ),
-              label('حجم النص في العرض النصي'),
-              PillTabs<double>(
-                options: {for (final s in kSettingsTextScales) s: '${ar((s * 100).round())}٪'},
-                selected: scale,
-                onSelect: reader.setTextScale,
-              ),
-              label('التلاوة والعرض'),
-              _Group(rows: [
-                _Row(
-                  icon: LucideIcons.download,
-                  title: 'التنزيلات',
-                  subtitle: 'التلاوات على الجهاز',
+              if (reader.update case final update? when update.showBanner) _UpdateBanner(update: update),
+              SettingsGroup(title: 'العرض', rows: [
+                SettingsRow.control(
+                  icon: 'theme',
+                  label: 'المظهر',
+                  controlOverhang: 2,
+                  control: MinSegmented<ThemeChoice>(
+                    semanticLabel: 'المظهر',
+                    options: const {ThemeChoice.paper: 'ورقي', ThemeChoice.night: 'ليلي', ThemeChoice.auto: 'تلقائي'},
+                    selected: reader.themeChoice,
+                    onSelect: reader.setThemeChoice,
+                  ),
+                ),
+                SettingsRow.control(
+                  icon: 'book',
+                  label: 'العرض عند الفتح',
+                  controlOverhang: 2,
+                  control: MinSegmented<bool>(
+                    semanticLabel: 'العرض عند الفتح',
+                    options: const {false: 'الصفحة', true: 'النص'},
+                    selected: reader.textMode,
+                    onSelect: reader.setTextMode,
+                  ),
+                ),
+                SettingsRow(
+                  icon: 'textsize',
+                  label: 'حجم نص المتن',
+                  value: '${ar((reader.textScale * 100).round())}٪',
+                  onTap: () => showTextSizeSheet(context, reader),
+                ),
+              ]),
+              SettingsGroup(title: 'الوضع الليلي', rows: [
+                SettingsRow(
+                  leading: NightCrop(ink: ink, width: 64),
+                  label: TzNightPage.pickerTitle,
+                  caption: 'أسماء القراء ورموزهم وإطار الصفحة',
+                  value: ink.ar,
+                  valueStyle: TzType.chapter
+                      .copyWith(color: c.ink, fontWeight: FontWeight.w700, height: 20 / TzType.chapter.fontSize!),
+                  semanticLabel: '${TzNightPage.pickerTitle}: ${ink.ar}',
+                  onTap: () => showNightInkSheet(context, reader),
+                ),
+              ]),
+              SettingsGroup(title: 'الاستماع', rows: [
+                SettingsRow(
+                  icon: 'user',
+                  label: 'التلاوة',
+                  value: reader.recording.reciterName,
+                  onTap: () => library == null
+                      ? _push(context, AppRoute.downloads.build(reader))
+                      : showReciterSheet(context, library),
+                ),
+                SettingsRow(
+                  icon: 'down',
+                  label: 'التنزيلات',
+                  value: library == null ? null : megabytes(library.bytesOnDevice),
                   onTap: () => _push(context, AppRoute.downloads.build(reader)),
                 ),
-                _Row(
-                  icon: LucideIcons.bell,
-                  title: 'التنبيهات',
-                  subtitle: 'تذكير الباب',
-                  onTap: () => _push(context, AppRoute.reminders.build(reader)),
+                SettingsRow.control(
+                  icon: 'mic',
+                  label: 'عناوين الأبواب',
+                  controlOverhang: 11,
+                  control: TzSwitch(
+                    semanticLabel: 'تلاوة عناوين الأبواب',
+                    value: reader.settings.playTitles,
+                    onWord: 'تُتلى',
+                    offWord: 'لا تُتلى',
+                    onChanged: reader.setPlayTitles,
+                  ),
                 ),
               ]),
-              label('البيانات'),
-              _Group(rows: [
-                _Row(
-                  icon: LucideIcons.archive,
-                  title: 'نسخ احتياطي واستعادة',
-                  subtitle: 'ملف على الجهاز',
-                  onTap: () => _push(context, BackupScreen(reader: reader)),
-                ),
-              ]),
-              const SizedBox(height: 18),
-              _Group(rows: [
-                _Row(
-                  icon: LucideIcons.scrollText,
-                  title: 'رموز القراء',
-                  onTap: () => _push(context, AppRoute.rumuz.build(reader)),
-                ),
-                _Row(
-                  icon: LucideIcons.info,
-                  title: 'حول التطبيق',
-                  onTap: () => _push(context, AppRoute.about.build(reader)),
-                ),
+              SettingsGroup(title: 'التطبيق', rows: [
+                SettingsRow(icon: 'list', label: 'رموز القراء', onTap: () => _push(context, AppRoute.rumuz.build(reader))),
+                SettingsRow(icon: 'copy', label: 'نسخ احتياطي واستعادة', onTap: () => _push(context, BackupScreen(reader: reader))),
+                SettingsRow(icon: 'book', label: 'حول تيسير الشاطبية', onTap: () => _push(context, AppRoute.about.build(reader))),
+                SettingsRow(icon: 'gap', label: 'التنبيهات', onTap: () => _push(context, AppRoute.reminders.build(reader))),
               ]),
             ],
           ),
@@ -104,95 +134,37 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-Widget _updateBanner(TaysirColors t, AppUpdate update) => Container(
-      margin: const EdgeInsets.only(top: 12),
+/// «إصدار جديد من التطبيق متاح»: update, or put it away.
+class _UpdateBanner extends StatelessWidget {
+  final AppUpdate update;
+  const _UpdateBanner({required this.update});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = TzTheme.of(context).colors;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsetsDirectional.fromSTEB(14, 4, 4, 4),
       decoration: BoxDecoration(
-        color: t.panel2,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: t.goldDeep),
+        color: c.tonal,
+        borderRadius: BorderRadius.circular(TzRadius.card),
+        border: Border.all(color: c.gilt),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.download, size: 18, color: t.goldText),
+          TzIcon('down', size: 20, color: c.lapis),
           const SizedBox(width: 10),
-          Expanded(child: Text('إصدار جديد من التطبيق متاح', style: TzType.label.copyWith(color: t.text))),
+          Expanded(child: Text('إصدار جديد من التطبيق متاح', style: TzType.label.copyWith(color: c.ink))),
           TextButton(
             onPressed: update.update,
-            child: Text('تحديث', style: TzType.label.copyWith(color: t.goldText)),
+            child: Text('تحديث', style: TzType.label.copyWith(color: c.lapis)),
           ),
           IconButton(
             tooltip: 'إخفاء',
             onPressed: update.dismiss,
-            icon: Icon(LucideIcons.x, size: 18, color: t.muted),
+            icon: TzIcon('x', size: 20, color: c.ink3),
           ),
         ],
-      ),
-    );
-
-class _Group extends StatelessWidget {
-  final List<Widget> rows;
-  const _Group({required this.rows});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    return Material(
-      color: t.panel,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: t.line)),
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) Divider(height: 1, thickness: 1, indent: 62, color: t.line),
-            rows[i],
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-  const _Row({required this.icon, required this.title, this.subtitle, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    return InkWell(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 60),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: t.panel2, borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, size: 18, color: t.goldText),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title, style: TzType.body.copyWith(color: t.text)),
-                    if (subtitle != null) Text(subtitle!, style: TzType.caption.copyWith(color: t.muted)),
-                  ],
-                ),
-              ),
-              Icon(LucideIcons.chevronLeft, size: 18, color: t.muted),
-            ],
-          ),
-        ),
       ),
     );
   }

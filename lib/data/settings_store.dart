@@ -6,7 +6,14 @@
 // brightness stay with the page viewer.
 import '../services/preferences_service.dart';
 
+/// The palette on screen: night (`dark`) or paper.
 enum ReaderTheme { dark, paper }
+
+/// «المظهر»: paper, night, or whichever the system is in (`auto`, a new install's).
+enum ThemeChoice { paper, night, auto }
+
+/// The night ink's preference (ADR 0020; the same name as tokens.json's `preference`).
+const String kNightInkPref = 'v2.night.page_accent';
 
 const List<int?> kVerseRepeatOptions = [1, 3, 5, null]; // null = ∞
 const List<int?> kSectionRepeatOptions = [1, 2, 3, 5, null];
@@ -27,8 +34,18 @@ class SettingsStore {
 
   static String _repeatString(int? n) => n == null ? 'inf' : '$n';
 
-  ReaderTheme get theme => prefs.getString('v2.theme') == 'paper' ? ReaderTheme.paper : ReaderTheme.dark;
-  set theme(ReaderTheme t) => prefs.setString('v2.theme', t.name);
+  /// Stored as `paper`, `dark` (night; the name the two-theme app wrote) or `auto`.
+  ThemeChoice get themeChoice => switch (prefs.getString('v2.theme')) {
+        'paper' => ThemeChoice.paper,
+        'dark' => ThemeChoice.night,
+        _ => ThemeChoice.auto,
+      };
+  set themeChoice(ThemeChoice c) => prefs.setString('v2.theme', c == ThemeChoice.night ? 'dark' : c.name);
+
+  /// The chosen night ink's id as stored: the reader of it decides what an
+  /// unknown one means (jade; `nightInkById`).
+  String? get nightInk => prefs.getString(kNightInkPref);
+  set nightInk(String? id) => id == null ? prefs.remove(kNightInkPref) : prefs.setString(kNightInkPref, id);
 
   bool get textMode => prefs.getString('v2.reader.view') == 'text';
   set textMode(bool on) => prefs.setString('v2.reader.view', on ? 'text' : 'scan');

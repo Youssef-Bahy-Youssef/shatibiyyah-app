@@ -11,6 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../data/backup.dart';
 import '../../data/settings_store.dart';
 import '../../services/device_storage.dart' as device;
+import '../design/app_theme.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
@@ -100,7 +101,8 @@ class _BackupScreenState extends State<BackupScreen> {
     final report = await mergeBackup(user, prefs, decodeBackup(text));
     await _reader.personal?.load();
     final settings = SettingsStore(prefs);
-    if (report.settings.contains('v2.theme')) _reader.setTheme(settings.theme);
+    if (report.settings.contains('v2.theme')) _reader.setThemeChoice(settings.themeChoice);
+    if (report.settings.contains(kNightInkPref)) _reader.setNightInk(nightInkById(settings.nightInk));
     if (report.settings.contains('v2.text.scale')) _reader.setTextScale(settings.textScale);
     if (report.settings.contains('v2.reader.view')) _reader.setTextMode(settings.textMode);
     return report.total == 0 ? 'لا جديد في هذه النسخة' : 'تمت الاستعادة ودُمجت مع ما على الجهاز';

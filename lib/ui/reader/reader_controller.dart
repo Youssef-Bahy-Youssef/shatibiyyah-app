@@ -23,6 +23,7 @@ import '../../app/rating.dart';
 import '../../app/reminders.dart';
 import '../../app/personal_data.dart';
 import '../design/app_theme.dart';
+import '../design/tokens.g.dart';
 import '../widgets/page_viewer.dart';
 
 /// How long a notice such as «بدأ باب جديد» stays (the prototype's toast).
@@ -101,7 +102,8 @@ class ReaderController extends ChangeNotifier {
       _speed = s.speedFor(recording.id);
       _textMode = s.textMode;
       _textScale = s.textScale;
-      appTheme.value = s.theme;
+      applyThemeChoice(s.themeChoice);
+      appNightInk.value = nightInkById(s.nightInk);
     }
     _attachEngine();
     _subs.add(viewer.onVerseTap.listen(tapVerse));
@@ -225,9 +227,23 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTheme(ReaderTheme t) {
-    store?.theme = t;
-    appTheme.value = t;
+  ThemeChoice get themeChoice => appThemeChoice.value;
+  TzNightInk get nightInk => appNightInk.value;
+
+  /// «المظهر»: paper, night, or with the system.
+  void setThemeChoice(ThemeChoice c) {
+    store?.themeChoice = c;
+    applyThemeChoice(c);
+    notifyListeners();
+  }
+
+  /// One of the two palettes, chosen outright.
+  void setTheme(ReaderTheme t) => setThemeChoice(t == ReaderTheme.paper ? ThemeChoice.paper : ThemeChoice.night);
+
+  /// «لون الحبر الليلي» (ADR 0020): stored and applied at once.
+  void setNightInk(TzNightInk ink) {
+    store?.nightInk = ink.id;
+    appNightInk.value = ink;
     notifyListeners();
   }
 

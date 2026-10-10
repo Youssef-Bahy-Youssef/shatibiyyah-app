@@ -7,12 +7,15 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shatibiyyah/app/audio_library.dart';
 import 'package:shatibiyyah/app/personal_data.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
+import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
+import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
@@ -60,7 +63,9 @@ class HandoffContent {
 
   /// The reader on verse 226. With [audio], a recording is on the device and the
   /// section is the chapter (226–234). With [bookmarks], the prototype's three.
-  Future<ReaderController> reader(WidgetTester tester, {bool audio = false, bool bookmarks = true, bool note = false}) async {
+  /// With [library], the downloads are there, nothing downloaded yet.
+  Future<ReaderController> reader(WidgetTester tester,
+      {bool audio = false, bool bookmarks = true, bool note = false, bool library = false}) async {
     SharedPreferences.setMockInitialValues({});
     late ReaderController r;
     await tester.runAsync(() async {
@@ -83,6 +88,7 @@ class HandoffContent {
         content: content,
         recording: recording,
         viewer: PageViewerController(legacyData(content, windows), prefs),
+        store: SettingsStore(prefs),
         user: user,
         engine: audio
             ? PlaybackEngine(SilentAudio(), PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings()))
@@ -90,6 +96,15 @@ class HandoffContent {
         initialVerse: 226,
       )..personal = personal;
       if (bookmarks) r.viewer.setRibbons({for (final e in personal.ribbons.entries) e.key: e.value.index});
+      if (library) {
+        final lib = AudioLibrary(
+          content: content,
+          prefs: prefs,
+          downloads: DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true),
+        );
+        await lib.refresh();
+        lib.attach(r);
+      }
     });
     return r;
   }
