@@ -11,9 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../data/app_content.dart';
-import '../data/matn_repository.dart';
 import '../data/recording_repository.dart';
-import '../data/user_store.dart';
 import '../domain/playback_engine.dart';
 import '../domain/playback_plan.dart';
 import '../services/audio_focus.dart';
@@ -32,15 +30,11 @@ typedef EngineFactory = Future<({PlaybackEngine engine, Future<void> Function() 
 class AudioLibrary extends ChangeNotifier {
   final AppContent content;
   final Prefs prefs;
-  final UserStore? user;
   final DownloadManager downloads;
   final EngineFactory? _engineFactory;
 
-  /// The app's engine unless one was given: it tells the reader's rating prompt
-  /// when a chapter becomes finished.
-  EngineFactory get engineFactory =>
-      _engineFactory ??
-      justAudioEngine(user, matn: content.matn, onChapterFinished: (_) => _reader?.rating?.chapterFinished());
+  /// The app's engine unless one was given.
+  EngineFactory get engineFactory => _engineFactory ?? justAudioEngine;
 
   final Map<String, DownloadProgress> _progress = {};
   final Map<String, DownloadCancel> _cancels = {};
@@ -52,7 +46,6 @@ class AudioLibrary extends ChangeNotifier {
     required this.content,
     required this.prefs,
     required this.downloads,
-    this.user,
     EngineFactory? engineFactory,
   // A named parameter cannot be private, so no `this._engineFactory`.
   // ignore: prefer_initializing_formals
@@ -176,26 +169,25 @@ class AudioLibrary extends ChangeNotifier {
   }
 }
 
-/// The app's engine: just_audio (own interruption policy), listening progress
-/// recorded per verse.
-EngineFactory justAudioEngine(UserStore? user, {MatnRepository? matn, void Function(MatnChapter)? onChapterFinished}) =>
-    (recording, filePath, plan) async {
-      // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
-      final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
-      await port.load(filePath);
-      final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording, matn: matn, onChapterFinished: onChapterFinished));
-      AudioFocus? focus;
-      try {
-        focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);
-      } catch (_) {
-        // Without a session the app still plays; it only loses the interruption policy.
-      }
-      return (
-        engine: engine,
-        dispose: () async {
-          await focus?.dispose();
-          await engine.dispose();
-          await port.dispose();
-        },
-      );
-    };
+/// The app's engine: just_audio, with our own interruption policy.
+Future<({PlaybackEngine engine, Future<void> Function() dispose})> justAudioEngine(
+    Recording recording, String filePath, PlaybackPlan plan) async {
+  // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
+  final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
+  await port.load(filePath);
+  final engine = PlaybackEngine(port, plan);
+  AudioFocus? focus;
+  try {
+    focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);
+  } catch (_) {
+    // Without a session the app still plays; it only loses the interruption policy.
+  }
+  return (
+    engine: engine,
+    dispose: () async {
+      await focus?.dispose();
+      await engine.dispose();
+      await port.dispose();
+    },
+  );
+}

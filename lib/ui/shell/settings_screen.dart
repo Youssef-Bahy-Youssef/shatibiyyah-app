@@ -66,7 +66,7 @@ class SettingsScreen extends StatelessWidget {
                 _Row(
                   icon: LucideIcons.bell,
                   title: 'التنبيهات',
-                  subtitle: 'فائدة اليوم وتذكير الباب',
+                  subtitle: 'تذكير الباب',
                   onTap: () => _push(context, AppRoute.reminders.build(reader)),
                 ),
               ]),

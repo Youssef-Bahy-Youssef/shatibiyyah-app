@@ -143,14 +143,11 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('home: continue card, then bookmarks, notes and history, each opening its verse', (tester) async {
+  testWidgets('home: continue card, then bookmarks and notes, each opening its verse', (tester) async {
     final (r, personal) = await open(tester);
     await tester.runAsync(() async {
       await personal.saveBookmark(229, color: BookmarkColor.green, tag: BookmarkTag.muraja);
       await personal.saveNote(230, 'قارن بالوافي');
-      await personal.logListening('recording:x', 226, 229, const Duration(seconds: 5)); // too short: not kept
-      await personal.logListening('recording:x', 226, 229, const Duration(minutes: 12));
-      await personal.logCommentary(content.books.defaultBook.id, 226, 226);
     });
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(extensions: const [TaysirColors.dark]),
@@ -167,11 +164,7 @@ void main() {
     await tester.pump();
     expect(find.text('قارن بالوافي'), findsOneWidget);
 
-    await tester.tap(find.text('السجل'));
-    await tester.pump();
-    expect(find.text('استماع الأبيات \u2068٢٢٦–٢٢٩\u2069'), findsOneWidget); // once: the 5 s one was dropped
-    expect(find.textContaining(minutesCount(12)), findsOneWidget);
-    expect(find.text('شرح البيت ٢٢٦'), findsOneWidget);
+    expect(find.text('السجل'), findsNothing); // the history tab is gone (ADR 0008)
 
     await tester.tap(find.text('المراجع (١)'));
     await tester.pump();
@@ -189,9 +182,9 @@ void main() {
     ));
     await tester.pump();
     expect(find.text('لا مراجع بعد'), findsOneWidget);
-    await tester.tap(find.text('السجل'));
+    await tester.tap(find.text('الملاحظات (٠)'));
     await tester.pump();
-    expect(find.text('لا سجل بعد'), findsOneWidget);
+    expect(find.text('لا ملاحظات بعد'), findsOneWidget);
     await unmount(tester);
   });
 
