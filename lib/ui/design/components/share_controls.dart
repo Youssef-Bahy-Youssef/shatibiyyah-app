@@ -96,6 +96,8 @@ class ShareBookChip extends StatelessWidget {
   final VoidCallback onTap;
   const ShareBookChip({super.key, required this.label, required this.selected, required this.onTap});
 
+  static const pillKey = ValueKey('share-book-pill');
+
   @override
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
@@ -112,12 +114,15 @@ class ShareBookChip extends StatelessWidget {
               heightFactor: 1,
               widthFactor: 1,
               child: Container(
+                key: pillKey,
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
                 decoration: BoxDecoration(color: selected ? c.action : c.tonal, borderRadius: BorderRadius.circular(TzRadius.pill)),
-                child: Text(label,
-                    style: TzType.label.copyWith(fontSize: 13, color: selected ? c.onAction : c.ink2)),
+                // As wide as its label: an `alignment` here would stretch the pill across the row.
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(label, style: TzType.label.copyWith(fontSize: 13, color: selected ? c.onAction : c.ink2)),
+                ),
               ),
             ),
           ),

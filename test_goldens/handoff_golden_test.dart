@@ -24,8 +24,9 @@ import 'golden_fonts.dart';
 
 
 /// The night states the handoff shows once per ink (screens/inks/): the page in
-/// the ink, the chosen verse's ring, and the picker with that ink chosen.
-const List<String> _inkStates = ['reader-playing', 'verse', 'settings-picker'];
+/// the ink, the chosen verse's ring, text mode's rubric in the ink, and the
+/// picker with that ink chosen.
+const List<String> _inkStates = ['reader-playing', 'verse', 'textmode-playing', 'settings-picker'];
 
 void main() {
   final data = HandoffContent();

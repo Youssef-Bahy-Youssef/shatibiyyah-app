@@ -117,6 +117,14 @@ Future<void> _commentary(WidgetTester tester, ReaderController r, HandoffContent
   await loaded();
 }
 
+/// Moves text mode's column so verse [verse] starts [top] dp down the screen, where the design's render has it.
+Future<void> _standAt(WidgetTester tester, int verse, double top) async {
+  final unit = find.byWidgetPredicate((w) => w is VerseUnit && w.number == ar(verse));
+  final list = tester.state<ScrollableState>(find.ancestor(of: unit, matching: find.byType(Scrollable)).first).position;
+  list.jumpTo(list.pixels + tester.getTopLeft(unit).dy - top);
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
 final Map<String, HandoffState> handoffStates = {
   'reader-playing': (
     tab: DockTab.matn,
@@ -146,6 +154,8 @@ final Map<String, HandoffState> handoffStates = {
       r.setTextMode(true);
       await tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)));
       await tester.runAsync(() => r.tapVerse(227));
+      await tester.pump(const Duration(milliseconds: 400));
+      await _standAt(tester, 227, 259.5); // the design's sample: the recited verse 160 dp down the list
     }
   ),
   'textmode-display': (
@@ -173,10 +183,7 @@ final Map<String, HandoffState> handoffStates = {
       r.setTextMode(true);
       await tester.runAsync(() => r.tapVerse(227));
       await tester.pump(const Duration(milliseconds: 400));
-      final unit = find.byWidgetPredicate((w) => w is VerseUnit && w.number == ar(230));
-      final list = tester.state<ScrollableState>(find.ancestor(of: unit, matching: find.byType(Scrollable)).first).position;
-      list.jumpTo(list.pixels + tester.getTopLeft(unit).dy - 239.5);
-      await tester.pump(const Duration(milliseconds: 400));
+      await _standAt(tester, 230, 239.5);
       r.openSymbol(230, verseRubrics(r.content, 230).first);
     }
   ),

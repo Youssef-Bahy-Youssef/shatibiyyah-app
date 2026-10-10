@@ -7,17 +7,77 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'tz_button.dart';
+import 'tz_motion.dart';
 import 'tz_sheet.dart';
 
 /// Shows a picker over the whole app (the dock too), on the theme's scrim.
-Future<void> showTzPicker(BuildContext context, WidgetBuilder builder) => showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      builder: builder,
+///
+/// Opened from a sheet that is itself over a scrim (a [PickerHost]), the scrim
+/// falls on that sheet alone: what is behind it is not darkened a second time
+/// (handoff player-repeat, player-speed).
+Future<void> showTzPicker(BuildContext context, WidgetBuilder builder) {
+  final host = context.findAncestorStateOfType<PickerHostState>();
+  final picker = showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: host == null ? null : Colors.transparent,
+    elevation: 0,
+    builder: builder,
+  );
+  return host == null ? picker : host._dimWhile(picker);
+}
+
+/// A sheet that opens pickers over itself: while one is open it wears the scrim.
+class PickerHost extends StatefulWidget {
+  /// The sheet's top corners, so the scrim has its shape.
+  final double radius;
+  final Widget child;
+  const PickerHost({super.key, required this.radius, required this.child});
+
+  static const scrimKey = ValueKey('picker-host-scrim');
+
+  @override
+  State<PickerHost> createState() => PickerHostState();
+}
+
+class PickerHostState extends State<PickerHost> {
+  int _open = 0;
+
+  Future<void> _dimWhile(Future<void> picker) async {
+    setState(() => _open++);
+    try {
+      await picker;
+    } finally {
+      if (mounted) setState(() => _open--);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scrim = TzTheme.of(context).colors.scrim;
+    return Stack(
+      fit: StackFit.passthrough, // the sheet is laid out as if the host were not there
+      children: [
+        widget.child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              key: PickerHost.scrimKey,
+              opacity: _open > 0 ? 1 : 0,
+              duration: tzDuration(context, TzMotion.medium),
+              curve: TzMotion.standard,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: scrim, borderRadius: BorderRadius.vertical(top: Radius.circular(widget.radius))),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+}
 
 class TzPicker extends StatelessWidget {
   final String title;

@@ -302,11 +302,14 @@ class _ShareSheetState extends State<ShareSheet> {
                   ],
                 ),
               ),
+              // v2.css .chips2: 36 px pills, 4 px into the row above, 10 px over the
+              // buttons. Each pill keeps a 48 px target, so the pills are drawn 10 px
+              // up and the buttons 16 px up (a translation keeps the whole target live).
               if (_excerptOn)
                 Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 32, bottom: 8),
+                  padding: const EdgeInsetsDirectional.only(start: 32),
                   child: Transform.translate(
-                    offset: const Offset(0, -4),
+                    offset: const Offset(0, -10),
                     child: Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -318,15 +321,18 @@ class _ShareSheetState extends State<ShareSheet> {
                   ),
                 ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 207,
-                    child: TzButton.primary(label: 'مشاركة الصورة', icon: 'share', onPressed: _busy ? null : _share),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 143, child: TzButton.tonal(label: 'حفظ', icon: 'down', onPressed: _busy ? null : _save)),
-                ],
+              Transform.translate(
+                offset: Offset(0, _excerptOn ? -16 : 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 207,
+                      child: TzButton.primary(label: 'مشاركة الصورة', icon: 'share', onPressed: _busy ? null : _share),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 143, child: TzButton.tonal(label: 'حفظ', icon: 'down', onPressed: _busy ? null : _save)),
+                  ],
+                ),
               ),
             ],
           ),

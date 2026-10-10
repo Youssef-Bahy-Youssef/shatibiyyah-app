@@ -66,4 +66,34 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
   }
+
+  testWidgets('share-excerpt: the books to quote from are three pills in one row', (tester) async {
+    final spec = HandoffSpec.load('share-excerpt-paper');
+    if (spec == null) return markTestSkipped('the workspace (design/redesign/handoff/) is not around the app');
+    final r = await data.reader(tester, audio: true);
+    await pumpPhone(tester, AppShell(reader: r));
+    showShareSheet(tester.element(find.byType(AppShell)), data.content, 226);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.widgetWithText(ShareFormatButton, 'قصة'));
+    await tester.pump();
+    await tester.tap(find.text('بدون'));
+    for (var i = 0; i < 8; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+    final c = Conformance(spec);
+    final chips = spec.childrenOf(spec.cls('chips2'));
+    expect(chips, hasLength(3));
+    for (final chip in chips) {
+      final pill = find.descendant(of: find.widgetWithText(ShareBookChip, chip.text!), matching: find.byKey(ShareBookChip.pillKey));
+      c.box('«${chip.text}»', rect(tester, pill), chip.rect, tol: 2);
+      c.same('«${chip.text}»: a 48 dp target', tester.getSize(find.widgetWithText(ShareBookChip, chip.text!)).height, 48.0);
+    }
+    c.box('«مشاركة الصورة»', rect(tester, find.widgetWithText(TzButton, 'مشاركة الصورة')), spec.cls('btn primary').rect, tol: 2);
+    c.box('«حفظ»', rect(tester, find.widgetWithText(TzButton, 'حفظ')), spec.cls('btn tonal').rect, tol: 2);
+    c.done();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+  });
 }
