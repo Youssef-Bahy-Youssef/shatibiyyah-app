@@ -39,14 +39,19 @@ void main() {
     await support.delete(recursive: true);
   });
 
-  /// Lets real database work started by a tap finish (it continues in the fake zone).
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 10; i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
-      await tester.pump();
+  /// Waits for real database work started by a tap (it continues in the fake zone)
+  /// until [shown] is on screen: a fixed wait is too short on a loaded machine.
+  Future<void> until(WidgetTester tester, Finder shown) async {
+    for (var i = 0; i < 250 && !tester.any(shown); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump(const Duration(milliseconds: 50));
     }
     await tester.pumpAndSettle();
   }
+
+  final saved = find.textContaining('حُفظ المرجع');
+  final removed = find.textContaining('أُزيل المرجع');
+  final failed = find.text('تعذّر الحفظ');
 
   Future<(ReaderController, PersonalData)> open(WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -97,7 +102,7 @@ void main() {
     await tester.tap(find.text('إشكال'));
     await tester.pump();
     await tester.tap(find.text('حفظ المرجع'));
-    await settle(tester);
+    await until(tester, saved);
     final b = personal.bookmarkAt(229)!;
     expect((b.color, b.tag), (BookmarkColor.rose, BookmarkTag.ishkal));
     expect(personal.ribbons[229], BookmarkColor.rose);
@@ -108,7 +113,7 @@ void main() {
     await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
-    await settle(tester);
+    await until(tester, removed);
     expect(personal.bookmarkAt(229), isNull);
     await unmount(tester);
   });
@@ -122,7 +127,7 @@ void main() {
     expect(find.text('ملاحظة على البيت ٢٣٠'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'قارن بالوافي');
     await tester.tap(find.text('حفظ'));
-    await settle(tester);
+    await until(tester, find.text('حُفظت الملاحظة'));
     expect(personal.noteFor(230)!.body, 'قارن بالوافي');
     expect(find.text('حُفظت الملاحظة'), findsOneWidget);
     await unmount(tester);
@@ -137,7 +142,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('الأبيات \u2068٢٢٦–٢٣٠\u2069، ${content.matn.chapterOfVerse(226).shortLabel}'), findsOneWidget);
     await tester.tap(find.text('حفظ المرجع'));
-    await settle(tester);
+    await until(tester, saved);
     expect(personal.bookmarkAt(226, to: 230), isNotNull);
     expect(r.selecting, isFalse);
     await unmount(tester);
@@ -189,9 +194,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'), findsOneWidget); // the covering bookmark, listed
     await tester.tap(find.text('حذف'));
-    await settle(tester);
+    await until(tester, removed);
     expect(personal.bookmarks, isEmpty);
-    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
+    expect(removed, findsOneWidget);
     expect(find.text('تراجع'), findsOneWidget);
     await unmount(tester);
   });
@@ -205,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('لون').at(4)); // rose
     await tester.tap(find.text('حفظ المرجع'));
-    await settle(tester);
+    await until(tester, saved);
     expect(personal.bookmarks, hasLength(1));
     final after = personal.bookmarks.single;
     expect((after.uuid, after.fromVerse, after.toVerse, after.color, after.tag),
@@ -227,13 +232,13 @@ void main() {
     await openHome(tester, r);
     await tester.drag(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'), const Offset(500, 0));
     await tester.pumpAndSettle(); // the row slides away, then is dismissed
-    await settle(tester);
+    await until(tester, removed); // «تراجع» is offered once the delete is written
     expect(personal.bookmarks, isEmpty);
     expect(find.text('لا مراجع بعد'), findsOneWidget);
-    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
+    expect(removed, findsOneWidget);
 
     await tester.tap(find.text('تراجع'));
-    await settle(tester);
+    await until(tester, find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069')); // the row is back
     final back = personal.bookmarks.single;
     expect((back.uuid, back.fromVerse, back.toVerse, back.color, back.tag),
         (before.uuid, 226, 234, BookmarkColor.blue, BookmarkTag.muraja));
@@ -243,9 +248,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('تعديل'), findsOneWidget);
     await tester.tap(find.text('حذف'));
-    await settle(tester);
+    await until(tester, removed);
     expect(personal.bookmarks, isEmpty);
-    expect(find.textContaining('أُزيل المرجع'), findsOneWidget);
+    expect(removed, findsOneWidget);
     await tester.pump(const Duration(seconds: 6)); // the undo lasts 5 s
     await tester.pumpAndSettle();
     expect(find.text('تراجع'), findsNothing);
@@ -261,7 +266,7 @@ void main() {
     await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
-    await settle(tester);
+    await until(tester, removed);
     expect(personal.ribbons, isEmpty);
     r.openMenu(232);
     await tester.pump();
@@ -279,10 +284,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'قارن بالوافي');
     await tester.tap(find.text('حفظ'));
-    await settle(tester);
+    await until(tester, failed);
     expect(find.text('ملاحظة على البيت ٢٣٠'), findsOneWidget); // still open
     expect(find.text('قارن بالوافي'), findsOneWidget);
-    expect(find.text('تعذّر الحفظ'), findsOneWidget);
+    expect(failed, findsOneWidget);
     Navigator.of(tester.element(find.text('ملاحظة على البيت ٢٣٠'))).pop();
     await tester.pumpAndSettle();
 
@@ -291,9 +296,9 @@ void main() {
     await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ المرجع'));
-    await settle(tester);
+    await until(tester, failed);
     expect(find.text('المرجع'), findsOneWidget); // still open
-    expect(find.text('تعذّر الحفظ'), findsOneWidget);
+    expect(failed, findsOneWidget);
     await unmount(tester);
   });
 
@@ -307,9 +312,9 @@ void main() {
     await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
-    await settle(tester);
-    expect(find.text('تعذّر الحفظ'), findsOneWidget); // the sheet is still open
-    expect(find.textContaining('أُزيل المرجع'), findsNothing);
+    await until(tester, failed);
+    expect(failed, findsOneWidget); // the sheet is still open
+    expect(removed, findsNothing);
     expect(personal.bookmarks.single.uuid, before.uuid); // still there, ribbon included
     expect(personal.ribbons.containsKey(226), isTrue); // the ribbon sits on the bookmark's first verse
     await unmount(tester);
