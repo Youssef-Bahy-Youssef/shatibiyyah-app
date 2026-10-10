@@ -1,8 +1,8 @@
 // lib/ui/design/components/rubric.dart — reader names and symbols in the rubric
-// ink (ADR 0021; v2.js rubricate(), v2.css .rb). A name is coloured whole; a
-// letter symbol colours only its letter and gets a dotted underline, the rest
-// of its word stays in the verse ink. Each mark applies to its first occurrence.
-// A quoted phrase being read can be washed in gilt (v2.css mark.mqhl).
+// ink (ADRs 0021, 0024; v2.js rubricate(), v2.css .rb, .sf). A name is coloured
+// whole; a symbol colours only its letters, the rest of its word stays in the
+// verse ink, and it sits in a frame painted behind the text (phrase_wash.dart).
+// Each mark applies to its first occurrence.
 import 'package:flutter/painting.dart';
 
 /// A reader name or symbol to set in the rubric ink: found by its text, or (from
@@ -18,7 +18,7 @@ class Rubric {
   /// which hemistich (1 or 2).
   final int? start, end, hemistich;
 
-  /// A symbol's letter gets a dotted underline; a name does not.
+  /// A symbol sits in a frame and opens a tip; a name does neither.
   final bool isSymbol;
 
   /// What a symbol stands for, said aloud and shown in its tip: «رمز كَ: ابن عامر».
@@ -52,9 +52,10 @@ class Rubric {
 /// The marks of [marks] for hemistich [half] (1 or 2).
 List<Rubric> rubricsOf(List<Rubric> marks, int half) => [for (final m in marks) if (m.inHemistich(half)) m];
 
-/// [text] as spans, with each mark of [marks] found in it set in [rubric].
-List<InlineSpan> rubricate(String text, List<Rubric> marks, Color rubric) {
-  final hits = <(int, int, TextStyle)>[];
+/// Where each mark of [marks] is in [text] (UTF-16, end exclusive), in reading
+/// order; a mark that is not there, or that runs into the one before it, is left out.
+List<(int, int, Rubric)> rubricRanges(String text, List<Rubric> marks) {
+  final hits = <(int, int, Rubric)>[];
   for (final m in marks) {
     final int at, to;
     if (m.start case final from?) {
@@ -65,25 +66,23 @@ List<InlineSpan> rubricate(String text, List<Rubric> marks, Color rubric) {
       if (at < 0) continue;
       to = at + m.text.length;
     }
-    hits.add((
-      at,
-      to,
-      TextStyle(
-        color: rubric,
-        decoration: m.isSymbol ? TextDecoration.underline : null,
-        decorationStyle: m.isSymbol ? TextDecorationStyle.dotted : null,
-        decorationColor: m.isSymbol ? rubric : null,
-        decorationThickness: m.isSymbol ? 1.5 : null,
-      ),
-    ));
+    hits.add((at, to, m));
   }
   hits.sort((a, b) => a.$1.compareTo(b.$1));
+  var i = 0;
+  return [
+    for (final hit in hits)
+      if (hit.$1 >= i) (hit.$1, i = hit.$2, hit.$3),
+  ];
+}
+
+/// [text] as spans, with each mark of [marks] found in it set in [rubric].
+List<InlineSpan> rubricate(String text, List<Rubric> marks, Color rubric) {
   final spans = <InlineSpan>[];
   var i = 0;
-  for (final (start, end, style) in hits) {
-    if (start < i) continue;
+  for (final (start, end, _) in rubricRanges(text, marks)) {
     if (start > i) spans.add(TextSpan(text: text.substring(i, start)));
-    spans.add(TextSpan(text: text.substring(start, end), style: style));
+    spans.add(TextSpan(text: text.substring(start, end), style: TextStyle(color: rubric)));
     i = end;
   }
   if (i < text.length) spans.add(TextSpan(text: text.substring(i)));
