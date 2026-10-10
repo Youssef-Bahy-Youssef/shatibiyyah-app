@@ -40,6 +40,7 @@ ShatibiyyahData legacyData(AppContent content, PlaybackWindows? windows) {
           endVerse: c.toVerse,
           verseCount: c.verseCount,
           startTime: windows == null ? null : windows.chapterStart(c.fromVerse) / 1000.0,
+          page: header?.page,
           x: header?.rect.left,
           y: header?.rect.top,
           width: header?.rect.width,

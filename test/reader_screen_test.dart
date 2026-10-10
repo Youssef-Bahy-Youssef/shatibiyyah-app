@@ -12,6 +12,9 @@ import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
+import 'package:shatibiyyah/models/chapter.dart';
+import 'package:shatibiyyah/models/verse.dart';
+import 'package:shatibiyyah/services/data_service.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
@@ -416,6 +419,105 @@ void main() {
       await tester.pump();
       expect(find.textContaining('بدأ باب جديد'), findsNothing);
       await unmount(tester);
+    });
+  });
+
+  // Plan 1.5 (ADR 0011, F-03): a verse tap wins over a heading tap, and a chapter
+  // with no heading (الخاتمة has none printed) neither breaks the reader nor hides
+  // verse 1159, whose line its old rectangle covered.
+  group('verse taps and chapters without a heading', () {
+    Offset onPage(WidgetTester tester, ReaderController r, Rect box) {
+      final eff = r.viewer.baseScale * r.viewer.zoom;
+      return tester.getTopLeft(find.byType(PageViewer)) +
+          Offset(box.center.dx * eff + r.viewer.tx, box.center.dy * eff + r.viewer.ty);
+    }
+
+    Rect verseBox(ReaderController r, int verse) {
+      final b = r.viewer.data.getBox(verse)!;
+      return Rect.fromLTWH(b.x, b.y, b.w, b.h);
+    }
+
+    testWidgets('tap on verse 1159 opens the verse menu', (tester) async {
+      final r = await reader(tester, verse: 1159);
+      await show(tester, r);
+      expect(r.viewer.currentPage, 93);
+      await tester.tapAt(onPage(tester, r, verseBox(r, 1159)));
+      await tester.pump(const Duration(milliseconds: 400)); // past the double-tap window
+      expect(r.headingChapter, isNull); // not the الخاتمة card
+      expect(r.verse, 1159);
+      r.openMenu(1159);
+      await tester.pump();
+      expect(find.text('البيت ١١٥٩'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('الخاتمة from the index opens page 93 with no outline', (tester) async {
+      late ReaderController r;
+      await tester.runAsync(() async {
+        // The snapshot as item 1.4 will make it: الخاتمة has no heading row.
+        final dir = await Directory.systemTemp.createTemp('no_heading');
+        addTearDown(() => dir.delete(recursive: true));
+        final copy = await File('assets/content/content.sqlite').copy('${dir.path}/content.sqlite');
+        final db = await databaseFactoryFfi.openDatabase(copy.path);
+        await db.rawDelete("DELETE FROM chapter_header_regions WHERE chapter_id = 'chapter:shatibiyyah:077'");
+        await db.close(); // no VACUUM: the size stays what content.json says
+        final stripped = await AppContent.open(
+          loadAsset: (key) async =>
+              ByteData.sublistView(await File(key.endsWith('.sqlite') ? copy.path : key).readAsBytes()),
+          supportDir: await Directory('${dir.path}/support').create(),
+          factory: databaseFactoryFfi,
+        );
+        addTearDown(stripped.store.close);
+        expect(stripped.layout.headerRegion('chapter:shatibiyyah:077'), isNull);
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await Prefs.create();
+        final windows = await stripped.windowsFor(stripped.recordings.defaultRecording);
+        r = ReaderController(
+          content: stripped,
+          recording: stripped.recordings.defaultRecording,
+          viewer: PageViewerController(legacyData(stripped, windows), prefs),
+          initialVerse: 226,
+        );
+      });
+      await show(tester, r);
+      await tester.tap(find.byTooltip('القائمة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('الفهرس'));
+      await tester.pumpAndSettle();
+      final chips = find.byWidgetPredicate((w) => w is Scrollable && axisDirectionToAxis(w.axisDirection) == Axis.horizontal);
+      await tester.scrollUntilVisible(find.text('الخاتمة'), 200, scrollable: chips.first);
+      await tester.tap(find.text('الخاتمة').first); // the part chip
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('الخاتمة').last); // its one chapter
+      await tester.pumpAndSettle();
+      expect(find.byType(IndexScreen), findsNothing);
+      expect(r.verse, 1160);
+      expect(r.viewer.currentPage, 93);
+      final khatima = r.viewer.data.chapters.length - 1;
+      expect(r.viewer.data.chapterBox(khatima), isNull);
+      expect(r.viewer.data.chaptersOnPage(93), isNot(contains(khatima))); // nothing to outline
+      expect(r.viewer.chapterSel, isNull);
+
+      await tester.tapAt(onPage(tester, r, verseBox(r, 1159)));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect((r.verse, r.headingChapter), (1159, null));
+      await unmount(tester);
+    });
+
+    test('a chapter is placed by its heading\'s page, not its first verse\'s', () {
+      Verse v(int id, int page) => Verse(id: id, page: page, x: 0, y: 100.0 * id, width: 900, height: 70);
+      final data = ShatibiyyahData([v(1, 1), v(2, 2), v(3, 2)], [null, null, null, null], const [
+        Chapter(name: 'أ', startVerse: 1, endVerse: 1, verseCount: 1, startTime: null,
+            page: 1, x: 0, y: 0, width: 900, height: 80),
+        // Its heading is printed at the foot of page 1; its first verse opens page 2.
+        Chapter(name: 'ب', startVerse: 2, endVerse: 3, verseCount: 2, startTime: null,
+            page: 1, x: 0, y: 1600, width: 900, height: 80),
+        Chapter(name: 'ج', startVerse: 3, endVerse: 3, verseCount: 1, startTime: null), // no heading
+      ], durationSeconds: 0);
+      expect(data.chaptersOnPage(1), [0, 1]);
+      expect(data.chaptersOnPage(2), isEmpty);
+      expect(data.pageOfChapter(1), 1);
+      expect(data.pageOfChapter(2), 2); // no heading: the page of its first verse
     });
   });
 
