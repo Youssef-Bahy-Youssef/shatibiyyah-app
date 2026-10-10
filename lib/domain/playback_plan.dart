@@ -4,9 +4,14 @@
 // asks again when it finishes. All repeat / scope / gap / spoken-title logic lives
 // here, so it is tested with plain unit tests (test/playback_plan_test.dart).
 //
-// Behaviour kept from the old engine (lib/services/audio_service.dart):
-//   * a verse repeat restarts the verse immediately; the gap is only between verses;
-//   * at the end of the scope the section repeats from its start, then playback ends.
+// The rules (ADRs 0003, 0004):
+//   * each verse plays N times, then the next one; after the section's last verse
+//     the section starts again from its first verse, for M rounds;
+//   * the gap separates every two plays: two verses, two plays of the same verse
+//     (time to recite it back), one round and the next. Nothing waits after the last;
+//   * a round restarts as the section first started: with the spoken title if it
+//     began from it. A verse repeat never replays a title;
+//   * a jump resets both counters. Nothing else does.
 // New:
 //   * windows come from PlaybackWindows (cues + spoken titles), so a verse ends where
 //     the next chapter's title begins;
@@ -113,7 +118,7 @@ class PlaybackPlan {
   int _verse;
   int _verseRepsDone = 0; // completed plays of the current verse
   int _sectionRepsDone = 0; // completed passes over the scope
-  bool _pendingNextAfterGap = false;
+  _After _afterGap = _After.nothing; // what the silence in hand is before
   int? _lastEndMs;
 
   PlaybackPlan(this.windows, this.scope, this.settings) : _verse = scope.fromVerse;
@@ -128,43 +133,52 @@ class PlaybackPlan {
   PlanAction start([int? verse]) {
     _verseRepsDone = 0;
     _sectionRepsDone = 0;
-    _pendingNextAfterGap = false;
+    _afterGap = _After.nothing;
     final v = (verse ?? scope.fromVerse).clamp(scope.fromVerse, scope.toVerse);
     return _playFromStartOf(v, atScopeStart: verse == null || v == scope.fromVerse);
   }
 
   /// The current action finished (a PlayRange reached its end, or a Silence elapsed).
   PlanAction advance() {
-    if (_pendingNextAfterGap) {
-      _pendingNextAfterGap = false;
-      return _enterNextVerse();
+    final after = _afterGap;
+    if (after != _After.nothing) {
+      _afterGap = _After.nothing;
+      return switch (after) {
+        _After.sameVerse => _replay(_verse),
+        _After.nextVerse => _enterNextVerse(),
+        _ => _playFromStartOf(scope.fromVerse, atScopeStart: true),
+      };
     }
     _verseRepsDone++;
     final repeats = settings.verseRepeats;
     if (repeats == null || _verseRepsDone < repeats) {
-      return _replay(_verse);
+      return _gapBefore(_After.sameVerse) ?? _replay(_verse);
     }
     _verseRepsDone = 0;
     if (_verse < scope.toVerse) {
-      if (settings.gapMs > 0) {
-        _pendingNextAfterGap = true;
-        return Silence(settings.gapMs);
-      }
-      return _enterNextVerse();
+      return _gapBefore(_After.nextVerse) ?? _enterNextVerse();
     }
     _sectionRepsDone++;
     final sections = settings.sectionRepeats;
     if (sections == null || _sectionRepsDone < sections) {
-      return _playFromStartOf(scope.fromVerse, atScopeStart: true);
+      return _gapBefore(_After.nextRound) ?? _playFromStartOf(scope.fromVerse, atScopeStart: true);
     }
     _sectionRepsDone = 0;
     return const Finished();
   }
 
-  /// A user jump (tap on a verse, next/previous): restarts counters for the verse.
+  /// The gap, if there is one, before [then].
+  PlanAction? _gapBefore(_After then) {
+    if (settings.gapMs <= 0) return null;
+    _afterGap = then;
+    return Silence(settings.gapMs);
+  }
+
+  /// A user jump (tap on a verse, next/previous): both counters start again.
   PlanAction jumpTo(int verse) {
     _verseRepsDone = 0;
-    _pendingNextAfterGap = false;
+    _sectionRepsDone = 0;
+    _afterGap = _After.nothing;
     return _playFromStartOf(verse.clamp(scope.fromVerse, scope.toVerse), atScopeStart: false);
   }
 
@@ -201,3 +215,6 @@ class PlaybackPlan {
     return PlayRange(next, from, end, continuous: from == previousEnd);
   }
 }
+
+/// What comes after the silence between two plays.
+enum _After { nothing, sameVerse, nextVerse, nextRound }

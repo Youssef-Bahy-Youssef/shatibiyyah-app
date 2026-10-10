@@ -92,7 +92,7 @@ class PlayerSheet extends StatelessWidget {
   // The section and the reciter over the chapter; «إغلاق المشغّل» at the end (44 px in a 48 px target).
   Widget _header(BuildContext context) {
     final c = TzTheme.of(context).colors;
-    final scope = reader.engine!.plan.scope;
+    final scope = reader.section!;
     return SizedBox(
       height: 52,
       child: Stack(
@@ -125,7 +125,7 @@ class PlayerSheet extends StatelessWidget {
   Widget _hero(BuildContext context) {
     final c = TzTheme.of(context).colors;
     final verse = reader.content.matn.verse(reader.verse);
-    final scope = reader.engine!.plan.scope;
+    final scope = reader.section!;
     final next = reader.verse < scope.toVerse ? reader.content.matn.verse(reader.verse + 1) : null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
@@ -170,7 +170,7 @@ class PlayerSheet extends StatelessWidget {
   // starts there) to its last verse's end.
   Widget _scrubber(BuildContext context) {
     final engine = reader.engine!;
-    final windows = engine.windows, scope = engine.plan.scope;
+    final windows = engine.windows, scope = reader.section!;
     final start = scope.fromChapterTitle ? windows.chapterStart(scope.fromVerse) : windows.cue(scope.fromVerse);
     final end = windows.verseEnd(scope.toVerse);
     final total = (end - start).clamp(1, 1 << 31);

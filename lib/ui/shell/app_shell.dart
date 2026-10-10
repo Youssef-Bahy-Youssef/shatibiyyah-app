@@ -134,7 +134,7 @@ class AppShellState extends State<AppShell> {
     final rec = r.recording;
     final library = r.library;
     if (r.audioAvailable) {
-      final section = r.engine!.plan.scope;
+      final section = r.section!;
       final of = section.toVerse - section.fromVerse + 1;
       final at = (r.verse - section.fromVerse + 1).clamp(1, of);
       final repeats = r.settings.verseRepeats;

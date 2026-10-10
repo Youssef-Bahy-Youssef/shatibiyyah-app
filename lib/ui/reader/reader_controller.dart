@@ -273,10 +273,22 @@ class ReaderController extends ChangeNotifier {
   }
 
   // ── transport ──
-  PlaybackScope _chapterScope(int verse) {
-    final c = content.matn.chapterOfVerse(verse);
-    return PlaybackScope(c.fromVerse, c.toVerse);
+  // The section (ADR 0003) starts where play was pressed: «تكرار المقطع» returns
+  // to that verse, never to a chapter's first verse the listener did not choose.
+  bool _sectionSet = false; // a section was started in this session
+
+  /// From [verse] to the end of its chapter: what ▶ plays when nothing is chosen.
+  PlaybackScope _fromHere(int verse) => PlaybackScope(verse, content.matn.chapterOfVerse(verse).toVerse);
+
+  /// The section as the player shows it: the one in hand, or the one ▶ would start.
+  PlaybackScope? get section {
+    final e = engine;
+    if (e == null) return null;
+    return _inSection(e, _verse) ? e.plan.scope : _fromHere(_verse);
   }
+
+  bool _inSection(PlaybackEngine e, int verse) =>
+      _sectionSet && e.plan.scope.fromVerse <= verse && verse <= e.plan.scope.toVerse;
 
   Future<void> playPause() async {
     final e = engine;
@@ -286,11 +298,17 @@ class ReaderController extends ChangeNotifier {
     } else {
       _detached = false;
       viewer.setActiveVerse(_verse);
-      if (_engineState == null || _engineState!.finished || e.plan.verse != _verse) {
-        e.plan.scope = _chapterScope(_verse);
-        await e.play(_verse);
+      final state = _engineState;
+      if (state != null && !state.finished && e.plan.verse == _verse) {
+        await e.resume(); // in the middle of a verse: the same section, the same counters
+      } else if (_inSection(e, _verse)) {
+        // The section in hand: again from its start once it has ended, or from
+        // the verse the listener moved to inside it.
+        await e.play(state != null && state.finished && e.plan.verse == _verse ? null : _verse);
       } else {
-        await e.resume();
+        e.plan.scope = _fromHere(_verse);
+        _sectionSet = true;
+        await e.play(_verse);
       }
     }
     notifyListeners();
@@ -305,6 +323,7 @@ class ReaderController extends ChangeNotifier {
     _detached = false;
     viewer.setActiveVerse(_verse);
     e.plan.scope = scope;
+    _sectionSet = true;
     notifyListeners();
     await e.play(scope.fromVerse);
   }
@@ -340,8 +359,11 @@ class ReaderController extends ChangeNotifier {
     viewer.setActiveVerse(verse);
     final e = engine;
     if (e != null && playing) {
-      final scope = e.plan.scope;
-      if (verse < scope.fromVerse || verse > scope.toVerse) e.plan.scope = _chapterScope(verse);
+      // Outside the section in hand, a new one starts from the tapped verse.
+      if (!_inSection(e, verse)) {
+        e.plan.scope = _fromHere(verse);
+        _sectionSet = true;
+      }
       await e.jumpTo(verse);
     }
     notifyListeners();

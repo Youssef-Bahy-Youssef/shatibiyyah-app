@@ -338,26 +338,52 @@ void main() {
     for (final speed in [0.25, 1.0, 2.0]) {
       test('$speed×: a repeat seeks back, the gap pauses and the end pauses on time', () {
         fakeAsync((async) {
+          // With no gap, a verse played twice seeks back at its end.
           final audio = ClockAudio(async);
-          final engine = PlaybackEngine(
-              audio, PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(verseRepeats: 2, gapMs: 1000)));
+          final engine =
+              PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(verseRepeats: 2)));
           engine.setSpeed(speed);
           engine.play();
           async.elapse(Duration(milliseconds: (30000 / speed).round()));
-
-          // Verse 2 twice (a seek back at its end), a gap (a pause), verse 3 straight on
-          // from where the gap paused, then again (a seek back), and the end (a pause).
-          expect(audio.seeks, [1950, 1950, 2950]);
-          expect(audio.stops.map((s) => s.kind), ['seek', 'pause', 'seek', 'pause']);
-          final ends = [3000, 3000, 3800, 3800]; // verse 3 ends where the title before verse 4 begins
+          expect(audio.seeks, [1950, 1950, 2950]); // verse 3 the first time follows on with no seek
+          expect(audio.stops.map((s) => s.kind), ['seek', 'seek', 'pause']);
+          final ends = [3000, 3800, 3800]; // verse 3 ends where the title before verse 4 begins
           for (final (i, stop) in audio.stops.indexed) {
             expect((stop.at - ends[i]).abs(), lessThanOrEqualTo(40), reason: '${stop.kind} at ${stop.at}, the window ends at ${ends[i]}');
           }
           expect(engine.state.finished, isTrue);
           audio.dispose();
+
+          // With a gap, each verse ends in a pause.
+          final gapped = ClockAudio(async);
+          final withGap =
+              PlaybackEngine(gapped, PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(gapMs: 1000)));
+          withGap.setSpeed(speed);
+          withGap.play();
+          async.elapse(Duration(milliseconds: (30000 / speed).round()));
+          expect(gapped.stops.map((s) => s.kind), ['pause', 'pause']);
+          for (final (i, stop) in gapped.stops.indexed) {
+            expect((stop.at - [3000, 3800][i]).abs(), lessThanOrEqualTo(40), reason: 'pause at ${stop.at}');
+          }
+          expect(withGap.state.finished, isTrue);
+          gapped.dispose();
         });
       });
     }
+
+    test('a change of speed keeps the counters (ADR 0004)', () {
+      fakeAsync((async) {
+        final audio = ClockAudio(async);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(2, 2), const PlaybackSettings(verseRepeats: 3)));
+        engine.play();
+        async.elapse(const Duration(milliseconds: 1500)); // into the second play of verse 2
+        expect(engine.state.verseRepetition, 2);
+        engine.setSpeed(1.5);
+        async.elapse(const Duration(milliseconds: 100));
+        expect(engine.state.verseRepetition, 2);
+        audio.dispose();
+      });
+    });
 
     test('a change of speed in the middle of a verse moves the stop with it', () {
       fakeAsync((async) {
