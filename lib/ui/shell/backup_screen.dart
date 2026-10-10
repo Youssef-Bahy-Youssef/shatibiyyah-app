@@ -11,7 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../data/backup.dart';
 import '../../data/settings_store.dart';
 import '../../services/device_storage.dart' as device;
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
@@ -140,12 +140,12 @@ class _BackupScreenState extends State<BackupScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(last == null ? 'لم تُنشأ نسخة بعد' : 'آخر نسخة: ${dayLabel(last)} ${clockTime(last)}',
-                          style: kufi(size: 15, weight: 500, color: t.text)),
+                          style: TzType.body.copyWith(color: t.text)),
                       Text(
                         lastBytes == null
                             ? 'ملف على الجهاز'
                             : 'ملف على الجهاز، ${ar((lastBytes / 1024).ceil())} ك.ب',
-                        style: kufi(size: 12.5, weight: 400, color: t.muted),
+                        style: TzType.caption.copyWith(color: t.muted),
                       ),
                     ],
                   ),
@@ -157,11 +157,11 @@ class _BackupScreenState extends State<BackupScreen> {
           Text(
             'يشمل: المراجع والملاحظات وإعدادات القراءة. '
             'لا يشمل الصوت ولا الشروح.',
-            style: kufi(size: 13, weight: 400, color: t.muted, height: 1.7),
+            style: TzType.label.copyWith(color: t.muted),
           ),
           const SizedBox(height: 6),
           Text('الاستعادة تدمج مع ما على الجهاز ولا تمحو شيئًا.',
-              style: kufi(size: 13, weight: 400, color: t.muted, height: 1.7)),
+              style: TzType.label.copyWith(color: t.muted)),
           const SizedBox(height: 20),
           FilledButton(
             onPressed: _busy ? null : () => _run(_backup),
@@ -171,13 +171,13 @@ class _BackupScreenState extends State<BackupScreen> {
               minimumSize: const Size.fromHeight(52),
               shape: const StadiumBorder(),
             ),
-            child: Text('إنشاء نسخة الآن', style: kufi(size: 15, weight: 600, color: t.onGold)),
+            child: Text('إنشاء نسخة الآن', style: TzType.body.copyWith(color: t.onGold)),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _run(_restore),
             icon: Icon(LucideIcons.upload, size: 18, color: t.goldText),
-            label: Text('استعادة من ملف', style: kufi(size: 15, weight: 500, color: t.text)),
+            label: Text('استعادة من ملف', style: TzType.body.copyWith(color: t.text)),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
               side: BorderSide(color: t.line),
@@ -191,7 +191,7 @@ class _BackupScreenState extends State<BackupScreen> {
               padding: const EdgeInsets.only(top: 18),
               child: Text(_message!,
                   textAlign: TextAlign.center,
-                  style: kufi(size: 14, weight: 500, color: _failed ? t.warn : t.goldText)),
+                  style: TzType.label.copyWith(color: _failed ? t.warn : t.goldText)),
             ),
         ],
       ),

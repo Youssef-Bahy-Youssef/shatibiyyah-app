@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app/personal_data.dart';
 import '../../data/app_content.dart';
 import '../../data/user_store.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 
@@ -43,7 +43,7 @@ Widget _sheetFrame(BuildContext context, List<Widget> children) {
 /// «تعذّر الحفظ»: a save or delete failed; the sheet stays open with its input (F-55).
 Widget _saveFailed(TaysirColors t) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Text('تعذّر الحفظ', style: kufi(size: 14, weight: 500, color: t.warn)),
+      child: Text('تعذّر الحفظ', style: TzType.label.copyWith(color: t.warn)),
     );
 
 /// «البيت ٢٢٩، باب …» or «الأبيات ٢٢٦–٢٣٤، باب …» («،» after the number: a «·» there
@@ -59,7 +59,7 @@ void showBookmarkUndo(ScaffoldMessengerState? messenger, PersonalData personal, 
   messenger
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text('أُزيل المرجع', style: kufi(size: 14, weight: 500, color: t.text)),
+      content: Text('أُزيل المرجع', style: TzType.label.copyWith(color: t.text)),
       backgroundColor: t.raised,
       duration: const Duration(seconds: 5),
       persist: false,
@@ -153,27 +153,27 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     return _sheetFrame(context, [
-      Text('المرجع', style: kufi(size: 18, weight: 600, color: t.text)),
-      Text(studyTarget(widget.content, _from, _to), style: naskh(size: 16, color: t.dim, height: 1.7)),
+      Text('المرجع', style: TzType.title.copyWith(color: t.text)),
+      Text(studyTarget(widget.content, _from, _to), style: TzType.chapter.copyWith(color: t.dim)),
       for (final b in _covering)
         Row(
           children: [
             Container(
               width: 12,
               height: 12,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: kBookmarkColors[b.color]),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: t.bookmark(b.color.index)),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(bookmarkLabel(b), style: kufi(size: 14, weight: 500, color: t.text))),
+            Expanded(child: Text(bookmarkLabel(b), style: TzType.label.copyWith(color: t.text))),
             TextButton(
               onPressed: () => _delete(b),
               style: TextButton.styleFrom(minimumSize: const Size(64, 44)),
-              child: Text('حذف', style: kufi(size: 14, weight: 500, color: t.warn)),
+              child: Text('حذف', style: TzType.label.copyWith(color: t.warn)),
             ),
           ],
         ),
       const SizedBox(height: 12),
-      Text('اللون', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+      Text('اللون', style: TzType.caption.copyWith(color: t.muted)),
       const SizedBox(height: 8),
       Row(
         children: [
@@ -191,7 +191,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
                     height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: kBookmarkColors[c],
+                      color: t.bookmark(c.index),
                       boxShadow: c == _color
                           ? [BoxShadow(color: t.panel, spreadRadius: 3), BoxShadow(color: t.gold, spreadRadius: 5)]
                           : null,
@@ -203,7 +203,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
         ],
       ),
       const SizedBox(height: 14),
-      Text('الوسم', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+      Text('الوسم', style: TzType.caption.copyWith(color: t.muted)),
       const SizedBox(height: 8),
       Wrap(
         spacing: 8,
@@ -211,7 +211,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
           for (final tag in BookmarkTag.values)
             ChoiceChip(
               label: Text(kBookmarkTagLabels[tag]!,
-                  style: kufi(size: 14, weight: 500, color: tag == _tag ? t.onGold : t.text)),
+                  style: TzType.label.copyWith(color: tag == _tag ? t.onGold : t.text)),
               selected: tag == _tag,
               showCheckmark: false,
               selectedColor: t.gold,
@@ -232,7 +232,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
           shape: const StadiumBorder(),
         ),
         // Not just «حفظ»: that is also the first tag, right above.
-        child: Text('حفظ المرجع', style: kufi(size: 15.5, weight: 600, color: t.onGold)),
+        child: Text('حفظ المرجع', style: TzType.body.copyWith(color: t.onGold)),
       ),
     ]);
   }
@@ -292,20 +292,20 @@ class _NoteSheetState extends State<_NoteSheet> {
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     return _sheetFrame(context, [
-      Text('ملاحظة على البيت ${ar(widget.verse)}', style: kufi(size: 18, weight: 600, color: t.text)),
+      Text('ملاحظة على البيت ${ar(widget.verse)}', style: TzType.title.copyWith(color: t.text)),
       Text(widget.content.matn.chapterOfVerse(widget.verse).shortLabel,
-          style: naskh(size: 16, color: t.dim, height: 1.7)),
+          style: TzType.chapter.copyWith(color: t.dim)),
       const SizedBox(height: 10),
       TextField(
         controller: _field,
         autofocus: true,
         minLines: 4,
         maxLines: 8,
-        style: naskh(size: 18, color: t.text, height: 1.7),
+        style: TzType.commentary.copyWith(color: t.text),
         cursorColor: t.gold,
         decoration: InputDecoration(
           hintText: 'اكتب ملاحظتك…',
-          hintStyle: naskh(size: 17, color: t.muted),
+          hintStyle: TzType.commentary.copyWith(color: t.muted),
           filled: true,
           fillColor: t.panel2,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: t.line)),
@@ -324,7 +324,7 @@ class _NoteSheetState extends State<_NoteSheet> {
           minimumSize: const Size.fromHeight(50),
           shape: const StadiumBorder(),
         ),
-        child: Text('حفظ', style: kufi(size: 15.5, weight: 600, color: t.onGold)),
+        child: Text('حفظ', style: TzType.body.copyWith(color: t.onGold)),
       ),
     ]);
   }

@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/reminders.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 import 'shell_page.dart';
 
@@ -65,12 +65,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     'لم يُسمح بالإشعارات. اسمح بها للتطبيق من إعدادات الجهاز ثم فعّل التنبيه.',
-                    style: kufi(size: 13, weight: 500, color: t.warn, height: 1.7),
+                    style: TzType.label.copyWith(color: t.warn),
                   ),
                 ),
               Padding(
                 padding: const EdgeInsets.only(top: 22, bottom: 8),
-                child: Text('معاينة', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                child: Text('معاينة', style: TzType.caption.copyWith(color: t.muted)),
               ),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -87,14 +87,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         Icon(LucideIcons.bellRing, size: 15, color: t.goldText),
                         const SizedBox(width: 6),
                         Flexible(
-                          child: Text('تيسير الشاطبية', style: kufi(size: 11.5, weight: 400, color: t.muted)),
+                          child: Text('تيسير الشاطبية', style: TzType.caption.copyWith(color: t.muted)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(sample.title, style: kufi(size: 14.5, weight: 600, color: t.text)),
+                    Text(sample.title, style: TzType.label.copyWith(color: t.text)),
                     const SizedBox(height: 2),
-                    Text(sample.body, style: naskh(size: 16, color: t.text, height: 1.7)),
+                    Text(sample.body, style: TzType.body.copyWith(color: t.text)),
                   ],
                 ),
               ),
@@ -145,8 +145,8 @@ class _SwitchRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(title, style: kufi(size: 15, weight: 500, color: t.text)),
-                      Text(subtitle, style: kufi(size: 12, weight: 400, color: t.muted)),
+                      Text(title, style: TzType.body.copyWith(color: t.text)),
+                      Text(subtitle, style: TzType.caption.copyWith(color: t.muted)),
                     ],
                   ),
                 ),

@@ -4,7 +4,7 @@
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
 import '../reader/reader_controller.dart';
@@ -43,23 +43,23 @@ class AboutScreen extends StatelessWidget {
           Text(
             'تيسير الشاطبية',
             textAlign: TextAlign.center,
-            style: kufi(size: 24, weight: 600, color: t.text),
+            style: TzType.title.copyWith(color: t.text),
           ),
           Text(
             'حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي',
             textAlign: TextAlign.center,
-            style: naskh(size: 18, color: t.goldText, height: 1.8),
+            style: TzType.chapter.copyWith(color: t.goldText),
           ),
           Text(
             versionLabel(kAppVersion),
             textAlign: TextAlign.center,
-            style: kufi(size: 13, weight: 400, color: t.muted),
+            style: TzType.label.copyWith(color: t.muted),
           ),
           const SizedBox(height: 18),
           Text(
             'رفيق لدراسة متن الشاطبية وحفظه: المخطوط، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.',
             textAlign: TextAlign.center,
-            style: kufi(size: 15, weight: 400, color: t.dim, height: 1.7),
+            style: TzType.body.copyWith(color: t.dim),
           ),
           if (reader?.store != null) ...[
             const SizedBox(height: 24),
@@ -77,7 +77,7 @@ class AboutScreen extends StatelessWidget {
                   side: BorderSide(color: t.line),
                   shape: const StadiumBorder(),
                 ),
-                child: Text('أعد الجولة', style: kufi(size: 14.5, weight: 500, color: t.text)),
+                child: Text('أعد الجولة', style: TzType.label.copyWith(color: t.text)),
               ),
             ),
           ],
@@ -89,7 +89,7 @@ class AboutScreen extends StatelessWidget {
               child: TextButton(
                 onPressed: () => Navigator.of(context)
                     .push(MaterialPageRoute<void>(builder: (_) => DebugToolsScreen(reader: reader!))),
-                child: Text('أدوات التجربة', style: kufi(size: 13.5, weight: 500, color: t.goldText)),
+                child: Text('أدوات التجربة', style: TzType.label.copyWith(color: t.goldText)),
               ),
             ),
           ],

@@ -11,7 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/audio_library.dart';
 import '../../data/settings_store.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
@@ -91,7 +91,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
   Widget _viewTab(TaysirColors t) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('السمة', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+          Text('السمة', style: TzType.caption.copyWith(color: t.muted)),
           const SizedBox(height: 6),
           _Pills<ReaderTheme>(
             values: ReaderTheme.values,
@@ -106,7 +106,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
             children: [
               Icon(LucideIcons.sun, size: 20, color: t.goldText),
               const SizedBox(width: 12),
-              Expanded(child: Text('سطوع الصفحة ليلًا', style: kufi(size: 14.5, weight: 400, color: t.text))),
+              Expanded(child: Text('سطوع الصفحة ليلًا', style: TzType.label.copyWith(color: t.text))),
               _Round(
                 icon: LucideIcons.minus,
                 label: 'أخفت',
@@ -115,7 +115,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
               SizedBox(
                 width: 52,
                 child: Text('${ar(r.brightness)}٪',
-                    textAlign: TextAlign.center, style: kufi(size: 14, weight: 600, color: t.text)),
+                    textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.text)),
               ),
               _Round(
                 icon: LucideIcons.plus,
@@ -140,10 +140,10 @@ class _ToolsSheetState extends State<ToolsSheet> {
           Icon(LucideIcons.download, size: 32, color: t.goldText),
           const SizedBox(height: 10),
           Text('التلاوة غير منزّلة بعد',
-              textAlign: TextAlign.center, style: kufi(size: 16, weight: 600, color: t.text)),
+              textAlign: TextAlign.center, style: TzType.head.copyWith(color: t.text)),
           const SizedBox(height: 4),
           Text('نزّل تلاوة ${r.recording.reciterName} لتسمع الأبيات؛ المتن والشروح تعمل دون تنزيل.',
-              textAlign: TextAlign.center, style: kufi(size: 13, weight: 400, color: t.muted)),
+              textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.muted)),
           if (library != null) ...[
             const SizedBox(height: 14),
             FilledButton(
@@ -157,7 +157,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
                 minimumSize: const Size.fromHeight(48),
                 shape: const StadiumBorder(),
               ),
-              child: Text('التنزيلات', style: kufi(size: 15, weight: 600, color: t.onGold)),
+              child: Text('التنزيلات', style: TzType.body.copyWith(color: t.onGold)),
             ),
           ],
         ]),
@@ -184,9 +184,9 @@ class _ToolsSheetState extends State<ToolsSheet> {
         ),
         const SizedBox(height: 16),
         Text(c.shortLabel,
-            textAlign: TextAlign.center, style: naskh(size: 20, weight: FontWeight.w700, color: t.text)),
+            textAlign: TextAlign.center, style: TzType.verse.copyWith(color: t.text)),
         Text('الأبيات ${ar(c.fromVerse)}–${ar(c.toVerse)} · ${r.recording.reciterName}',
-            textAlign: TextAlign.center, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+            textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
         const SizedBox(height: 12),
         Directionality(
           textDirection: TextDirection.ltr,
@@ -244,7 +244,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
         ),
         const SizedBox(height: 8),
         Text('المس البطاقة لتغيير القيمة · العدّادات تظهر على الشمسة أيضًا',
-            textAlign: TextAlign.center, style: kufi(size: 12, weight: 400, color: t.muted)),
+            textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
       ],
     );
   }
@@ -258,7 +258,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(r.recording.reciterName,
-                maxLines: 1, overflow: TextOverflow.ellipsis, style: kufi(size: 13, weight: 400, color: t.text)),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.label.copyWith(color: t.text)),
           ),
           if (r.library != null) ...[
             const SizedBox(width: 4),
@@ -283,8 +283,8 @@ class _ToolsSheetState extends State<ToolsSheet> {
     Widget row(IconData icon, String label, String sub, VoidCallback? onTap) => ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(icon, color: onTap == null ? t.muted : t.goldText),
-          title: Text(label, style: kufi(size: 15, weight: 600, color: onTap == null ? t.muted : t.text)),
-          subtitle: Text(sub, style: kufi(size: 12, weight: 400, color: t.muted)),
+          title: Text(label, style: TzType.body.copyWith(color: onTap == null ? t.muted : t.text)),
+          subtitle: Text(sub, style: TzType.caption.copyWith(color: t.muted)),
           enabled: onTap != null,
           onTap: onTap,
         );
@@ -353,7 +353,7 @@ class _SwitchRow extends StatelessWidget {
           child: Row(children: [
             Icon(icon, size: 20, color: t.goldText),
             const SizedBox(width: 12),
-            Expanded(child: Text(label, style: kufi(size: 14.5, weight: 400, color: t.text))),
+            Expanded(child: Text(label, style: TzType.label.copyWith(color: t.text))),
             Switch(
               value: value,
               onChanged: onChanged,
@@ -437,8 +437,8 @@ class _Card extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(label, style: kufi(size: 12, weight: 400, color: t.muted)),
-                  Text(value, style: kufi(size: 16, weight: 600, color: t.text)),
+                  Text(label, style: TzType.caption.copyWith(color: t.muted)),
+                  Text(value, style: TzType.head.copyWith(color: t.text)),
                 ],
               ),
             ),
@@ -446,7 +446,7 @@ class _Card extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999)),
-                child: Text(counter!, style: kufi(size: 12, weight: 600, color: t.onGold)),
+                child: Text(counter!, style: TzType.caption.copyWith(color: t.onGold)),
               ),
           ]),
         ),

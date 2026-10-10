@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/routes.dart';
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
 import '../reader/reader_controller.dart';
@@ -34,7 +34,7 @@ class AppDrawer extends StatelessWidget {
                       'تيسير الشاطبية',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: kufi(size: 18, weight: 600, color: t.text),
+                      style: TzType.title.copyWith(color: t.text),
                     ),
                   ),
                 ],
@@ -62,7 +62,7 @@ class AppDrawer extends StatelessWidget {
                             route.label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: kufi(size: 15, weight: 400, color: t.text),
+                            style: TzType.body.copyWith(color: t.text),
                           ),
                         ),
                       ],

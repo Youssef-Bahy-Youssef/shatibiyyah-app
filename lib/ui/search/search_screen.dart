@@ -18,7 +18,7 @@ import '../../app/recent_searches.dart';
 import '../../data/user_store.dart' show Note;
 import '../../domain/normalizer.dart';
 import '../../domain/search.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
@@ -185,13 +185,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 onChanged: _onChanged,
                 onSubmitted: (_) => _remember(),
                 textInputAction: TextInputAction.search,
-                style: naskh(size: 18, color: t.text),
+                style: TzType.chapter.copyWith(color: t.text),
                 cursorColor: t.gold,
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isCollapsed: true,
                   hintText: 'ابحث في الأبيات والأبواب والشروح',
-                  hintStyle: naskh(size: 17, color: t.muted),
+                  hintStyle: TzType.chapter.copyWith(color: t.muted),
                 ),
               ),
               ),
@@ -213,24 +213,24 @@ class _SearchScreenState extends State<SearchScreen> {
           side: BorderSide(color: t.line),
           shape: const StadiumBorder(),
         ),
-        child: Text(s, style: naskh(size: 16, color: t.text)),
+        child: Text(s, style: TzType.chapter.copyWith(color: t.text)),
       );
 
   List<Widget> _emptyState(TaysirColors t) => [
         if (_recent.all case final recent when recent.isNotEmpty) ...[
           Row(
             children: [
-              Expanded(child: Text('بحثت مؤخرًا', style: kufi(size: 12.5, weight: 400, color: t.muted))),
+              Expanded(child: Text('بحثت مؤخرًا', style: TzType.caption.copyWith(color: t.muted))),
               TextButton(
                 onPressed: () => setState(_recent.clear),
-                child: Text('مسح', style: kufi(size: 12.5, weight: 400, color: t.goldText)),
+                child: Text('مسح', style: TzType.caption.copyWith(color: t.goldText)),
               ),
             ],
           ),
           Wrap(spacing: 8, runSpacing: 8, children: [for (final s in recent) _chip(t, s)]),
           const SizedBox(height: 18),
         ],
-        Text('جرّب: ${kSearchSuggestions.join(' · ')}', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+        Text('جرّب: ${kSearchSuggestions.join(' · ')}', style: TzType.caption.copyWith(color: t.muted)),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -251,8 +251,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الانتقال السريع إلى صفحة أو بيت', style: kufi(size: 15, weight: 400, color: t.text)),
-                      Text('لوحة أرقام هندية', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                      Text('الانتقال السريع إلى صفحة أو بيت', style: TzType.body.copyWith(color: t.text)),
+                      Text('لوحة أرقام هندية', style: TzType.caption.copyWith(color: t.muted)),
                     ],
                   ),
                 ),
@@ -268,7 +268,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final matn = widget.reader.content.matn;
     Widget label(String s) => Padding(
           padding: const EdgeInsets.only(top: 12, bottom: 6),
-          child: Text(s, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+          child: Text(s, style: TzType.caption.copyWith(color: t.muted)),
         );
     Widget card({required Widget child, required VoidCallback onTap}) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -286,7 +286,7 @@ class _SearchScreenState extends State<SearchScreen> {
           alignment: AlignmentDirectional.centerStart,
           child: TextButton(
             onPressed: onTap,
-            child: Text(text, style: kufi(size: 13, weight: 500, color: onTap == null ? t.dim : t.goldText)),
+            child: Text(text, style: TzType.label.copyWith(color: onTap == null ? t.dim : t.goldText)),
           ),
         );
     final number = _number;
@@ -306,11 +306,11 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('البيت ${ar(numberedVerse)}', style: kufi(size: 14.5, weight: 600, color: t.text)),
+                    Text('البيت ${ar(numberedVerse)}', style: TzType.label.copyWith(color: t.text)),
                     Text(matn.verse(numberedVerse).firstHemistich,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: naskh(size: 16, color: t.muted, height: 1.6)),
+                        style: TzType.verse.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -324,7 +324,7 @@ class _SearchScreenState extends State<SearchScreen> {
             children: [
               Icon(LucideIcons.bookOpen, size: 18, color: t.goldText),
               const SizedBox(width: 10),
-              Text('الصفحة ${ar(numberedPage)}', style: kufi(size: 14.5, weight: 600, color: t.text)),
+              Text('الصفحة ${ar(numberedPage)}', style: TzType.label.copyWith(color: t.text)),
             ],
           ),
         ),
@@ -333,11 +333,11 @@ class _SearchScreenState extends State<SearchScreen> {
         Text(
             'الأبيات ${ar(r.verses.length)}، الأبواب ${ar(r.chapters.length)}، الشروح ${ar(_commentaryTotal)}'
             '${_notes.isEmpty ? '' : '، ملاحظاتك ${ar(_notes.length)}'}',
-            style: kufi(size: 12.5, weight: 400, color: t.muted)),
+            style: TzType.caption.copyWith(color: t.muted)),
       if (nothing)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 30),
-          child: Text('لا نتائج', textAlign: TextAlign.center, style: kufi(size: 14, weight: 400, color: t.dim)),
+          child: Text('لا نتائج', textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.dim)),
         ),
       if (r.chapters.isNotEmpty) ...[
         label('الأبواب'),
@@ -347,9 +347,9 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(c.title, style: naskh(size: 17, weight: FontWeight.w700, color: t.text, height: 1.7)),
+                Text(c.title, style: TzType.chapter.copyWith(color: t.text)),
                 Text('الأبيات ${isolatedRange(c.fromVerse, c.toVerse)}',
-                    style: kufi(size: 12, weight: 400, color: t.muted)),
+                    style: TzType.caption.copyWith(color: t.muted)),
               ],
             ),
           ),
@@ -362,11 +362,11 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('البيت ${ar(note.verse)}', style: kufi(size: 12, weight: 600, color: t.goldText)),
+                Text('البيت ${ar(note.verse)}', style: TzType.caption.copyWith(color: t.goldText)),
                 Text(snippetAround(note.body, r.query),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: naskh(size: 16.5, color: t.text, height: 1.75)),
+                    style: TzType.commentary.copyWith(color: t.text)),
               ],
             ),
           ),
@@ -385,19 +385,19 @@ class _SearchScreenState extends State<SearchScreen> {
                     width: 40,
                     child: Text(ar(n),
                         textAlign: TextAlign.center,
-                        style: naskh(size: 16, weight: FontWeight.w700, color: t.goldText, height: 1.6)),
+                        style: TzType.head.copyWith(color: t.goldText)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(matn.verse(n).firstHemistich, style: naskh(size: 18, color: t.text, height: 1.6)),
+                        Text(matn.verse(n).firstHemistich, style: TzType.verse.copyWith(color: t.text)),
                         Text(matn.verse(n).secondHemistich,
-                            textAlign: TextAlign.left, style: naskh(size: 18, color: t.text, height: 1.6)),
+                            textAlign: TextAlign.left, style: TzType.verse.copyWith(color: t.text)),
                         Text(
                           '${matn.chapterOfVerse(n).shortLabel}، ص ${ar(widget.reader.content.layout.pageOfVerse(n))}',
-                          style: kufi(size: 12, weight: 400, color: t.muted),
+                          style: TzType.caption.copyWith(color: t.muted),
                         ),
                       ],
                     ),
@@ -425,17 +425,17 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 Row(
                   children: [
-                    Text(h.bookTitle, style: kufi(size: 12, weight: 600, color: t.goldText)),
+                    Text(h.bookTitle, style: TzType.caption.copyWith(color: t.goldText)),
                     const SizedBox(width: 8),
                     Text(
                       h.fromVerse == h.toVerse
                           ? 'البيت ${ar(h.fromVerse)}'
                           : 'الأبيات ${isolatedRange(h.fromVerse, h.toVerse)}',
-                      style: kufi(size: 12, weight: 400, color: t.muted),
+                      style: TzType.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),
-                Text(h.snippet, style: naskh(size: 16.5, color: t.text, height: 1.75)),
+                Text(h.snippet, style: TzType.commentary.copyWith(color: t.text)),
               ],
             ),
           ),
@@ -528,7 +528,10 @@ class _JumpScreenState extends State<JumpScreen> {
                       onPressed: () => Navigator.of(context).maybePop(),
                       icon: Icon(LucideIcons.chevronRight, size: 21, color: t.text),
                     ),
-                    Text('الانتقال السريع', style: kufi(size: 20, weight: 600, color: t.text)),
+                    Expanded(
+                      child: Text('الانتقال السريع',
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.display.copyWith(color: t.text)),
+                    ),
                   ],
                 ),
               ),
@@ -545,7 +548,7 @@ class _JumpScreenState extends State<JumpScreen> {
                               width: double.infinity,
                               child: Text(l,
                                   textAlign: TextAlign.center,
-                                  style: kufi(size: 14, weight: 600, color: _verse == isVerse ? t.onGold : t.text)),
+                                  style: TzType.label.copyWith(color: _verse == isVerse ? t.onGold : t.text)),
                             ),
                             selected: _verse == isVerse,
                             showCheckmark: false,
@@ -567,7 +570,7 @@ class _JumpScreenState extends State<JumpScreen> {
               Text(
                 '${_digits.isEmpty ? '—' : ar(int.parse(_digits))} من ${ar(_max)}',
                 textAlign: TextAlign.center,
-                style: naskh(size: 34, weight: FontWeight.w700, color: t.goldText),
+                style: TzType.display.copyWith(color: t.goldText),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -579,13 +582,13 @@ class _JumpScreenState extends State<JumpScreen> {
                     children: [
                       Text(previewA,
                           textAlign: _verse && n != null ? TextAlign.right : TextAlign.center,
-                          style: naskh(size: 18, color: t.dim, height: 1.6)),
+                          style: TzType.verse.copyWith(color: t.dim)),
                       if (previewB.isNotEmpty)
                         Text(previewB,
                             textAlign: _verse ? TextAlign.left : TextAlign.center,
                             style: _verse
-                                ? naskh(size: 18, color: t.dim, height: 1.6)
-                                : kufi(size: 13, weight: 400, color: t.muted)),
+                                ? TzType.verse.copyWith(color: t.dim)
+                                : TzType.label.copyWith(color: t.muted)),
                     ],
                   ),
                 ),
@@ -629,7 +632,7 @@ class _JumpScreenState extends State<JumpScreen> {
               ? Icon(LucideIcons.delete, size: 24, color: t.text, semanticLabel: 'حذف')
               : go
                   ? Icon(LucideIcons.arrowLeft, size: 24, color: t.onGold, semanticLabel: 'انتقال')
-                  : Text(ar(int.parse(k)), style: naskh(size: 26, weight: FontWeight.w700, color: t.text)),
+                  : Text(ar(int.parse(k)), style: TzType.hero.copyWith(color: t.text)),
         ),
       ),
     );

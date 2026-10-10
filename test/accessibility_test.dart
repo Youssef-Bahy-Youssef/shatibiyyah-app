@@ -39,6 +39,7 @@ import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 class _NoNotifications implements NotificationPort {
   @override
@@ -139,10 +140,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(
-          brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-          extensions: [colorsFor(theme)],
-        ),
+        theme: tzThemeData(tzThemeFor(theme)),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
           child: Directionality(textDirection: TextDirection.rtl, child: child!),
@@ -271,7 +269,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(MaterialApp(
-        theme: ThemeData(extensions: [colorsFor(ReaderTheme.dark)]),
+        theme: tzThemeData(tzThemeFor(ReaderTheme.dark)),
         builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
         home: build(r),
       ));

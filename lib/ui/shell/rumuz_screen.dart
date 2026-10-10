@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/rumuz_repository.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
@@ -66,7 +66,7 @@ class _RumuzScreenState extends State<RumuzScreen> {
                 child: Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Text('${_triples(list)}، البيت ${_verses(list.first)}',
-                      style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                      style: TzType.caption.copyWith(color: t.muted)),
                 ),
               ),
             ),
@@ -83,7 +83,7 @@ class _RumuzScreenState extends State<RumuzScreen> {
           ] else ...[
             Text(
               'الأبيات ${isolatedRange(list.first.fromVerse, list.last.toVerse)}',
-              style: kufi(size: 12.5, weight: 400, color: t.muted),
+              style: TzType.caption.copyWith(color: t.muted),
             ),
             const SizedBox(height: 8),
             for (final r in list) _row(t, r),
@@ -102,13 +102,13 @@ class _RumuzScreenState extends State<RumuzScreen> {
         ),
         child: Row(
           children: [
-            Text(r.code, style: naskh(size: 26, weight: FontWeight.w700, color: t.goldText, height: 1.4)),
+            Text(r.code, style: TzType.hero.copyWith(color: t.goldText)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(r.label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: kufi(size: 13, weight: 500, color: t.text)),
+                  style: TzType.label.copyWith(color: t.text)),
             ),
           ],
         ),
@@ -123,10 +123,10 @@ class _RumuzScreenState extends State<RumuzScreen> {
             children: [
               SizedBox(
                 width: 72,
-                child: Text(r.code, style: naskh(size: 24, weight: FontWeight.w700, color: t.goldText, height: 1.4)),
+                child: Text(r.code, style: TzType.hero.copyWith(color: t.goldText)),
               ),
-              Expanded(child: Text(r.label, style: kufi(size: 14.5, weight: 500, color: t.text))),
-              Text('البيت ${_verses(r)}', style: kufi(size: 12, weight: 400, color: t.muted)),
+              Expanded(child: Text(r.label, style: TzType.label.copyWith(color: t.text))),
+              Text('البيت ${_verses(r)}', style: TzType.caption.copyWith(color: t.muted)),
             ],
           ),
         ),

@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/matn_repository.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
@@ -81,10 +81,10 @@ class _IndexScreenState extends State<IndexScreen> {
                     crossAxisAlignment: WrapCrossAlignment.end,
                     spacing: 12,
                     children: [
-                      Text(part.title, style: kufi(size: 19, weight: 600, color: t.goldBright)),
+                      Text(part.title, style: TzType.title.copyWith(color: t.goldBright)),
                       Text(
                         'الأبيات ${isolatedRange(part.fromVerse, part.toVerse)}، ${chaptersCount(chapters.length)}',
-                        style: kufi(size: 12.5, weight: 400, color: t.dim),
+                        style: TzType.caption.copyWith(color: t.dim),
                       ),
                     ],
                   ),
@@ -111,7 +111,7 @@ class _IndexScreenState extends State<IndexScreen> {
       ),
       child: Text(
         label,
-        style: kufi(size: 14, weight: on ? 600 : 400, color: on ? t.onGold : t.text),
+        style: TzType.label.copyWith(color: on ? t.onGold : t.text),
       ),
     ),
   );
@@ -147,11 +147,7 @@ class _IndexScreenState extends State<IndexScreen> {
                     ? Icon(LucideIcons.bookOpen, size: 18, color: current ? t.onGold : t.goldBright)
                     : Text(
                         ar(c.orderIndex),
-                        style: naskh(
-                          size: 15,
-                          weight: FontWeight.w700,
-                          color: current ? t.onGold : t.goldBright,
-                        ),
+                        style: TzType.head.copyWith(color: current ? t.onGold : t.goldBright),
                       ),
               ),
               const SizedBox(width: 12),
@@ -166,7 +162,7 @@ class _IndexScreenState extends State<IndexScreen> {
                             c.shortLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: naskh(size: 17, weight: FontWeight.w700, color: t.text, height: 1.75),
+                            style: TzType.chapter.copyWith(color: t.text),
                           ),
                         ),
                         if (current)
@@ -179,13 +175,13 @@ class _IndexScreenState extends State<IndexScreen> {
                               color: t.gold,
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Text('الحالي', style: kufi(size: 11, weight: 600, color: t.onGold)),
+                            child: Text('الحالي', style: TzType.caption.copyWith(color: t.onGold)),
                           ),
                       ],
                     ),
                     Text(
                       '${isolatedRange(c.fromVerse, c.toVerse)}، ${versesCount(c.verseCount)}',
-                      style: kufi(size: 12, weight: 400, color: t.muted),
+                      style: TzType.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),

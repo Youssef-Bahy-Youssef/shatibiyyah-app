@@ -10,11 +10,11 @@ import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/rumuz_repository.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -66,7 +66,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: Directionality(textDirection: TextDirection.rtl, child: RumuzScreen(reader: r)),
     ));
     await tester.pump();
@@ -89,6 +89,8 @@ void main() {
     expect(find.text('صحبة'), findsOneWidget);
     expect(find.text('حمزة والكسائي وشعبة'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('حصن')); // the rows are taller in the hero role
+    await tester.pumpAndSettle();
     await tester.tap(find.text('حصن'));
     await tester.pumpAndSettle();
     expect(r.verse, 55);

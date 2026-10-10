@@ -16,7 +16,6 @@ import 'package:shatibiyyah/models/chapter.dart';
 import 'package:shatibiyyah/models/verse.dart';
 import 'package:shatibiyyah/services/data_service.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
@@ -25,6 +24,7 @@ import 'package:shatibiyyah/ui/shell/about_screen.dart';
 import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 /// An audio port that plays nothing: enough for the reader to offer playback.
 class SilentAudio implements AudioPort {
@@ -92,7 +92,7 @@ void main() {
     tester.view.padding = const FakeViewPadding(top: 40, bottom: 20);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: ReaderScreen(reader: r),
     ));
     await tester.pump(const Duration(milliseconds: 300));
