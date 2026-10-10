@@ -31,6 +31,10 @@ import 'chapter_popover.dart';
 import 'display_sheet.dart';
 import '../commentary/commentary_sheet.dart';
 import '../design/components/verse_sheet_surface.dart';
+import '../../app/routes.dart';
+import '../design/components/rubric.dart';
+import '../design/components/symbol_tip.dart';
+import 'verse_rubrics.dart';
 import 'fixed_page_layout.dart';
 import 'listen_sheet.dart';
 import 'reader_controller.dart';
@@ -82,6 +86,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // (neither is a route).
           builder: (context, _) => PopScope(
             canPop: reader.menuVerse == null &&
+                reader.symbol == null &&
                 reader.headingChapter == null &&
                 !reader.selecting &&
                 !_splitOn(context) &&
@@ -90,6 +95,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (didPop) return;
               if (reader.menuVerse != null) {
                 reader.closeMenu();
+              } else if (reader.symbol != null) {
+                reader.closeSymbol();
               } else if (_splitOn(context)) {
                 reader.closeSplit();
               } else if (reader.commentaryVerse != null) {
@@ -152,6 +159,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
         Expanded(child: SplitPanel(reader: reader)),
       ],
     );
+  }
+
+  /// A reader symbol's tip (handoff textmode-symbol): 12 px under its letter, or
+  /// over it when the dock is in the way. A touch anywhere else closes it.
+  List<Widget> _symbolTip(BuildContext context, ({int verse, Rubric mark}) symbol, ReaderLayout layout) {
+    final content = reader.content;
+    final span = spanOf(content, symbol.verse, symbol.mark);
+    final at = _text.currentState?.symbolRect(symbol.verse, symbol.mark);
+    if (span == null || at == null) return const [];
+    final below = at.bottom + 12 + 96 <= layout.dock.top;
+    return [
+      Positioned.fill(
+        child: Semantics(
+          label: 'إغلاق',
+          button: true,
+          onTap: reader.closeSymbol,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: reader.closeSymbol,
+            onVerticalDragStart: (_) => reader.closeSymbol(),
+          ),
+        ),
+      ),
+      Positioned(
+        left: 16,
+        right: 16,
+        top: below ? at.bottom + 12 : null,
+        bottom: below ? null : MediaQuery.sizeOf(context).height - at.top + 12,
+        child: SymbolTip(
+          code: spanWords(content, symbol.verse, span),
+          title: symbolTitle(content, span),
+          caption: symbolCaption(content, span),
+          onOpenList: () {
+            reader.closeSymbol();
+            Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AppRoute.rumuz.build(reader)));
+          },
+        ),
+      ),
+    ];
   }
 
   /// «الشرح» from a verse or a chapter: the split on a tablet, the sheet on a phone.
@@ -360,6 +406,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           hasNote: (v) => reader.personal?.noteFor(v) != null,
           onExplain: _explain,
         ),
+        if (reader.symbol case final symbol? when reader.textMode) ..._symbolTip(context, symbol, layout),
         if (explainedRect != null)
           Positioned.fromRect(
             key: ReaderScreen.explainedRingKey,

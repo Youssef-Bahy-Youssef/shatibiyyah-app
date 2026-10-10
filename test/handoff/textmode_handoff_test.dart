@@ -10,11 +10,15 @@ import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
+import 'package:shatibiyyah/ui/design/components/phrase_wash.dart';
+import 'package:shatibiyyah/ui/design/components/symbol_tip.dart';
 import 'package:shatibiyyah/ui/design/components/text_size_grid.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
 import 'package:shatibiyyah/ui/design/components/tz_picker.dart';
 import 'package:shatibiyyah/ui/design/components/tz_sheet.dart';
+import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
+import 'package:shatibiyyah/ui/design/tz_icon.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/display_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
@@ -88,6 +92,15 @@ void main() {
           (v.firstHemistich, v.secondHemistich, 20.0, false, false));
     }
 
+    // Reader names in the rubric ink, where the design sets them.
+    final marks = [for (final n in spec.nodes) if (n.component == 'Rubric span' && n.json['covered'] != true) n];
+    final verse226 = tester.state<VerseUnitState>(unit(226));
+    final warsh = rect(tester, unit(226)) == Rect.zero ? null : verse226.symbolRect(verse226.rubrics.single);
+    c.same('«لِوَرْشٍ»: its words across the line',
+        ((warsh!.left - marks.first.rect.left).abs() <= 1.5, (warsh.right - marks.first.rect.right).abs() <= 1.5), (true, true));
+    final spans = tester.widgetList<RichText>(find.descendant(of: unit(226), matching: find.byType(RichText))).first.text as TextSpan;
+    c.same('rubric ink', spans.children!.cast<TextSpan>().firstWhere((s) => s.text == 'لِوَرْشٍ').style!.color, TzTheme.paper.rubric);
+
     // Text mode keeps the dock, with what is loaded.
     c.box('dock', rect(tester, find.byKey(Dock.bindingKey)), spec.component('Dock').rect);
     c.done();
@@ -117,6 +130,50 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('textmode-symbol: a symbol lit, its tip 12 dp under it', (tester) async {
+    final spec = HandoffSpec.load('textmode-symbol-paper');
+    if (spec == null) return markTestSkipped('the workspace (design/redesign/handoff/) is not around the app');
+    final r = await textMode(tester);
+    await tester.runAsync(() => r.tapVerse(229));
+    await tester.pumpAndSettle();
+    final state = tester.state<VerseUnitState>(unit(230));
+    final kaf = state.rubrics.first;
+    r.openSymbol(230, kaf);
+    await tester.pump();
+    final c = Conformance(spec);
+
+    // The letter: the rubric ink over a dotted line, on the lapis wash 3 dp past it.
+    final lit = spec.cls('rb sym on');
+    final letter = state.symbolRect(kaf)!;
+    c.same('letter width', (letter.width - lit.rect.width).abs() <= 1.5, true);
+    final wash = tester
+        .renderObjectList<RenderPhraseWash>(find.descendant(of: unit(230), matching: find.byType(PhraseWash)))
+        .expand((w) => w.painted)
+        .single;
+    c.same('wash', (wash.$2, wash.$1.width - letter.width, wash.$1.tlRadiusX), (TzTheme.paper.colors.lapisWash, 6.0, 7.0));
+    final second = tester.widgetList<RichText>(find.descendant(of: unit(230), matching: find.byType(RichText))).last.text as TextSpan;
+    final span = second.children!.cast<TextSpan>().firstWhere((s) => s.text == 'كَ').style!;
+    c.same('letter ink', (span.color, span.decoration, span.decorationStyle), (TzTheme.paper.rubric, TextDecoration.underline, TextDecorationStyle.dotted));
+
+    // The tip, measured from the letter: the design scrolls its list to another place.
+    final tip = spec.component('SymbolTip');
+    final box = rect(tester, find.byKey(SymbolTip.surfaceKey));
+    c.same('tip: 16 dp from the sides, 70 dp high', (box.left, box.width, box.height), (tip.rect.left, tip.rect.width, tip.rect.height));
+    c.same('tip: 12 dp under the letter', (box.top - letter.bottom - (tip.rect.top - lit.rect.bottom)).abs() <= 2, true);
+    Rect at(SpecNode n) => n.rect.translate(0, box.top - tip.rect.top);
+    c.box('code', rect(tester, find.byKey(SymbolTip.codeKey)), at(spec.cls('code')));
+    final caption = spec.nodes.firstWhere((n) => (n.text ?? '').startsWith('رمز حرفي'));
+    c.line('who', rect(tester, find.descendant(of: find.byType(SymbolTip), matching: find.text('ابن عامر'))), at(spec.text('ابن عامر')));
+    c.line('caption', rect(tester, find.descendant(of: find.byType(SymbolTip), matching: find.text(caption.text!))), at(caption));
+    final button = spec.text('رموز القراء');
+    final b = find.descendant(of: find.byType(SymbolTip), matching: find.byType(TzButton));
+    c.centre('«رموز القراء»', rect(tester, b), at(button));
+    c.same('button: a 48 dp target', tester.getSize(b).height, 48.0);
+    c.same('code ink', tester.widget<Text>(find.descendant(of: find.byKey(SymbolTip.codeKey), matching: find.byType(Text))).data, 'كَ');
+    c.done();
+    await unmount(tester);
+  });
+
   testWidgets('textmode-display: «العرض» with the page/text choice, six sizes and a live sample', (tester) async {
     final spec = HandoffSpec.load('textmode-display-paper');
     if (spec == null) return markTestSkipped('the workspace (design/redesign/handoff/) is not around the app');
@@ -128,13 +185,8 @@ void main() {
     final sheet = find.byType(DisplaySheet);
     Finder inSheet(Finder f) => find.descendant(of: sheet, matching: f);
 
-    // The design's sheet also carries the rubric switch (52 dp), which waits for
-    // the span data (item 2.3). So the sheet is shorter: everything is measured
-    // from its top.
-    final top = rect(tester, inSheet(find.byKey(TzSheet.surfaceKey))).top;
-    final from = spec.component('TzSheet (picker)').rect.top;
-    Rect at(SpecNode n) => n.rect.translate(0, top - from);
-    c.same('the sheet ends at the bottom edge', rect(tester, inSheet(find.byKey(TzSheet.surfaceKey))).bottom, 844.0);
+    Rect at(SpecNode n) => n.rect;
+    c.box('sheet', rect(tester, inSheet(find.byKey(TzSheet.surfaceKey))), spec.component('TzSheet (picker)').rect, tol: 1.5);
     c.box('grab', rect(tester, inSheet(find.byKey(TzSheet.grabKey))), at(spec.component('SheetGrab')), tol: 1.5);
     c.line('title', rect(tester, inSheet(find.text('العرض'))), at(spec.cls('t-title')), tol: 1.5);
     c.box('page or text', rect(tester, inSheet(find.byKey(MinSegmented.pillKey))), at(spec.component('MinSegmented')), tol: 1.5);
@@ -150,7 +202,16 @@ void main() {
     final sample = inSheet(find.byType(VerseUnit));
     c.box('sample verse', rect(tester, sample), at(spec.childrenOf(spec.childrenOf(spec.cls('sample')).first).first), tol: 1.5);
     expect(tester.widget<VerseUnit>(sample).number, '٢٢٦'); // the reader's verse
-    expect(inSheet(find.widgetWithText(TzButton, 'تم')), findsOneWidget);
+
+    // The rubric switch: the icon, the label, the word and the switch; then «تم».
+    final row = spec.cls('prow');
+    c.box('rubric row', rect(tester, find.byKey(DisplaySheet.rubricRowKey)), row.rect, tol: 1.5);
+    final parts = spec.childrenOf(row);
+    c.box('row icon', rect(tester, find.descendant(of: find.byKey(DisplaySheet.rubricRowKey), matching: find.byType(TzIcon))), parts[0].rect, tol: 1.5);
+    c.line('row label', rect(tester, inSheet(find.text(parts[1].text!))), parts[1].rect, tol: 1.5);
+    c.box('switch', rect(tester, inSheet(find.byKey(TzSwitch.trackKey))), spec.component('TzSwitch').rect, tol: 1.5);
+    expect(inSheet(find.text('ظاهر')), findsOneWidget);
+    c.box('«تم»', rect(tester, inSheet(find.widgetWithText(TzButton, 'تم'))), spec.text('تم').rect, tol: 1.5);
     expect(inSheet(find.byType(TzPicker)), findsOneWidget);
     c.done();
 

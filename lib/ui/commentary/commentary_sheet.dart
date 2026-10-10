@@ -20,21 +20,15 @@ import '../../utils/arabic.dart';
 import '../design/components/binding_stepper.dart';
 import '../design/components/commentary_inline.dart';
 import '../design/components/matn_strip.dart';
-import '../design/components/rubric.dart';
 import '../design/components/tz_sheet.dart' show statusBarHeight;
 import '../design/components/verse_sheet_surface.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
 import '../reader/reader_controller.dart';
+import '../reader/verse_rubrics.dart';
 import 'commentary_parts.dart';
 import 'commentary_screen.dart' show CommentaryScreen;
-
-/// The reader symbols and names of [verse] as rubric marks, from the span data.
-List<Rubric> verseRubrics(ReaderController reader, int verse) => [
-      for (final s in reader.content.rumuz.spansOf(verse))
-        Rubric.at(s.start, s.end, hemistich: s.hemistich, isSymbol: !s.isName),
-    ];
 
 class CommentarySheet extends StatefulWidget {
   final ReaderController reader;
@@ -434,7 +428,7 @@ class _CommentarySheetState extends State<CommentarySheet> {
     return MatnStrip(
       number: ar(shown),
       hemistichs: (v.firstHemistich, v.secondHemistich),
-      rubrics: verseRubrics(reader, shown),
+      rubrics: verseRubrics(reader.content, shown),
       caption: group ? 'يشرح الأبيات ${isolatedRange(from, to)}' : 'البيت ${ar(shown)} · المتن',
       verses: group ? [for (var n = from; n <= to; n++) ar(n)] : const [],
       current: shown - from,

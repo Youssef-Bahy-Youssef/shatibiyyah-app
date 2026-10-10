@@ -18,10 +18,17 @@ class TzButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final _Kind _kind;
 
-  const TzButton.primary({super.key, required this.label, this.icon, this.iconFilled = false, required this.onPressed})
+  /// Drawn 44 px high with 12 px at the sides (inside a card), in a 48 px target.
+  final bool dense;
+
+  const TzButton.primary(
+      {super.key, required this.label, this.icon, this.iconFilled = false, this.dense = false, required this.onPressed})
     : _kind = _Kind.primary;
-  const TzButton.tonal({super.key, required this.label, this.icon, this.iconFilled = false, required this.onPressed})
+  const TzButton.tonal(
+      {super.key, required this.label, this.icon, this.iconFilled = false, this.dense = false, required this.onPressed})
     : _kind = _Kind.tonal;
+
+  static const denseHeight = 44.0;
 
   @override
   Widget build(BuildContext context) {
@@ -36,38 +43,53 @@ class TzButton extends StatelessWidget {
           opacity: onPressed == null ? 0.45 : 1,
           child: Material(
             type: MaterialType.transparency,
-            child: Ink(
-              height: TzSize.touchTarget,
-              decoration: BoxDecoration(color: fill, borderRadius: radius),
-              child: InkWell(
-                onTap: onPressed,
-                borderRadius: radius,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (icon case final name?) ...[
-                        TzIcon(name, filled: iconFilled, size: 18, color: ink),
-                        const SizedBox(width: 8),
-                      ],
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TzType.label.copyWith(fontWeight: FontWeight.w600, color: ink),
+            child: dense
+                // The fill is 44 px high; the target around it is 48.
+                ? InkWell(
+                    onTap: onPressed,
+                    borderRadius: radius,
+                    child: SizedBox(
+                      height: TzSize.touchTarget,
+                      child: Center(
+                        widthFactor: 1,
+                        child: Ink(
+                          height: denseHeight,
+                          decoration: BoxDecoration(color: fill, borderRadius: radius),
+                          child: _content(ink, 12),
                         ),
                       ),
-                    ],
+                    ),
+                  )
+                : Ink(
+                    height: TzSize.touchTarget,
+                    decoration: BoxDecoration(color: fill, borderRadius: radius),
+                    child: InkWell(onTap: onPressed, borderRadius: radius, child: _content(ink, 18)),
                   ),
-                ),
-              ),
-            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _content(Color ink, double side) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: side),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon case final name?) ...[
+              TzIcon(name, filled: iconFilled, size: 18, color: ink),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TzType.label.copyWith(fontWeight: FontWeight.w600, color: ink),
+              ),
+            ),
+          ],
+        ),
+      );
 }

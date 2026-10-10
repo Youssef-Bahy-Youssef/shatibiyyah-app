@@ -26,7 +26,11 @@ class TzPicker extends StatelessWidget {
   /// A control at the end of the title's line (a [MinSegmented]: 44 px drawn in a 48 px target).
   final Widget? titleTrailing;
   final Widget child;
-  const TzPicker({super.key, required this.title, this.help, this.titleTrailing, required this.child});
+  /// The space between the content and «تم»: none when the content ends in a row of its own height.
+  final double doneGap;
+
+  const TzPicker(
+      {super.key, required this.title, this.help, this.titleTrailing, this.doneGap = 12, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +58,7 @@ class TzPicker extends StatelessWidget {
             if (help != null) Text(help!, style: TzType.label.copyWith(color: c.ink3)),
             SizedBox(height: titleTrailing == null ? 14 : 12),
             Flexible(child: SingleChildScrollView(child: child)),
-            const SizedBox(height: 12),
+            SizedBox(height: doneGap),
             TzButton.primary(label: 'تم', onPressed: () => Navigator.of(context).pop()),
           ],
         ),

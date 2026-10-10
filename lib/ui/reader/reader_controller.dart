@@ -23,6 +23,7 @@ import '../../app/rating.dart';
 import '../../app/reminders.dart';
 import '../../app/personal_data.dart';
 import '../design/app_theme.dart';
+import '../design/components/rubric.dart';
 import '../design/tokens.g.dart';
 import '../widgets/page_viewer.dart';
 
@@ -254,6 +255,7 @@ class ReaderController extends ChangeNotifier {
     _textMode = on;
     store?.textMode = on;
     _menuVerse = null;
+    _symbol = null;
     if (on) _chromeVisible = true;
     notifyListeners();
   }
@@ -471,12 +473,42 @@ class ReaderController extends ChangeNotifier {
 
   void openMenu(int verse) {
     _menuVerse = verse;
+    _symbol = null;
     notifyListeners();
   }
 
   void closeMenu() {
     if (_menuVerse == null) return;
     _menuVerse = null;
+    notifyListeners();
+  }
+
+  // ── the rubric ink: reader names and symbols (ADRs 0015, 0021) ──
+  bool? _showRubric;
+  ({int verse, Rubric mark})? _symbol;
+
+  /// «إبراز رموز القراء وأسمائهم»: on unless the student turned it off.
+  bool get showRubric => _showRubric ?? store?.showRubric ?? true;
+
+  void setShowRubric(bool on) {
+    _showRubric = on;
+    store?.showRubric = on;
+    if (!on) _symbol = null;
+    notifyListeners();
+  }
+
+  /// The reader symbol whose tip is open, with its verse.
+  ({int verse, Rubric mark})? get symbol => _symbol;
+
+  void openSymbol(int verse, Rubric mark) {
+    _menuVerse = null;
+    _symbol = (verse: verse, mark: mark);
+    notifyListeners();
+  }
+
+  void closeSymbol() {
+    if (_symbol == null) return;
+    _symbol = null;
     notifyListeners();
   }
 
@@ -493,6 +525,7 @@ class ReaderController extends ChangeNotifier {
   /// «الشرح»: opens the sheet on [verse], or moves it there.
   void openCommentary(int verse) {
     _menuVerse = null;
+    _symbol = null;
     closeHeading();
     _commentaryVerse = verse;
     _chromeVisible = true;

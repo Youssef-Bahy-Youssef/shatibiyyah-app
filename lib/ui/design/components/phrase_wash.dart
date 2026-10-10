@@ -1,51 +1,47 @@
-// lib/ui/design/components/phrase_wash.dart — a phrase of a line of text lit from
-// behind (v2.css mark.mqhl): the gilt wash, rounded, 2 px wider than the words
+// lib/ui/design/components/phrase_wash.dart — words of a line of text lit from
+// behind: a quoted phrase in the gilt wash (v2.css mark.mqhl), the chosen reader
+// symbol in the lapis wash (v2.css .rb.sym.on). Rounded, wider than the words
 // all round. Painted under the text, so the words keep their own inks (a rubric
-// name inside the phrase stays rubric).
+// name inside a lit phrase stays rubric).
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+/// One wash: the words (offsets into the text), its colour, how far it reaches
+/// past the words and its corner radius.
+typedef Wash = ({int start, int end, Color color, double spread, double radius});
+
 class PhraseWash extends SingleChildRenderObjectWidget {
-  /// The phrase, as offsets into the child's text; null for none.
-  final ({int start, int end})? range;
-  final Color color;
+  final List<Wash> washes;
 
   /// The child is the text itself (a [RichText]).
-  const PhraseWash({super.key, required this.range, required this.color, required RichText super.child});
+  const PhraseWash({super.key, required this.washes, required RichText super.child});
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderPhraseWash(range, color);
+  RenderObject createRenderObject(BuildContext context) => RenderPhraseWash(washes);
 
   @override
-  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderPhraseWash)
-    ..range = range
-    ..color = color;
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) =>
+      (renderObject as RenderPhraseWash).washes = washes;
 }
 
-class _RenderPhraseWash extends RenderProxyBox {
-  _RenderPhraseWash(this._range, this._color);
+class RenderPhraseWash extends RenderProxyBox {
+  RenderPhraseWash(this._washes);
 
-  ({int start, int end})? _range;
-  set range(({int start, int end})? value) {
-    if (value == _range) return;
-    _range = value;
+  List<Wash> _washes;
+  set washes(List<Wash> value) {
+    if (listEquals(value, _washes)) return;
+    _washes = value;
     markNeedsPaint();
   }
 
-  Color _color;
-  set color(Color value) {
-    if (value == _color) return;
-    _color = value;
-    markNeedsPaint();
-  }
-
-  /// The washed boxes, one per line the phrase runs over (for tests too).
-  List<RRect> get washes {
-    final text = child, range = _range;
-    if (text is! RenderParagraph || range == null || range.start >= range.end) return const [];
-    final boxes = text.getBoxesForSelection(TextSelection(baseOffset: range.start, extentOffset: range.end),
+  /// The box of the words [start]..[end], one per line they run over.
+  List<Rect> boxesOf(int start, int end) {
+    final text = child;
+    if (text is! RenderParagraph || start >= end) return const [];
+    final boxes = text.getBoxesForSelection(TextSelection(baseOffset: start, extentOffset: end),
         boxHeightStyle: ui.BoxHeightStyle.tight);
     final lines = <Rect>[];
     for (final b in boxes) {
@@ -53,14 +49,20 @@ class _RenderPhraseWash extends RenderProxyBox {
       final i = lines.indexWhere((l) => l.top < r.bottom && r.top < l.bottom);
       i < 0 ? lines.add(r) : lines[i] = lines[i].expandToInclude(r);
     }
-    return [for (final l in lines) RRect.fromRectAndRadius(l.inflate(2), const Radius.circular(6))];
+    return lines;
   }
+
+  /// What is painted behind the text (for tests too).
+  List<(RRect, Color)> get painted => [
+        for (final w in _washes)
+          for (final line in boxesOf(w.start, w.end))
+            (RRect.fromRectAndRadius(line.inflate(w.spread), Radius.circular(w.radius)), w.color),
+      ];
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final paint = Paint()..color = _color;
-    for (final wash in washes) {
-      context.canvas.drawRRect(wash.shift(offset), paint);
+    for (final (box, color) in painted) {
+      context.canvas.drawRRect(box.shift(offset), Paint()..color = color);
     }
     super.paint(context, offset);
   }
