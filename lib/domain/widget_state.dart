@@ -6,7 +6,8 @@
 // can draw a verse while the app is not running.
 import 'dart:convert';
 
-/// What «تابع» shows.
+/// What the widgets show of the reader: «تابع» the verse and its recitation, both of
+/// them the theme, «بيت اليوم» the rubric.
 class ResumeWidgetState {
   /// The current verse.
   final int verse;
@@ -24,12 +25,20 @@ class ResumeWidgetState {
   /// «المظهر»: `paper`, `night`, or `auto` (the widget follows the system).
   final String theme;
 
+  /// The night ink's id (ADR 0020): the rubric of «بيت اليوم» at night.
+  final String ink;
+
+  /// Whether reader names and symbols are set in the rubric ink («إبراز رموز القراء وأسمائهم»).
+  final bool rubric;
+
   const ResumeWidgetState({
     required this.verse,
     required this.playing,
     required this.audio,
     required this.recording,
     required this.theme,
+    required this.ink,
+    required this.rubric,
   });
 
   Map<String, Object?> toJson() => {
@@ -39,6 +48,8 @@ class ResumeWidgetState {
         'audio': audio,
         'recording': recording,
         'theme': theme,
+        'ink': ink,
+        'rubric': rubric,
       };
 
   /// The form that is published and compared: two equal states encode alike.

@@ -62,7 +62,7 @@ abstract class WidgetPort {
   Stream<WidgetRequest> get requests;
 }
 
-/// What «تابع» is told about [reader] now.
+/// What the widgets are told about [reader] now.
 ResumeWidgetState resumeWidgetState(ReaderController reader) => ResumeWidgetState(
       verse: reader.verse,
       playing: reader.audioAvailable && reader.playing,
@@ -73,6 +73,8 @@ ResumeWidgetState resumeWidgetState(ReaderController reader) => ResumeWidgetStat
         ThemeChoice.night => 'night',
         ThemeChoice.auto => 'auto',
       },
+      ink: reader.nightInk.id,
+      rubric: reader.showRubric,
     );
 
 class HomeWidgets {

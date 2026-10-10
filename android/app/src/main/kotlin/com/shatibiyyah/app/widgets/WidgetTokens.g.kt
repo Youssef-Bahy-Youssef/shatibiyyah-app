@@ -143,4 +143,14 @@ object WidgetTokens {
 
     /** radius.dock: the binding's corners, and so a widget's. */
     const val radiusDock = 26f
+
+    /** The offered night inks by id (ADR 0020): the rubric at night is the reader's chosen one. */
+    val nightInks: Map<String, Int> = mapOf(
+        "jade" to 0xFF44B88D.toInt(),
+        "turquoise" to 0xFF34AECF.toInt(),
+        "lapis" to 0xFF86A3F2.toInt(),
+        "wisteria" to 0xFFB693F2.toInt(),
+        "pistachio" to 0xFF8EB23C.toInt(),
+    )
+    const val defaultNightInk = "jade"
 }

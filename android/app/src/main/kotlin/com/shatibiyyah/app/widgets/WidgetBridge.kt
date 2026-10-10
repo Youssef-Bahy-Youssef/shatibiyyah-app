@@ -33,6 +33,7 @@ object WidgetBridge {
                     "publish" -> {
                         WidgetStore.setResume(app, call.arguments as String)
                         ResumeWidget.redrawAll(app)
+                        DayWidget.redrawAll(app) // it draws again only if its theme, ink or rubric changed
                         onPublished?.invoke()
                         onPublished = null
                         result.success(null)

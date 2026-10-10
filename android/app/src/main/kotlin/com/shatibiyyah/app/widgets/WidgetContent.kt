@@ -5,8 +5,23 @@ import android.database.sqlite.SQLiteDatabase
 import org.json.JSONObject
 import java.io.File
 
+/**
+ * A reader's name or symbol inside a hemistich (the snapshot's rumuz_spans): where it is (UTF-16,
+ * end exclusive), and whether it is a symbol, which is underlined, or a name, which is not.
+ */
+internal class WidgetMark(val hemistich: Int, val start: Int, val end: Int, val symbol: Boolean)
+
 /** A verse as a widget shows it. */
-internal class WidgetVerse(val number: Int, val first: String, val second: String, val chapterLabel: String)
+internal class WidgetVerse(
+    val number: Int,
+    val first: String,
+    val second: String,
+    /** The chapter's short label, for the interface face. */
+    val chapterLabel: String,
+    /** The chapter's title as the booklet prints it, vocalised. */
+    val chapterTitle: String = chapterLabel,
+    val marks: List<WidgetMark> = emptyList(),
+)
 
 /**
  * The content snapshot, read by the widgets themselves (ADR 0001: it is the only content source),
@@ -59,13 +74,33 @@ internal object WidgetContent {
 
     @Synchronized
     fun verse(context: Context, number: Int): WidgetVerse? = try {
-        open(context)?.rawQuery(
-            "SELECT v.first_hemistich, v.second_hemistich, c.short_label FROM matn_verses v " +
+        val db = open(context)
+        db?.rawQuery(
+            "SELECT v.first_hemistich, v.second_hemistich, c.short_label, c.title, v.id FROM matn_verses v " +
                 "JOIN chapters c ON c.id = v.chapter_id WHERE v.verse_number = ?",
             arrayOf(number.toString()),
-        )?.use { if (it.moveToFirst()) WidgetVerse(number, it.getString(0), it.getString(1), it.getString(2)) else null }
+        )?.use {
+            if (!it.moveToFirst()) return@use null
+            val marks = db.rawQuery(
+                "SELECT hemistich, start_utf16, end_utf16, kind FROM rumuz_spans WHERE matn_verse_id = ? ORDER BY hemistich, start_utf16",
+                arrayOf(it.getString(4)),
+            ).use { m ->
+                val out = ArrayList<WidgetMark>()
+                while (m.moveToNext()) out.add(WidgetMark(m.getInt(0), m.getInt(1), m.getInt(2), m.getString(3) != "name"))
+                out
+            }
+            WidgetVerse(number, it.getString(0), it.getString(1), it.getString(2), it.getString(3), marks)
+        }
     } catch (_: Exception) {
         null
+    }
+
+    /** How many verses the poem has. */
+    @Synchronized
+    fun verseCount(context: Context): Int = try {
+        open(context)?.rawQuery("SELECT COUNT(*) FROM matn_verses", null)?.use { if (it.moveToFirst()) it.getInt(0) else 0 } ?: 0
+    } catch (_: Exception) {
+        0
     }
 
     /** The reciter of [recordingId], by name. */

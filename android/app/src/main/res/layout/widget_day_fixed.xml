@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «بيت اليوم» with paper or night chosen in the app: DayWidget sets that theme's colours on every mask. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_day_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layoutDirection="ltr">
+    <include layout="@layout/widget_day_layers" />
+    <FrameLayout
+        android:id="@+id/widget_day_box_rubric"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_rubric"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY" />
+    </FrameLayout>
+</FrameLayout>

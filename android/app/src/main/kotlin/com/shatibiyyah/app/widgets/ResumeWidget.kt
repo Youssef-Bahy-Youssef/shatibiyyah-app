@@ -3,7 +3,6 @@ package com.shatibiyyah.app.widgets
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -15,7 +14,6 @@ import android.view.View
 import android.widget.RemoteViews
 import com.shatibiyyah.app.MainActivity
 import com.shatibiyyah.app.R
-import java.util.concurrent.Executors
 
 /**
  * «تابع» (plan 6.1, ADRs 0017 and 0025): the current verse, with ▶/❚❚.
@@ -24,31 +22,17 @@ import java.util.concurrent.Executors
  * seconds), the widget is tapped, added or resized, or the device restarts. There is no timer.
  */
 class ResumeWidget : AppWidgetProvider() {
-    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = later(goAsync()) { redraw(context, ids) }
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = WidgetWork.later(goAsync()) { redraw(context, ids) }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) =
-        later(goAsync()) { redraw(context, intArrayOf(id)) }
+        WidgetWork.later(goAsync()) { redraw(context, intArrayOf(id)) }
 
     companion object {
-        // One at a time, off the main thread: the first drawing installs the content and measures the poem.
-        private val work = Executors.newSingleThreadExecutor()
-
-        private fun later(pending: BroadcastReceiver.PendingResult?, task: () -> Unit) {
-            work.execute {
-                try {
-                    task()
-                } catch (_: Exception) {
-                } finally {
-                    pending?.finish()
-                }
-            }
-        }
-
         /** Redraws every «تابع» on the home screen, if there is one. */
         fun redrawAll(context: Context) {
             val app = context.applicationContext
             val ids = AppWidgetManager.getInstance(app).getAppWidgetIds(ComponentName(app, ResumeWidget::class.java))
-            if (ids.isNotEmpty()) later(null) { redraw(app, ids) }
+            if (ids.isNotEmpty()) WidgetWork.later(null) { redraw(app, ids) }
         }
 
         /**

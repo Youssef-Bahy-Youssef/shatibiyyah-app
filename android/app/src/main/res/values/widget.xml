@@ -4,4 +4,8 @@
     <dimen name="widget_radius">26dp</dimen>
     <!-- The same layout under a second name: see layout/widget_resume.xml. -->
     <item name="widget_resume_fixed" type="layout">@layout/widget_resume</item>
+    <!-- By day: the leaf has no ring, and of the two rubric views of «بيت اليوم» the day one shows. -->
+    <color name="widget_leaf_ring">@android:color/transparent</color>
+    <item name="widget_alpha_day" format="float" type="dimen">1</item>
+    <item name="widget_alpha_night" format="float" type="dimen">0</item>
 </resources>
