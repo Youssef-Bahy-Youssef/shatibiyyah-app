@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'khatam.dart';
+import 'phrase_wash.dart';
 import 'rubric.dart';
 import 'tz_motion.dart';
 
@@ -67,7 +68,9 @@ class Hemistich extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth * widthFactor;
-        final spans = rubricate(text, rubrics, rubricColor ?? tz.rubric, highlight: highlight, wash: tz.colors.giltWash);
+        final spans = rubricate(text, rubrics, rubricColor ?? tz.rubric);
+        // The lit phrase (a quotation of the verse, chosen in its commentary).
+        final lit = highlight == null || highlight!.isEmpty ? -1 : text.indexOf(highlight!);
         final natural = (TextPainter(
           text: TextSpan(style: style, children: spans),
           textDirection: direction,
@@ -80,12 +83,16 @@ class Hemistich extends StatelessWidget {
             width: width,
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: padBlock),
-              child: RichText(
-                textAlign: atEnd ? TextAlign.end : TextAlign.start,
-                textDirection: direction,
-                text: TextSpan(
-                  style: style.copyWith(wordSpacing: gap == 0 ? null : gap),
-                  children: spans,
+              child: PhraseWash(
+                range: lit < 0 ? null : (start: lit, end: lit + highlight!.length),
+                color: tz.colors.giltWash,
+                child: RichText(
+                  textAlign: atEnd ? TextAlign.end : TextAlign.start,
+                  textDirection: direction,
+                  text: TextSpan(
+                    style: style.copyWith(wordSpacing: gap == 0 ? null : gap),
+                    children: spans,
+                  ),
                 ),
               ),
             ),
@@ -169,14 +176,14 @@ class VerseUnit extends StatelessWidget {
                         final h1 = Hemistich(
                           boxKey: hemistichKeys[0],
                           text: first,
-                          rubrics: rubrics,
+                          rubrics: rubricsOf(rubrics, 1),
                           style: style,
                           widthFactor: wide ? 1 : 0.93,
                         );
                         final h2 = Hemistich(
                           boxKey: hemistichKeys[1],
                           text: second,
-                          rubrics: rubrics,
+                          rubrics: rubricsOf(rubrics, 2),
                           style: style,
                           widthFactor: wide ? 1 : 0.93,
                           atEnd: !wide,

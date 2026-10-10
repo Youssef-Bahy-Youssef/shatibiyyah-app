@@ -80,7 +80,8 @@ class TextReaderState extends State<TextReader> {
   void initState() {
     super.initState();
     _followedVerse = _reader.verse;
-    _anchorOn(_reader.verse);
+    _explained = _reader.commentaryVerse;
+    _anchorOn(_explained ?? _reader.verse);
     _reader.addListener(_onReader);
   }
 
@@ -103,7 +104,15 @@ class TextReaderState extends State<TextReader> {
     _generation++;
   }
 
+  int? _explained;
+
   void _onReader() {
+    // The verse the commentary sheet explains stands above the sheet.
+    final explained = _reader.commentaryVerse;
+    if (explained != _explained) {
+      _explained = explained;
+      if (explained != null) WidgetsBinding.instance.addPostFrameCallback((_) => _standAbove(explained));
+    }
     if (_reader.verse == _followedVerse) return;
     _followedVerse = _reader.verse;
     WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_followedVerse));
@@ -130,6 +139,18 @@ class TextReaderState extends State<TextReader> {
       duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 250),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  /// Under the commentary sheet: [verse] is all in view above it, or the column
+  /// is laid out afresh with the verse at its top.
+  void _standAbove(int verse) {
+    if (!mounted) return;
+    final box = rowRect(verse), viewport = context.findRenderObject() as RenderBox?;
+    if (box != null && viewport != null && viewport.hasSize) {
+      final view = viewport.localToGlobal(Offset.zero) & viewport.size;
+      if (box.top >= view.top && box.bottom <= view.bottom - widget.bottomInset) return;
+    }
+    setState(() => _anchorOn(verse));
   }
 
   /// Where [verse]'s unit is on screen, for anchoring the verse menu.
@@ -178,7 +199,7 @@ class TextReaderState extends State<TextReader> {
         second: v.secondHemistich,
         fontSize: size,
         playing: _reader.playing && n == _reader.verse,
-        chosen: n == _reader.menuVerse || (sel != null && sel.from <= n && n <= sel.to),
+        chosen: n == _reader.menuVerse || n == _reader.commentaryVerse || (sel != null && sel.from <= n && n <= sel.to),
         onTap: () => _reader.tapVerse(n),
         onDoubleTap: () => _reader.openMenu(n),
         onLongPress: () => _reader.openMenu(n),

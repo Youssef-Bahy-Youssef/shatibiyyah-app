@@ -267,7 +267,7 @@ class _CompareScreenState extends State<CompareScreen> {
                   child: Text('لا شرح لهذا البيت في هذا الكتاب', style: TzType.label.copyWith(color: t.dim)),
                 );
               }
-              final parts = CommentaryParts(context, t, scale: 0.92);
+              final parts = CommentaryParts(context, verseSize: 18.4, quran: view.quran, quotes: view.quotes);
               final items = [
                 if (!pinned) ...[_verseCard(t), heading],
                 if (view.block.grouped)
