@@ -92,6 +92,7 @@ ThemeData tzThemeData(TzTheme tz) {
       inversePrimary: c.snackAct,
     ),
     textTheme: _textTheme(c.ink, c.ink2),
+    iconTheme: IconThemeData(color: c.ink, size: TzSize.iconGrid),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: c.lapis,
       selectionHandleColor: c.lapis,

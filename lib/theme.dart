@@ -64,13 +64,14 @@ class R {
   static const tap = 52.0;
 }
 
-/// Font families (style.css --ff-kufi / --ff-naskh / --ff-ui).
+/// Font families. Reem Kufi is retired (ADR 0019): the UI face is IBM Plex Sans
+/// Arabic until the sweep of item 3.1 moves every call site to the type tokens.
 const String kFontNaskh = 'ScheherazadeNew';
-const String kFontKufi = 'ReemKufi';
+const String kFontKufi = 'IBMPlexSansArabic';
 
 /// Global fallback so Arabic-Indic digits and letters always render in
 /// "ui" (system) styles too.
-const List<String> kFontFallback = ['ScheherazadeNew', 'ReemKufi'];
+const List<String> kFontFallback = ['ScheherazadeNew', 'IBMPlexSansArabic'];
 
 /// --ff-naskh: "Scheherazade New"
 TextStyle naskh({
@@ -89,7 +90,7 @@ TextStyle naskh({
       letterSpacing: letterSpacing,
     );
 
-/// --ff-kufi: "Reem Kufi" (variable font — drive the weight via the wght axis).
+/// The UI face (formerly --ff-kufi), IBM Plex Sans Arabic.
 TextStyle kufi({
   double size = 16,
   int weight = 600,
@@ -99,12 +100,10 @@ TextStyle kufi({
 }) =>
     TextStyle(
       fontFamily: kFontKufi,
-      // Reem Kufi has no «٪» (U+066A) among others: the Naskh face, not a system
-      // font or a box, stands in for what it lacks.
+      // The Naskh face, not a system font or a box, stands in for anything it lacks.
       fontFamilyFallback: const [kFontNaskh],
       fontSize: size,
       fontWeight: FontWeight.values[(weight ~/ 100) - 1],
-      fontVariations: [FontVariation('wght', weight.toDouble())],
       color: color,
       height: height,
       letterSpacing: letterSpacing,

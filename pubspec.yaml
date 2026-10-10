@@ -29,6 +29,7 @@ dependencies:
   in_app_review: ^2.0.12
   in_app_update: ^5.0.0
   background_downloader: ^9.5.9
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -43,9 +44,10 @@ flutter:
   assets:
     - assets/content/
     - assets/pages/
+    - assets/icons/
 
   fonts:
-    # --ff-naskh: "Scheherazade New" — verse text, chapter names, medallion number, chips
+    # --text: "Scheherazade New" — the poem, chapter names, commentary and display titles
     - family: ScheherazadeNew
       fonts:
         - asset: assets/fonts/ScheherazadeNew-Regular.ttf
@@ -55,7 +57,13 @@ flutter:
           weight: 600
         - asset: assets/fonts/ScheherazadeNew-Bold.ttf
           weight: 700
-    # --ff-kufi: "Reem Kufi" — brand h1, tabs, labels, sheet titles (variable weight font)
-    - family: ReemKufi
+    # --ui: "IBM Plex Sans Arabic" — every interface label (ADR 0019; OFL, assets/fonts/OFL-IBMPlexSansArabic.txt)
+    - family: IBMPlexSansArabic
       fonts:
-        - asset: assets/fonts/ReemKufi.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
