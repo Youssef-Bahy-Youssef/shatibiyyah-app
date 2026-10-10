@@ -1,12 +1,19 @@
-// lib/ui/shell/about_screen.dart — «حول» (features-v3 about-and-support): the app
-// icon, name, the poem's title, version, a one-line description and «أعد الجولة».
-// «أرسل ملاحظة» waits for a support address.
+// lib/ui/shell/about_screen.dart — «حول» (features-v3 about-and-support).
+//
+// The app's icon, its name and the poem's title over a gilt rule, and one line
+// saying what the app is; then what is in it, read from the content (the matn's
+// verses and chapters, the books, the reciters), «أعد الجولة», and the version.
+// The groups are «الإعدادات»'s rows. «أرسل ملاحظة» waits for a support address.
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
+import '../../data/app_content.dart';
+import '../../utils/arabic.dart';
+import '../design/components/ornament.dart';
+import '../design/components/settings_row.dart';
 import '../design/tokens.g.dart';
-import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
+import '../design/tz_theme.dart';
 import '../reader/reader_controller.dart';
 import 'debug_tools_screen.dart';
 import 'shell_page.dart';
@@ -26,75 +33,122 @@ String versionLabel(String version) {
 }
 
 class AboutScreen extends StatelessWidget {
-  /// For «أعد الجولة» (null: no replay, e.g. in tests).
+  /// For what is in the app and «أعد الجولة» (null: neither, e.g. in tests).
   final ReaderController? reader;
   const AboutScreen({super.key, this.reader});
 
   @override
   Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
+    final c = TzTheme.of(context).colors;
+    final r = reader;
     return ShellPage(
       title: 'حول',
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        padding: EdgeInsets.only(bottom: 24 + MediaQuery.paddingOf(context).bottom),
         children: [
-          const Center(child: TaysirLogo(size: 104, variant: LogoVariant.icon)),
+          const _Masthead(),
+          if (r != null) _Contents(content: r.content),
+          if (r?.store case final store?)
+            SettingsGroup(title: 'التعريف بالتطبيق', rows: [
+              SettingsRow(
+                icon: 'retry',
+                label: 'أعد الجولة',
+                caption: 'ثلاث بطاقات على صفحة من المخطوط',
+                onTap: () => TourScreen.open(
+                  context,
+                  content: r!.content,
+                  library: r.library,
+                  prefs: store.prefs,
+                  replay: true,
+                ),
+              ),
+            ]),
+          // Debug and profile builds only (Android Studio): the test tools. Never in
+          // the release build that goes to the store.
+          if (!kReleaseMode && r != null)
+            SettingsGroup(title: 'نسخة التطوير', rows: [
+              SettingsRow(
+                icon: 'gear',
+                label: 'أدوات التجربة',
+                caption: 'لا تظهر في نسخة المتجر',
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DebugToolsScreen(reader: r))),
+              ),
+            ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 20),
+            child: Text(
+              versionLabel(kAppVersion),
+              textAlign: TextAlign.center,
+              style: TzType.caption.copyWith(color: c.ink3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The icon, the app's name, the poem's title, the gilt rule and the one line.
+class _Masthead extends StatelessWidget {
+  const _Masthead();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = TzTheme.of(context).colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 12, 28, 6),
+      child: Column(
+        children: [
+          const TaysirLogo(size: 92, variant: LogoVariant.icon),
           const SizedBox(height: 18),
-          Text(
-            'تيسير الشاطبية',
-            textAlign: TextAlign.center,
-            style: TzType.title.copyWith(color: t.text),
+          Semantics(
+            header: true,
+            child: Text('تيسير الشاطبية', textAlign: TextAlign.center, style: TzType.display.copyWith(color: c.ink)),
           ),
           Text(
             'حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي',
             textAlign: TextAlign.center,
-            style: TzType.chapter.copyWith(color: t.goldText),
+            style: TzType.chapter.copyWith(color: c.ink2),
           ),
-          Text(
-            versionLabel(kAppVersion),
-            textAlign: TextAlign.center,
-            style: TzType.label.copyWith(color: t.muted),
-          ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
+          const GiltRule(centered: true),
+          const SizedBox(height: 10),
           Text(
             'رفيق لدراسة متن الشاطبية وحفظه: المخطوط، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.',
             textAlign: TextAlign.center,
-            style: TzType.body.copyWith(color: t.dim),
+            style: TzType.body.copyWith(color: c.ink2),
           ),
-          if (reader?.store != null) ...[
-            const SizedBox(height: 24),
-            Center(
-              child: OutlinedButton(
-                onPressed: () => TourScreen.open(
-                  context,
-                  content: reader!.content,
-                  library: reader!.library,
-                  prefs: reader!.store!.prefs,
-                  replay: true,
-                ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  side: BorderSide(color: t.line),
-                  shape: const StadiumBorder(),
-                ),
-                child: Text('أعد الجولة', style: TzType.label.copyWith(color: t.text)),
-              ),
-            ),
-          ],
-          // Debug and profile builds only (Android Studio): the test tools. Never in
-          // the release build that goes to the store.
-          if (!kReleaseMode && reader != null) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: TextButton(
-                onPressed: () => Navigator.of(context)
-                    .push(MaterialPageRoute<void>(builder: (_) => DebugToolsScreen(reader: reader!))),
-                child: Text('أدوات التجربة', style: TzType.label.copyWith(color: t.goldText)),
-              ),
-            ),
-          ],
         ],
       ),
     );
+  }
+}
+
+/// «في التطبيق»: the matn, the books and the reciters, as the content names them.
+class _Contents extends StatelessWidget {
+  final AppContent content;
+  const _Contents({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final matn = content.matn;
+    return SettingsGroup(title: 'في التطبيق', rows: [
+      SettingsRow.info(
+        icon: 'book',
+        label: 'المتن',
+        caption: '${versesCount(matn.lastVerse)} في ${chaptersCount(matn.chapters.length)}، بصفحات المخطوط وبالنص',
+      ),
+      SettingsRow.info(
+        icon: 'pen',
+        label: 'الشروح',
+        caption: content.books.books.map((b) => b.shortTitle).join(' · '),
+      ),
+      SettingsRow.info(
+        icon: 'listen',
+        label: 'التلاوة',
+        caption: content.recordings.recordings.map((r) => r.reciterName).join(' · '),
+      ),
+    ]);
   }
 }
