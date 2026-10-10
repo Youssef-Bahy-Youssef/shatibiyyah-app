@@ -78,11 +78,12 @@ void main() {
     return (r, personal);
   }
 
-  /// Lets real database work started by a tap finish.
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 10; i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
-      await tester.pump();
+  /// Waits for real database work started by a tap until [shown] is on screen:
+  /// a fixed wait is too short on a loaded machine.
+  Future<void> until(WidgetTester tester, Finder shown) async {
+    for (var i = 0; i < 250 && !tester.any(shown); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump(const Duration(milliseconds: 50));
     }
   }
 
@@ -146,7 +147,7 @@ void main() {
     r.viewer.prefs.setString('v2.theme', 'paper');
 
     await tester.tap(find.text('إنشاء نسخة الآن'));
-    await settle(tester);
+    await until(tester, find.text('حُفظت النسخة'));
     expect(find.text('حُفظت النسخة'), findsOneWidget);
     expect(savedName, startsWith('shatibiyyah-backup-'));
     expect(decodeBackup(savedText!)['notes'], hasLength(1));
@@ -161,14 +162,14 @@ void main() {
       (r) => BackupScreen(reader: r, save: (_, _) async => null, open: () async => savedText),
     );
     await tester.tap(find.text('استعادة من ملف'));
-    await settle(tester);
+    await until(tester, find.text('تمت الاستعادة ودُمجت مع ما على الجهاز'));
     expect(find.text('تمت الاستعادة ودُمجت مع ما على الجهاز'), findsOneWidget);
     expect(personal2.noteFor(230)!.body, 'قارن بالوافي');
     expect(appTheme.value, ReaderTheme.paper); // applied at once
     expect(r2.store!.themeChoice, ThemeChoice.paper);
 
     await tester.tap(find.text('استعادة من ملف'));
-    await settle(tester);
+    await until(tester, find.text('لا جديد في هذه النسخة'));
     expect(find.text('لا جديد في هذه النسخة'), findsOneWidget);
   });
 
@@ -176,7 +177,7 @@ void main() {
     final (_, personal) = await open(tester, (r) => BackupScreen(reader: r, save: (name, _) async => name));
     await tester.runAsync(personal.store.close); // the next read throws a DatabaseException
     await tester.tap(find.text('إنشاء نسخة الآن'));
-    await settle(tester);
+    await until(tester, find.textContaining('تعذّر'));
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.textContaining('تعذّر'), findsOneWidget);
     expect(tester.widget<FilledButton>(find.ancestor(of: find.text('إنشاء نسخة الآن'), matching: find.byType(FilledButton))).onPressed,
@@ -186,7 +187,7 @@ void main() {
   testWidgets('a file that is not a backup is refused with a reason', (tester) async {
     await open(tester, (r) => BackupScreen(reader: r, open: () async => '{"hello": 1}'));
     await tester.tap(find.text('استعادة من ملف'));
-    await settle(tester);
+    await until(tester, find.text('الملف ليس نسخة احتياطية من تيسير الشاطبية'));
     expect(find.text('الملف ليس نسخة احتياطية من تيسير الشاطبية'), findsOneWidget);
   });
 }
