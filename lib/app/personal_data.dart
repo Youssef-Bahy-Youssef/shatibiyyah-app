@@ -25,34 +25,15 @@ class PersonalData extends ChangeNotifier {
   final UserStore store;
   List<Bookmark> _bookmarks = const [];
   List<Note> _notes = const [];
-  List<Activity> _history = const [];
 
   PersonalData(this.store);
 
   List<Bookmark> get bookmarks => _bookmarks;
   List<Note> get notes => _notes;
-  List<Activity> get history => _history;
 
   Future<void> load() async {
     _bookmarks = await store.bookmarks();
     _notes = await store.notes();
-    _history = await store.activity();
-    notifyListeners();
-  }
-
-  // ── «السجل» ──
-
-  /// A listening session long enough to remember (10 s or more).
-  Future<void> logListening(String recordingId, int from, int to, Duration length) async {
-    if (length < const Duration(seconds: 10)) return;
-    await store.logListening(recordingId, from < to ? from : to, from < to ? to : from, length.inSeconds);
-    _history = await store.activity();
-    notifyListeners();
-  }
-
-  Future<void> logCommentary(String bookId, int from, int to) async {
-    await store.logCommentary(bookId, from, to);
-    _history = await store.activity();
     notifyListeners();
   }
 

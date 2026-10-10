@@ -6,7 +6,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../domain/playback_windows.dart';
-import 'benefits_repository.dart';
 import 'commentary_repository.dart';
 import 'content_store.dart';
 import 'layout_repository.dart';
@@ -21,13 +20,12 @@ class AppContent {
   final CommentaryRepository books;
   final RecordingRepository recordings;
   final RumuzRepository rumuz;
-  final BenefitsRepository benefits;
 
   /// Recordings whose cues cannot be played (a verse without a cue, or cues out of
   /// order): offered as «غير صالحة», never played. Found once at open (F-41).
   final Set<String> _unusable = {};
 
-  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz, this.benefits);
+  AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz);
 
   /// Whether [recording] can be played: every verse has a cue, in order.
   bool isUsable(Recording recording) => !_unusable.contains(recording.id);
@@ -54,7 +52,6 @@ class AppContent {
       await CommentaryRepository.load(store.db),
       await RecordingRepository.load(store.db),
       await RumuzRepository.load(store.db),
-      await BenefitsRepository.load(store.db),
     );
     for (final r in content.recordings.recordings) {
       try {

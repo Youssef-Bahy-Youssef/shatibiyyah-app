@@ -54,9 +54,6 @@ class EngineState {
   });
 }
 
-/// Largest position step still counted as continuous listening.
-const int kMaxTickMs = 500;
-
 /// A player that stops by itself this close to the end of the file has reached it:
 /// decoders often report a file a little shorter than its declared duration (F-40).
 const int kEndOfFileSlackMs = 200;
@@ -64,10 +61,6 @@ const int kEndOfFileSlackMs = 200;
 class PlaybackEngine {
   final AudioPort audio;
   final PlaybackPlan plan;
-
-  /// Fired when a verse is played through to its window end (for listening
-  /// progress). Not fired for verses that were skipped, sought past or cut short.
-  final void Function(int verse)? onVerseCompleted;
 
   /// How close to an action's end counts as reaching it (position updates are periodic).
   final int boundaryLeadMs;
@@ -83,10 +76,8 @@ class PlaybackEngine {
   Timer? _gapTimer;
   PlanAction? _current;
   int _generation = 0;
-  int _playedInWindowMs = 0;
-  int? _lastPositionMs;
 
-  PlaybackEngine(this.audio, this.plan, {this.onVerseCompleted, this.boundaryLeadMs = 40}) {
+  PlaybackEngine(this.audio, this.plan, {this.boundaryLeadMs = 40}) {
     _positionSub = audio.positionMs.listen(_onPosition);
     _playingSub = audio.playingChanges.listen((_) => _onPlayerChanged());
   }
@@ -150,8 +141,6 @@ class PlaybackEngine {
     _active = action is! Finished;
     switch (action) {
       case PlayRange():
-        _playedInWindowMs = 0;
-        _lastPositionMs = action.fromMs;
         if (!action.continuous) {
           await audio.seek(action.fromMs);
           if (generation != _generation) return; // superseded while seeking
@@ -171,14 +160,7 @@ class PlaybackEngine {
   void _onPosition(int ms) {
     final current = _current;
     if (current is! PlayRange || !audio.playing) return;
-    final last = _lastPositionMs;
-    // Position updates arrive every ~200 ms while playing; a bigger forward jump is a
-    // seek or a scrub, and is not counted as listening.
-    if (last != null && ms > last && ms - last <= kMaxTickMs) _playedInWindowMs += ms - last;
-    _lastPositionMs = ms;
     if (ms >= _endOf(current) - boundaryLeadMs) {
-      final window = current.toMs - windows.cue(current.verse);
-      if (_playedInWindowMs >= window * 0.9) onVerseCompleted?.call(current.verse);
       _run(plan.advance());
     } else {
       _emit();

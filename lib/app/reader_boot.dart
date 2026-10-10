@@ -47,7 +47,6 @@ Future<ReaderController> bootReader() async {
   final library = AudioLibrary(
     content: content,
     prefs: prefs,
-    user: user,
     downloads: DownloadManager(
       supportDir: support,
       freeBytes: deviceFreeBytes,
@@ -87,7 +86,8 @@ Future<ReaderController> bootReader() async {
     initialVerse: initial,
   );
   library.attach(reader);
-  reader.rating = RatingPrompt(prefs: prefs, port: InAppReviewPort());
+  final rating = RatingPrompt(prefs: prefs, port: InAppReviewPort());
+  reader.rating = rating;
   if (Platform.isAndroid) {
     final update = AppUpdate(PlayUpdatePort());
     reader.update = update;
@@ -96,7 +96,7 @@ Future<ReaderController> bootReader() async {
   final personal = PersonalData(user);
   await personal.load();
   reader.personal = personal;
-  CommentaryScreen.onRead = personal.logCommentary;
+  CommentaryScreen.onOpened = () => unawaited(rating.used());
   void ribbons() => viewer.setRibbons(personal.ribbons);
   personal.addListener(ribbons);
   ribbons();
