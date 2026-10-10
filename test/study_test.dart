@@ -89,7 +89,7 @@ void main() {
     final (r, personal) = await open(tester);
     r.openMenu(229);
     await tester.pump();
-    await tester.tap(find.text('مرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     expect(find.text('المرجع'), findsOneWidget);
     expect(find.text('حذف'), findsNothing); // nothing to delete yet
@@ -105,7 +105,7 @@ void main() {
 
     r.openMenu(229);
     await tester.pump();
-    await tester.tap(find.text('تعديل المرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
     await settle(tester);
@@ -133,7 +133,7 @@ void main() {
     r.startSelection(226);
     r.tapVerse(230);
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('مرجع'));
+    await tester.tap(find.text('مرجع')); // the selection bar's own action
     await tester.pumpAndSettle();
     expect(find.text('الأبيات \u2068٢٢٦–٢٣٠\u2069، ${content.matn.chapterOfVerse(226).shortLabel}'), findsOneWidget);
     await tester.tap(find.text('حفظ المرجع'));
@@ -185,7 +185,7 @@ void main() {
     await rangeBookmark(tester, personal);
     r.openMenu(230);
     await tester.pump();
-    await tester.tap(find.text('تعديل المرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     expect(find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069'), findsOneWidget); // the covering bookmark, listed
     await tester.tap(find.text('حذف'));
@@ -201,7 +201,7 @@ void main() {
     final before = await rangeBookmark(tester, personal);
     r.openMenu(230);
     await tester.pump();
-    await tester.tap(find.text('تعديل المرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('لون').at(4)); // rose
     await tester.tap(find.text('حفظ المرجع'));
@@ -258,14 +258,14 @@ void main() {
     expect(personal.ribbons.keys, [226]);
     r.openMenu(232);
     await tester.pump();
-    await tester.tap(find.text('تعديل المرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
     await settle(tester);
     expect(personal.ribbons, isEmpty);
     r.openMenu(232);
     await tester.pump();
-    expect(find.text('مرجع'), findsOneWidget); // nothing covers it any more
+    expect(find.text('المرجع'), findsOneWidget); // nothing covers it any more
     await unmount(tester);
   });
 
@@ -288,7 +288,7 @@ void main() {
 
     r.openMenu(229);
     await tester.pump();
-    await tester.tap(find.text('مرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ المرجع'));
     await settle(tester);
@@ -304,7 +304,7 @@ void main() {
 
     r.openMenu(230);
     await tester.pump();
-    await tester.tap(find.text('تعديل المرجع'));
+    await tester.tap(find.text('المرجع'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('حذف'));
     await settle(tester);

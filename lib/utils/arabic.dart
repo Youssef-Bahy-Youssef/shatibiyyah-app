@@ -55,6 +55,29 @@ String chaptersCount(int n) => _counted(n, 'باب واحد', 'بابان', 'أ�
 String selectedVersesCount(int n) =>
     _counted(n, 'بيت واحد محدد', 'بيتان محددان', 'أبيات محددة', 'بيتًا محددًا', 'بيت محدد');
 
+/// The chapter's ordinal, «الباب الأول» … «الباب السابع والسبعون» (1…99); the
+/// introduction (0) has none.
+String chapterOrdinal(int n) {
+  const units = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع'];
+  const tens = ['', 'العاشر', 'العشرون', 'الثلاثون', 'الأربعون', 'الخمسون', 'الستون', 'السبعون', 'الثمانون', 'التسعون'];
+  if (n < 1 || n > 99) return 'الباب ${ar(n)}';
+  final u = n % 10, t = n ~/ 10;
+  final unit = u == 1 && n > 10 ? 'الحادي' : units[u];
+  final String s;
+  if (n < 10) {
+    s = units[n];
+  } else if (n == 10) {
+    s = tens[1];
+  } else if (n < 20) {
+    s = '$unit عشر';
+  } else if (u == 0) {
+    s = tens[t];
+  } else {
+    s = '$unit و${tens[t]}';
+  }
+  return 'الباب $s';
+}
+
 /// Wraps a number range so it keeps its order inside Arabic text (FSI … PDI). Next to
 /// numbers use «،» as the separator: in Reem Kufi a «·» there reads as the digit «٠».
 String isolatedRange(int from, int to) => '\u2068${ar(from)}–${ar(to)}\u2069';

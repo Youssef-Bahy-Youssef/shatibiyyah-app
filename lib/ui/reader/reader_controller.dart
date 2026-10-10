@@ -152,6 +152,9 @@ class ReaderController extends ChangeNotifier {
   /// The chapter whose heading card is open (tapped on the page), if any.
   MatnChapter? get headingChapter => _heading == null ? null : content.matn.chapters[_heading!];
 
+  /// The index of the chapter whose heading popover is open.
+  int? get headingIndex => _heading;
+
   /// A short notice over the page (shown for [kNoticeDuration]).
   String? get notice => _notice;
 

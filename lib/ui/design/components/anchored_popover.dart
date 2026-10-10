@@ -3,9 +3,11 @@
 //
 // Placed inside a Stack that covers the screen: 12 px from its sides, 12 px
 // below the anchor, or above it when the body would not fit (the dock's height
-// can be kept clear with [avoidBottom]). A 14 px arrow points at the anchor's
-// centre. It grows from the arrow in 200 ms (opacity, 6 px and 96 % → 100 %),
-// instantly under reduced motion.
+// can be kept clear with [avoidBottom]). When it fits on neither side (a small
+// phone, a verse at the page's foot) it takes the roomier side and is kept on
+// the screen, which may cover the anchor's edge. A 14 px arrow points at the
+// anchor's centre. It grows from the arrow in 200 ms (opacity, 6 px and
+// 96 % → 100 %), instantly under reduced motion.
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
@@ -144,8 +146,11 @@ class RenderAnchoredPopover extends RenderBox with RenderObjectWithChildMixin<Re
     child.layout(BoxConstraints.tightFor(width: math.max(0, size.width - 2 * side)).copyWith(maxHeight: size.height),
         parentUsesSize: true);
     final h = child.size.height;
-    below = _anchor.bottom + gap + h <= size.height - _avoidBottom || _anchor.top - gap - h < 0;
-    _bodyOffset = Offset(side, below ? _anchor.bottom + gap : _anchor.top - gap - h);
+    final fitsBelow = _anchor.bottom + gap + h <= size.height - _avoidBottom;
+    final fitsAbove = _anchor.top - gap - h >= 0;
+    below = fitsBelow || (!fitsAbove && size.height - _anchor.bottom >= _anchor.top);
+    final top = below ? _anchor.bottom + gap : _anchor.top - gap - h;
+    _bodyOffset = Offset(side, top.clamp(0.0, math.max(0.0, size.height - h)));
     final reach = 18.0; // keep the arrow clear of the 18 px corners
     arrowCenterX = _anchor.center.dx.clamp(side + reach, math.max(side + reach, size.width - side - reach)).toDouble();
   }

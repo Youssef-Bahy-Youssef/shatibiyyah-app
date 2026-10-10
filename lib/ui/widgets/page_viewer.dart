@@ -18,7 +18,8 @@ import '../design/tokens.g.dart';
 
 const double _pageW = 1130;
 const double _pageH = 1735;
-const int _hiliteMs = 200;
+/// The playing wash glides to the next verse in this long (v2.css .hl.play, emphasized).
+const int _glideMs = 320;
 const int _pulseMs = 460;
 const double _minZoom = 1;
 const double _maxZoom = 4;
@@ -44,7 +45,7 @@ class _Col {
 /// printed page, the night tokens on the night page.
 TzColors _pageTokens(bool night) => night ? TzColors.night : TzColors.paper;
 
-/// The playing verse: the gilt wash, a gilt outline, and the softer wash it fades from.
+/// The playing verse's colours: the gilt wash, gilt, and the softer wash (ghost boxes).
 _Col _playingCol(bool night) {
   final k = _pageTokens(night);
   return _Col(k.giltWash, k.gilt, k.giltWashSoft);
@@ -90,6 +91,9 @@ class PageViewerController extends ChangeNotifier {
   // view prefs (persisted)
   late bool night;
   late int brightnessPct;
+
+  /// The ink the night page is drawn in (ADR 0020); item 3.6 sets the reader's choice.
+  TzNightInk nightInk = TzNightPage.jade;
   late bool showBoxes;
 
   bool reduceMotion = false;
@@ -381,13 +385,13 @@ class PageViewerController extends ChangeNotifier {
     } else {
       // clear finished transient boxes
       final now = _now();
-      if (prevBox != null && now - hiliteStart >= _hiliteMs) prevBox = null;
+      if (prevBox != null && now - hiliteStart >= _glideMs) prevBox = null;
       if (pulse != null && now - pulse!.start >= _pulseMs) pulse = null;
     }
   }
 
   bool _needsAnim(double now) {
-    final cross = prevBox != null && now - hiliteStart < _hiliteMs;
+    final cross = prevBox != null && now - hiliteStart < _glideMs;
     final pulsing = pulse != null && now - pulse!.start < _pulseMs;
     return cross || pulsing;
   }
@@ -428,6 +432,31 @@ class PageViewerController extends ChangeNotifier {
     final eff = baseScale * zoom;
     return Rect.fromLTWH(b.x * eff + tx, b.y * eff + ty, b.w * eff, b.h * eff);
   }
+
+  /// Where chapter [idx]'s printed heading is drawn on screen, if on this page.
+  Rect? viewRectOfChapter(int idx) {
+    final b = data.chapterBox(idx);
+    if (b == null || !data.chaptersOnPage(currentPage).contains(idx)) return null;
+    final eff = baseScale * zoom;
+    return Rect.fromLTWH(b.left * eff + tx, b.top * eff + ty, b.width * eff, b.height * eff);
+  }
+
+  /// Where the playing wash is at [now] (the viewer's clock): gliding from the
+  /// previous verse's box to the current one in 320 ms, emphasized (v2.css
+  /// .hl.play); at once under reduced motion. In image pixels.
+  Rect? playingRectAt(double now) {
+    final to = activeBox;
+    if (to == null) return null;
+    final from = prevBox;
+    if (from == null) return to;
+    final t = clampd((now - hiliteStart) / _glideMs, 0, 1);
+    return Rect.lerp(from, to, TzMotion.emphasized.transform(t))!;
+  }
+
+  /// The night page's colour matrix: the ink's 4×5 matrix from the tokens
+  /// (ADR 0020), its colour rows scaled by [brightness].
+  static List<double> nightPageMatrix(TzNightInk ink, double brightness) =>
+      [for (var i = 0; i < 20; i++) i < 15 ? ink.matrix[i] * brightness : ink.matrix[i]];
 
   // ── hit-testing (ported: _imageCoords / _hitVerse / _hitChapter / _handleTap) ──
   ({double ix, double iy}) _imageCoords(Offset local) {
@@ -763,7 +792,8 @@ class PageViewerController extends ChangeNotifier {
     _momentum?.stop();
   }
 
-  Color get pageBg => _pageTokens(night).pageBg;
+  /// The page behind the scan: the night page's own black at night (ADR 0020).
+  Color get pageBg => night ? TzNightPage.pageBg : TzColors.paper.pageBg;
 
   @override
   void dispose() {
@@ -824,20 +854,6 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
         return ClipRect(
           child: Stack(
             children: [
-              // viewer background (style.css .viewer radial + #150e05)
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -1),
-                      radius: 1.0,
-                      colors: [TzColors.night.raised.withValues(alpha: 0.6), TzColors.night.bg.withValues(alpha: 0)],
-                      stops: const [0.0, 0.6],
-                    ),
-                    color: TzColors.night.bg,
-                  ),
-                ),
-              ),
               // the transformed stage (image + overlay). Chrome (toolbar / nav / page-no)
               // is overlaid by the home screen so immersive mode can animate it.
               Listener(
@@ -892,7 +908,7 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     );
     if (c.night) {
       image = ColorFiltered(
-        colorFilter: ColorFilter.matrix(_nightMatrix(c.brightnessPct / 100)),
+        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk, c.brightnessPct / 100)),
         child: image,
       );
     }
@@ -907,7 +923,11 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: c.pageBg,
-              boxShadow: _pageTokens(c.night).float,
+              // v2.css .page: 0 1px 2px and 0 10px 28px, both at 8 % black.
+              boxShadow: [
+                BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 1), blurRadius: 2),
+                BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 10), blurRadius: 28),
+              ],
             ),
             child: Stack(
               children: [
@@ -944,68 +964,6 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     );
   }
 
-  // CSS: filter: invert(1) sepia(.3) brightness(b) — combined 4x5 colour matrix.
-  List<double> _nightMatrix(double b) {
-    List<List<double>> mul(List<List<double>> a, List<List<double>> bb) {
-      final r = List.generate(5, (_) => List<double>.filled(5, 0));
-      for (var i = 0; i < 5; i++) {
-        for (var j = 0; j < 5; j++) {
-          double s = 0;
-          for (var k = 0; k < 5; k++) {
-            s += a[i][k] * bb[k][j];
-          }
-          r[i][j] = s;
-        }
-      }
-      return r;
-    }
-
-    final List<List<double>> inv = [
-      [-1.0, 0, 0, 0, 255],
-      [0, -1.0, 0, 0, 255],
-      [0, 0, -1.0, 0, 255],
-      [0, 0, 0, 1.0, 0],
-      [0, 0, 0, 0, 1.0],
-    ];
-    const s = 0.3;
-    final List<List<double>> sep = [
-      [0.7 + s * 0.393, s * 0.769, s * 0.189, 0, 0],
-      [s * 0.349, 0.7 + s * 0.686, s * 0.168, 0, 0],
-      [s * 0.272, s * 0.534, 0.7 + s * 0.131, 0, 0],
-      [0, 0, 0, 1.0, 0],
-      [0, 0, 0, 0, 1.0],
-    ];
-    final List<List<double>> bri = [
-      [b, 0, 0, 0, 0],
-      [0, b, 0, 0, 0],
-      [0, 0, b, 0, 0],
-      [0, 0, 0, 1.0, 0],
-      [0, 0, 0, 0, 1.0],
-    ];
-    final m = mul(bri, mul(sep, inv));
-    return [
-      m[0][0],
-      m[0][1],
-      m[0][2],
-      m[0][3],
-      m[0][4],
-      m[1][0],
-      m[1][1],
-      m[1][2],
-      m[1][3],
-      m[1][4],
-      m[2][0],
-      m[2][1],
-      m[2][2],
-      m[2][3],
-      m[2][4],
-      m[3][0],
-      m[3][1],
-      m[3][2],
-      m[3][3],
-      m[3][4],
-    ];
-  }
 }
 
 // ───────────────────────── overlay painter (ported: _render) ─────────────────────────
@@ -1023,13 +981,7 @@ class _HighlightPainter extends CustomPainter {
     if (c.selection != null) _drawSelection(canvas, c.selection!, s);
     if (c.ribbons.isNotEmpty) _drawRibbons(canvas, s);
 
-    final p = c.prevBox != null
-        ? clampd((now - c.hiliteStart) / _hiliteMs, 0, 1)
-        : 1.0;
-    if (c.prevBox != null && p < 1) _drawBox(canvas, c.prevBox!, 1 - p, col, s);
-    if (c.activeBox != null) {
-      _drawBox(canvas, c.activeBox!, c.prevBox != null ? p : 1.0, col, s);
-    }
+    if (c.playingRectAt(now) case final playing?) _drawPlaying(canvas, playing, s);
 
     if (c.pulse != null) {
       final pp = clampd((now - c.pulse!.start) / _pulseMs, 0, 1);
@@ -1047,19 +999,13 @@ class _HighlightPainter extends CustomPainter {
     );
   }
 
-  void _drawBox(Canvas canvas, Rect b, double alpha, _Col col, double s) {
-    final rr = _rrect(b.left * s, b.top * s, b.width * s, b.height * s, 9);
-    final fill = Paint()
-      ..style = PaintingStyle.fill
-      ..color = col.fill.withValues(alpha: col.fill.a * alpha.clamp(0, 1));
-    canvas.drawRRect(rr, fill);
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = col.stroke.withValues(
-        alpha: col.stroke.a * math.min(1, alpha + 0.15),
-      );
-    canvas.drawRRect(rr, stroke);
+  /// The playing verse (v2.css .hl.play): the gilt wash on its box, 3 px corners,
+  /// and a 3 px gilt mark in the margin at its start side, 6 px out, inset 4 px.
+  void _drawPlaying(Canvas canvas, Rect b, double s) {
+    final k = _pageTokens(c.night);
+    canvas.drawRRect(_rrect(b.left * s, b.top * s, b.width * s, b.height * s, 3), Paint()..color = k.giltWash);
+    final right = (b.left + b.width) * s, top = b.top * s, h = b.height * s;
+    canvas.drawRRect(_rrect(right + 3, top + 4, 3, math.max(0, h - 8), 2), Paint()..color = k.gilt);
   }
 
   /// Dashed boxes around the selected verses on this page: accent blue on the page,
@@ -1135,8 +1081,8 @@ class _HighlightPainter extends CustomPainter {
       _drawChapterBox(
         canvas,
         c.chapterSel!,
-        _pageTokens(c.night).lapisWash,
-        _pageTokens(c.night).lapis,
+        _pageTokens(c.night).giltWash,
+        _pageTokens(c.night).gilt,
         3,
         false,
         s,
@@ -1155,7 +1101,7 @@ class _HighlightPainter extends CustomPainter {
   ) {
     final b = c.data.chapterBox(idx);
     if (b == null) return;
-    final rr = _rrect(b.left * s, b.top * s, b.width * s, b.height * s, 8);
+    final rr = _rrect(b.left * s, b.top * s, b.width * s, b.height * s, 3);
     canvas.drawRRect(rr, Paint()..color = fillC);
     final stroke = Paint()
       ..style = PaintingStyle.stroke
