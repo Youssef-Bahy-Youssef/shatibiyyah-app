@@ -11,6 +11,7 @@ import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
+import 'package:shatibiyyah/ui/design/components/tz_sheet.dart';
 import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -22,6 +23,7 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'sheet': (390, 117, () => const _Picker()),
   'switch': (
     390,
     60,
@@ -135,6 +137,24 @@ class _Popover extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The prototype's speed picker: a title 10 px under the grab and its note.
+class _Picker extends StatelessWidget {
+  const _Picker();
+  @override
+  Widget build(BuildContext context) {
+    final c = TzTheme.of(context).colors;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: TzSheet.picker(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.only(top: 10), child: Text('السرعة', style: TzType.title.copyWith(color: c.ink))),
+          Text('تُحفظ لكل تلاوة على حدة.', style: TzType.caption.copyWith(fontSize: 13, height: 20 / 13, color: c.ink3)),
+        ]),
+      ),
     );
   }
 }
