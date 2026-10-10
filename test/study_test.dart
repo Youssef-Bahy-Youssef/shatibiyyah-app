@@ -320,6 +320,35 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('saved: a failed delete, swiped or from the long press, keeps the row and says «تعذّر الحفظ» (F-55)', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await rangeBookmark(tester, personal);
+    await openHome(tester, r);
+    await tester.runAsync(personal.store.close); // every write now throws a DatabaseException
+    final row = find.text('الأبيات \u2068٢٢٦–٢٣٤\u2069');
+
+    await tester.drag(row, const Offset(500, 0));
+    await tester.pumpAndSettle(); // the row slides away, then is dismissed
+    await until(tester, failed);
+    expect(failed, findsOneWidget);
+    expect(row, findsOneWidget); // back in the list
+    expect(removed, findsNothing); // nothing to undo
+    expect(personal.bookmarks.single.uuid, before.uuid);
+
+    await tester.pump(const Duration(seconds: 3)); // the notice leaves
+    await tester.pumpAndSettle();
+    expect(failed, findsNothing);
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف'));
+    await until(tester, failed);
+    expect(failed, findsOneWidget);
+    expect(row, findsOneWidget);
+    expect(removed, findsNothing);
+    expect(personal.bookmarks.single.uuid, before.uuid);
+    await unmount(tester);
+  });
+
   testWidgets('saved: empty states say how to add', (tester) async {
     final (r, _) = await open(tester);
     await tester.pumpWidget(MaterialApp(
