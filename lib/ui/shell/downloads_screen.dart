@@ -113,9 +113,16 @@ class _RecordingCard extends StatelessWidget {
       stateColor = t.teal;
       action = 'حذف';
       onAction = () => _confirmDelete(context, t);
+    } else if (library.needsUpdate(r) && !downloading) {
+      // A verified file whose hash left the snapshot (an app update): not played.
+      state = 'يلزم تحديث التلاوة';
+      stateColor = t.warn;
+      action = 'تنزيل';
+      onAction = () => library.download(r);
     } else if (downloading) {
       state = switch (p?.phase) {
         DownloadPhase.verifying => 'يُتحقَّق من الملف…',
+        DownloadPhase.waitingForNetwork => 'بانتظار الاتصال بالشبكة؛ يُستأنف تلقائيًا',
         DownloadPhase.waitingForWifi => 'بانتظار شبكة Wi-Fi',
         _ => p == null
             ? 'يبدأ التنزيل…'
@@ -127,8 +134,8 @@ class _RecordingCard extends StatelessWidget {
     } else if (p?.phase == DownloadPhase.failed) {
       state = switch (p!.error) {
         DownloadError.noUrls => 'التنزيل غير متاح بعد',
-        DownloadError.noSpace => 'المساحة غير كافية: يلزم ${megabytes(r.localBytes + kFreeSpaceMargin)}',
-        DownloadError.verification => 'لم يطابق الملف التحقق؛ أعد المحاولة',
+        DownloadError.noSpace => 'المساحة غير كافية: يلزم ${megabytes(library.spaceNeeded(r))}',
+        DownloadError.verification => 'تعذّر التحقق من الملف',
         _ => 'تعذّر الاتصال؛ يُستأنف من حيث توقف',
       };
       stateColor = t.warn;
@@ -139,7 +146,11 @@ class _RecordingCard extends StatelessWidget {
       action = 'متابعة';
       onAction = () => library.download(r);
     } else {
-      state = 'غير منزّل';
+      // Before a start: its size is above; the free space, when the device tells it.
+      final free = library.freeBytes;
+      state = free == null
+          ? 'غير منزّل'
+          : 'غير منزّل · المتاح على الجهاز ${free >= 1e9 ? gigabytes(free) : megabytes(free)}';
       action = 'تنزيل';
       onAction = () => library.download(r);
     }
@@ -201,6 +212,16 @@ class _RecordingCard extends StatelessWidget {
               ),
             ],
           ),
+          // Waiting for Wi-Fi: this one download may go over mobile data; the setting stays.
+          if (downloading && p?.phase == DownloadPhase.waitingForWifi)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: () => library.useMobileData(r),
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                child: Text('نزّل عبر البيانات', style: TzType.label.copyWith(color: t.goldText)),
+              ),
+            ),
           // «حذف» in every state that holds bytes (ADR 0007); a verified file has it above.
           if (!onDevice && library.holdsBytes(r))
             Align(

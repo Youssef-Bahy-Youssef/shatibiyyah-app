@@ -1,6 +1,6 @@
 // lib/services/device_storage.dart — what the app asks the device, answered by
 // MainActivity on Android ("taysir/device" channel): the recording downloader's
-// two questions (free space, unmetered network) and the system's «save as» and
+// questions (free space, a network, an unmetered one) and the system's «save as» and
 // «open» document pickers, for backups and for a share card's image. Elsewhere (iOS not yet in scope, tests)
 // the answers are "unknown" and "yes", and the pickers are unsupported.
 import 'package:flutter/services.dart';
@@ -20,6 +20,16 @@ Future<int?> deviceFreeBytes() async {
 Future<bool> deviceOnUnmeteredNetwork() async {
   try {
     return await _channel.invokeMethod<bool>('unmetered') ?? true;
+  } on MissingPluginException {
+    return true;
+  }
+}
+
+/// Whether the device has a network that reaches the internet now (true when the
+/// platform cannot say): a download without one waits for it.
+Future<bool> deviceOnline() async {
+  try {
+    return await _channel.invokeMethod<bool>('online') ?? true;
   } on MissingPluginException {
     return true;
   }

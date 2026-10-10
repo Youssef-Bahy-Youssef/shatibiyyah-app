@@ -17,7 +17,16 @@
 // discarded and the download starts over.
 //
 // Before starting: the free space must cover what is left plus 50 MB, and by
-// default the download waits for Wi-Fi.
+// default the download waits for Wi-Fi. Each thing it can wait on or fail for has
+// its own state (ADR 0007): no network (it goes on by itself when one is back),
+// no Wi-Fi (the listener may let this one download use mobile data), a full disk
+// (seen before the start, and again when a write fails), a file that does not
+// verify. A mirror whose file has another size is skipped; the bytes already here
+// go on with the next one.
+//
+// A verified file gets a marker naming the delivery file it is (`<slug>.ok`). When
+// an app update brings a new recording, the old file no longer matches the
+// snapshot: it is not «on the device» and is never played ([needsUpdate]).
 //
 // The bytes are moved by a [Transfer]: [HttpTransfer] (dart:io, while the app
 // runs; used in tests and where no background service exists) or, on Android,
@@ -38,7 +47,7 @@ import '../data/recording_repository.dart';
 /// Free space kept beyond the file itself.
 const int kFreeSpaceMargin = 50 * 1024 * 1024;
 
-enum DownloadPhase { waitingForWifi, downloading, verifying, done, failed, cancelled, paused }
+enum DownloadPhase { waitingForNetwork, waitingForWifi, downloading, verifying, done, failed, cancelled, paused }
 
 enum DownloadError { noUrls, noSpace, network, verification, cancelled, paused }
 
@@ -63,6 +72,8 @@ class DownloadException implements Exception {
 class DownloadCancel {
   bool _cancelled = false;
   bool _paused = false;
+  bool _metered = false;
+  Completer<void> _changed = Completer<void>();
   final _listeners = <void Function()>[];
   final _pauseListeners = <void Function()>[];
   bool get cancelled => _cancelled;
@@ -71,11 +82,25 @@ class DownloadCancel {
   /// Whether the transfer should stop now, for either reason.
   bool get stopped => _cancelled || _paused;
 
+  /// «نزّل عبر البيانات»: this one download may use a metered network.
+  bool get metered => _metered;
+
+  void _wake() {
+    final changed = _changed;
+    _changed = Completer<void>();
+    changed.complete();
+  }
+
+  /// Completes at the next call of [cancel], [pause] or [allowMetered]: a wait
+  /// (for Wi-Fi, for a network) ends at once instead of at its next poll.
+  Future<void> get changed => _changed.future;
+
   void cancel() {
     _cancelled = true;
     for (final l in List.of(_listeners)) {
       l();
     }
+    _wake();
   }
 
   void pause() {
@@ -84,6 +109,12 @@ class DownloadCancel {
     for (final l in List.of(_pauseListeners)) {
       l();
     }
+    _wake();
+  }
+
+  void allowMetered() {
+    _metered = true;
+    _wake();
   }
 
   /// [listener] runs when [cancel] is called (a transfer that is not polling).
@@ -139,9 +170,15 @@ class DownloadManager {
   /// Whether the device is on Wi-Fi (or Ethernet) now.
   final Future<bool> Function() onUnmeteredNetwork;
 
+  /// Whether the device has a network at all now (true when the platform cannot say).
+  final Future<bool> Function() online;
+
   /// Rounds over all mirrors before giving up, and the pause between rounds.
   final int rounds;
   final Duration retryDelay;
+
+  /// How often a download waiting for a network looks again.
+  final Duration networkPoll;
 
   final Transfer transfer;
 
@@ -149,11 +186,16 @@ class DownloadManager {
     required this.supportDir,
     required this.freeBytes,
     required this.onUnmeteredNetwork,
+    Future<bool> Function()? online,
     this.rounds = 3,
     this.retryDelay = const Duration(seconds: 2),
+    this.networkPoll = const Duration(seconds: 5),
     Transfer? transfer,
     HttpClient Function()? httpClient,
-  }) : transfer = transfer ?? HttpTransfer(httpClient ?? HttpClient.new);
+  })  : online = online ?? _alwaysOnline,
+        transfer = transfer ?? HttpTransfer(httpClient ?? HttpClient.new);
+
+  static Future<bool> _alwaysOnline() async => true;
 
   File fileFor(Recording r) => File(p.join(supportDir.path, RecordingRepository.localFileName(r)));
   File _partFor(Recording r) => File('${fileFor(r).path}.part');
@@ -209,18 +251,45 @@ class DownloadManager {
     }
   }
 
-  /// Whether [r] is on the device, complete.
+  /// `<slug>.ok`: the SHA-256 of the delivery file the verified file is.
+  File _markerFor(Recording r) => File(p.setExtension(fileFor(r).path, '.ok'));
+
+  Future<String?> _verifiedAs(Recording r) async {
+    try {
+      return (await _markerFor(r).readAsString()).trim();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  String _hashOf(Recording r) => r.delivery?.sha256 ?? r.audioSha256;
+
+  /// Whether [r] is on the device, complete, and the file the snapshot names. A
+  /// file from before the markers counts by its size ([adoptVerified] marks it).
   Future<bool> isDownloaded(Recording r) async {
     final f = fileFor(r);
-    return await f.exists() && await f.length() == r.localBytes;
+    if (!await f.exists() || await f.length() != r.localBytes) return false;
+    final verified = await _verifiedAs(r);
+    return verified == null || verified == _hashOf(r);
+  }
+
+  /// A file is there for [r], but not the one the snapshot names now (an app
+  /// update brought a new recording): it must be downloaded again, and is not played.
+  Future<bool> needsUpdate(Recording r) async => await fileFor(r).exists() && !await isDownloaded(r);
+
+  /// Marks a complete file that has no marker yet (verified before the markers
+  /// existed) as the snapshot's file, so that a later change of hash is seen.
+  Future<void> adoptVerified(Recording r) async {
+    if (await isDownloaded(r) && await _verifiedAs(r) == null) await _markerFor(r).writeAsString(_hashOf(r));
   }
 
   /// Removes [r] from the device in any state: the verified file, a partial, its
   /// sidecar and anything the transfer keeps for it.
   Future<void> delete(Recording r) async {
     await _discardPartial(r);
-    final f = fileFor(r);
-    if (await f.exists()) await f.delete();
+    for (final f in [fileFor(r), _markerFor(r)]) {
+      if (await f.exists()) await f.delete();
+    }
   }
 
   final Map<String, Future<bool>> _recovering = {};
@@ -246,8 +315,17 @@ class DownloadManager {
       return false;
     }
     await part.rename(fileFor(r).path);
+    await _markerFor(r).writeAsString(delivery.sha256);
     if (await _sidecarFor(r).exists()) await _sidecarFor(r).delete();
     return true;
+  }
+
+  /// Whether a failed write means the disk is full: the system says so (ENOSPC),
+  /// or what is left no longer fits.
+  Future<bool> _diskFull(FileSystemException e, int stillNeeded) async {
+    if (e.osError?.errorCode == 28) return true;
+    final free = await freeBytes();
+    return free != null && free < stillNeeded;
   }
 
   /// Downloads [r], reporting progress; returns the verified file.
@@ -270,6 +348,12 @@ class DownloadManager {
       return target;
     }
     await target.parent.create(recursive: true);
+    // A file verified for another delivery file (an app update): it goes first,
+    // so its space is free for the new one.
+    if (await needsUpdate(r)) {
+      await target.delete();
+      if (await _markerFor(r).exists()) await _markerFor(r).delete();
+    }
     final part = _partFor(r);
 
     // A partial resumes only for the delivery file it was started for.
@@ -282,11 +366,14 @@ class DownloadManager {
     // temporary file until complete, so its progress counts instead.
     Future<int> have() async => await part.exists() ? await part.length() : received;
 
-    final free = await freeBytes();
-    if (free != null && free < total - await have() + kFreeSpaceMargin) {
+    Future<Never> full() async {
+      await _writeSidecar(r, await have(), paused: false);
       report(DownloadPhase.failed, await have(), DownloadError.noSpace);
       throw const DownloadException(DownloadError.noSpace);
     }
+
+    final free = await freeBytes();
+    if (free != null && free < total - await have() + kFreeSpaceMargin) await full();
 
     // A cancel or a pause used while no transfer is running (before the first,
     // between mirrors, waiting for Wi-Fi) reaches no listener and is not polled
@@ -301,13 +388,28 @@ class DownloadManager {
       throw const DownloadException(DownloadError.paused);
     }
 
+    // A wait ends at its next look, or at once when the listener acts.
+    Future<void> pauseFor(Duration d) => cancel == null ? Future<void>.delayed(d) : Future.any([Future<void>.delayed(d), cancel.changed]);
+
+    // «Wi-Fi only», unless the listener let this one download use mobile data.
+    bool keepToWifi() => wifiOnly && !(cancel?.metered ?? false);
+
     var verifiedOnce = false;
-    for (var round = 0; round < rounds; round++) {
+    var round = 0;
+    while (round < rounds) {
+      var waitedForNetwork = false;
       for (final url in delivery.urls) {
-        while (wifiOnly && !await onUnmeteredNetwork()) {
+        // No network: it waits, and goes on by itself when one is back.
+        while (!await online()) {
+          if (cancel?.stopped ?? false) await stop();
+          waitedForNetwork = true;
+          report(DownloadPhase.waitingForNetwork, await have());
+          await pauseFor(networkPoll);
+        }
+        while (keepToWifi() && !await onUnmeteredNetwork()) {
           if (cancel?.stopped ?? false) await stop();
           report(DownloadPhase.waitingForWifi, await have());
-          await Future<void>.delayed(wifiPoll);
+          await pauseFor(wifiPoll);
         }
         // Checked with no await before the fetch: a transfer listens from its first line.
         if (cancel?.stopped ?? false) await stop();
@@ -315,20 +417,28 @@ class DownloadManager {
           await transfer.fetch(Uri.parse(url), part, total, (n) {
             received = n;
             report(DownloadPhase.downloading, n);
-          }, cancel, wifiOnly: wifiOnly);
+          }, cancel, wifiOnly: keepToWifi());
         } on TransferCancelled {
           final paused = cancel?.paused ?? false;
           await _writeSidecar(r, await have(), paused: paused);
           report(paused ? DownloadPhase.paused : DownloadPhase.cancelled, await have());
           throw DownloadException(paused ? DownloadError.paused : DownloadError.cancelled);
         } on TransferSizeMismatch {
-          // This mirror serves another file: its bytes are worthless.
-          await _discardPartial(r);
-          received = 0;
-          await _writeSidecar(r, 0, paused: false);
+          // This mirror has another file: it is skipped. What is here stays for the
+          // next one (a transfer that keeps its own temporary file has dropped it).
+          received = await part.exists() ? await part.length() : 0;
+          await _writeSidecar(r, received, paused: false);
+          continue;
+        } on FileSystemException catch (e) {
+          // A write failed. A full disk is its own state; anything else counts
+          // against this mirror.
+          if (await _diskFull(e, total - await have())) await full();
           continue;
         } catch (_) {
-          continue; // this mirror failed; the next one resumes from the part file
+          // This mirror failed; the next one resumes from the part file. If the
+          // network went, the round is not spent: the wait above takes over.
+          if (!await online()) waitedForNetwork = true;
+          continue;
         }
         if (await have() != total) continue;
 
@@ -338,11 +448,13 @@ class DownloadManager {
         final digest = await compute(_sha256Of, part.path);
         if (digest == delivery.sha256) {
           await part.rename(target.path);
+          await _markerFor(r).writeAsString(delivery.sha256);
           await _sidecarFor(r).delete();
           report(DownloadPhase.done, total);
           return target;
         }
-        // Corrupted: throw the bytes away and fetch them once more from nothing.
+        // Corrupted: throw the bytes away and fetch them once more from nothing,
+        // from the next mirror.
         await part.delete();
         received = 0;
         if (verifiedOnce) {
@@ -353,13 +465,13 @@ class DownloadManager {
         await _writeSidecar(r, 0, paused: false);
         verifiedOnce = true;
       }
-      if (round < rounds - 1) await Future<void>.delayed(retryDelay);
+      if (!waitedForNetwork) round++;
+      if (round < rounds) await pauseFor(retryDelay);
     }
     await _writeSidecar(r, await have(), paused: false);
     report(DownloadPhase.failed, await have(), DownloadError.network);
     throw const DownloadException(DownloadError.network);
   }
-
 }
 
 /// The transfer over dart:io: appends the rest of the file to the part file with
@@ -389,6 +501,11 @@ class HttpTransfer extends Transfer {
         }
         mode = FileMode.append;
       } else if (response.statusCode == HttpStatus.ok) {
+        // A whole file: it must be the delivery file's size, or nothing here is touched.
+        if (response.contentLength >= 0 && response.contentLength != total) {
+          await response.drain<void>();
+          throw TransferSizeMismatch(response.contentLength);
+        }
         start = 0; // the server ignored the range: start over
         mode = FileMode.write;
       } else {

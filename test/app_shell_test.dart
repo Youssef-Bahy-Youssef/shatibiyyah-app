@@ -97,9 +97,6 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   }
 
-  double dockOpacity(WidgetTester tester) =>
-      tester.widget<AnimatedOpacity>(find.byKey(AppShell.dockChromeKey)).opacity;
-
   testWidgets('opens on the reader; the dock has the four tabs as labelled buttons, «المتن» selected', (tester) async {
     await open(tester);
     expect(find.byType(ReaderScreen), findsOneWidget);
@@ -156,37 +153,18 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('a tap on the page hides the top bar and the dock; a second tap shows them', (tester) async {
-    final r = await open(tester);
-    expect(dockOpacity(tester), 1);
+  testWidgets('a tap on the page leaves the top bar and the dock where they are, and usable', (tester) async {
+    await open(tester);
+    final bar = find.text('نقل حركة الهمزة إلى الساكن قبلها'), dock = find.byType(Dock);
+    final barRect = tester.getRect(bar), dockRect = tester.getRect(dock);
     await tester.tapAt(tester.getRect(find.byType(PageViewer)).topLeft + const Offset(3, 3)); // the page's margin
     await tester.pump(const Duration(milliseconds: 400));
-    expect(r.chromeVisible, isFalse);
-    expect(dockOpacity(tester), 0);
-    expect(find.text('نقل حركة الهمزة إلى الساكن قبلها').hitTestable(), findsNothing);
-    await tester.tap(find.text('الفهرس'), warnIfMissed: false); // hidden: not a target
+    expect(bar.hitTestable(), findsOneWidget);
+    expect(tester.getRect(bar), barRect);
+    expect(tester.getRect(dock), dockRect);
+    await tester.tap(find.text('الفهرس'));
     await tester.pumpAndSettle();
-    expect(find.byType(IndexScreen), findsNothing);
-    r.toggleChrome();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(r.chromeVisible, isTrue);
-    expect(dockOpacity(tester), 1);
-    await unmount(tester);
-  });
-
-  testWidgets('the dock always shows on the other tabs, and coming back to the reader shows its chrome', (tester) async {
-    final r = await open(tester);
-    r.toggleChrome();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(dockOpacity(tester), 0);
-    tester.state<AppShellState>(find.byType(AppShell)).select(DockTab.contents);
-    await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(IndexScreen), findsOneWidget);
-    expect(dockOpacity(tester), 1);
-    await tester.tap(find.text('المتن'));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(r.chromeVisible, isTrue);
-    expect(dockOpacity(tester), 1);
     await unmount(tester);
   });
 

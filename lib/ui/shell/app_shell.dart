@@ -4,10 +4,9 @@
 // The dock floats over the current tab's screen (v2.css .dock: 10 px from the
 // sides, 28 px above the bottom edge under a 34 px home indicator): now playing
 // plus the tabs on «المتن» and «الفهرس», the tabs alone on «المحفوظ» and
-// «الإعدادات» (v2.js dock(st, cur, withNp)). On the reader a tap on the page
-// hides it with the top bar, 150 px down and out in 320 ms (emphasized) while it
-// fades in 200 ms, and a second tap brings it back; on the other tabs it always
-// shows. Choosing a tab shows the reader's chrome again (index.html go()).
+// «الإعدادات» (v2.js dock(st, cur, withNp)). It always shows, on every tab: a
+// tap on the page does not hide it or the top bar (the prototype's .chrome-off
+// is not built).
 //
 // Pushed screens (search, downloads, the commentary) cover the dock: it belongs
 // to the top level only. Each tab's screen is built on its first visit and kept.
@@ -16,8 +15,6 @@ import 'package:flutter/material.dart';
 import '../../services/download_manager.dart';
 import '../../utils/arabic.dart';
 import '../design/components/dock.dart';
-import '../design/components/tz_motion.dart';
-import '../design/tokens.g.dart';
 import '../design/tz_theme.dart';
 import '../reader/fixed_page_layout.dart';
 import '../reader/player_sheet.dart';
@@ -35,9 +32,6 @@ class AppShell extends StatefulWidget {
   final ReaderController reader;
   final DockTab initialTab;
   const AppShell({super.key, required this.reader, this.initialTab = DockTab.matn});
-
-  /// The dock's fade: its opacity is 0 while the reader's chrome is hidden.
-  static const dockChromeKey = ValueKey('shell-dock-chrome');
 
   /// The shell above [context], or null for a screen shown on its own.
   static AppShellState? of(BuildContext context) => context.findAncestorStateOfType<AppShellState>();
@@ -60,10 +54,9 @@ class AppShellState extends State<AppShell> {
 
   DockTab get tab => _tab;
 
-  /// Shows [t]. Navigating shows the reader's chrome again, as the prototype does.
+  /// Shows [t].
   void select(DockTab t) {
     if (t != _tab) setState(() => _built.add(_tab = t));
-    widget.reader.showChrome();
   }
 
   /// Whether the dock carries the now-playing row on [t] (v2.js: withNp).
@@ -100,7 +93,7 @@ class AppShellState extends State<AppShell> {
                   left: ReaderTokens.dockSide,
                   right: ReaderTokens.dockSide,
                   bottom: ReaderTokens.dockBottom(safeBottom),
-                  child: _dock(reader),
+                  child: _dock(),
                 ),
             ],
           ),
@@ -109,18 +102,22 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// The dock for the current tab, in its chrome: hidden with the reader's chrome.
-  Widget _dock(ReaderController reader) {
+  /// The dock for the current tab.
+  Widget _dock() {
     final withRow = nowPlayingOn(_tab);
-    return _DockChrome(
-      visible: _tab != DockTab.matn || reader.chromeVisible,
-      height: withRow ? ReaderTokens.dockHeight : ReaderTokens.dockTabsHeight,
+    // The dock is a fixed-height binding, like a system tab bar: its text
+    // follows the system size up to 1.3×, not beyond. Item 3.12 keeps this:
+    // every tab keeps its icon and a 48 px target, and what it leads to scales in full.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
+      ),
       child: Dock(nowPlaying: withRow ? _nowPlaying() : null, current: _tab, onTab: select),
     );
   }
 
   Widget _screen(DockTab t) => switch (t) {
-        DockTab.matn => ReaderScreen(reader: widget.reader, dock: _dock(widget.reader)),
+        DockTab.matn => ReaderScreen(reader: widget.reader, dock: _dock()),
         DockTab.contents => IndexScreen(reader: widget.reader),
         DockTab.saved => SavedScreen(reader: widget.reader),
         DockTab.settings => SettingsScreen(reader: widget.reader),
@@ -160,7 +157,13 @@ class AppShellState extends State<AppShell> {
       return NpDownloading(
         percent: '${ar((f * 100).floor())}٪',
         progress: f,
-        subtitle: '${ar(((progress?.received ?? 0) / 1e6).round())} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
+        // What it waits for, if it waits; else how far it is.
+        subtitle: switch (progress?.phase) {
+          DownloadPhase.waitingForNetwork => 'بانتظار الاتصال بالشبكة · يُستأنف تلقائيًا',
+          DownloadPhase.waitingForWifi => 'بانتظار شبكة Wi-Fi',
+          DownloadPhase.verifying => 'يُتحقَّق من الملف…',
+          _ => '${ar(((progress?.received ?? 0) / 1e6).round())} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
+        },
         onPause: () => library.pause(rec),
       );
     }
@@ -169,7 +172,7 @@ class AppShellState extends State<AppShell> {
       final why = switch (progress!.error) {
         DownloadError.noUrls => 'التنزيل غير متاح بعد',
         DownloadError.noSpace => 'المساحة غير كافية',
-        DownloadError.verification => 'لم يطابق الملف التحقق',
+        DownloadError.verification => 'تعذّر التحقق من الملف',
         _ => 'انقطع الاتصال',
       };
       final resumes = progress.error == DownloadError.network && progress.received > 0;
@@ -185,45 +188,16 @@ class AppShellState extends State<AppShell> {
         onDownload: () => library.download(rec),
       );
     }
+    if (library != null && library.needsUpdate(rec)) {
+      // An app update brought a new recording: the old file is not played.
+      return NpNone(
+        subtitle: 'يلزم تحديث التلاوة · ${megabytes(rec.localBytes)}',
+        onDownload: () => library.download(rec),
+      );
+    }
     return NpNone(
       subtitle: '${rec.reciterName} · ${megabytes(rec.localBytes)} · مرة واحدة',
       onDownload: () => library?.download(rec),
     );
   }
-}
-
-/// The dock's chrome: hidden, it slides 150 px down and out (v2.css .chrome-off .dock).
-class _DockChrome extends StatelessWidget {
-  final bool visible;
-  final double height;
-  final Widget child;
-  const _DockChrome({required this.visible, required this.height, required this.child});
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-        ignoring: !visible,
-        child: ExcludeSemantics(
-          excluding: !visible,
-          child: AnimatedOpacity(
-            key: AppShell.dockChromeKey,
-            opacity: visible ? 1 : 0,
-            duration: tzDuration(context, TzMotion.medium),
-            curve: TzMotion.standard,
-            child: AnimatedSlide(
-              offset: Offset(0, visible ? 0 : 150 / height),
-              duration: tzDuration(context, TzMotion.long),
-              curve: TzMotion.emphasized,
-              // The dock is a fixed-height binding, like a system tab bar: its text
-              // follows the system size up to 1.3×, not beyond. Item 3.12 keeps this:
-              // every tab keeps its icon and a 48 px target, and what it leads to scales in full.
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
-                ),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      );
 }

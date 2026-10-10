@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.StatFs
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -24,6 +25,12 @@ class MainActivity : AudioServiceActivity() {
                 "unmetered" -> {
                     val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                     result.success(cm.activeNetwork != null && !cm.isActiveNetworkMetered)
+                }
+                // Any network that reaches the internet: a download without one waits for it.
+                "online" -> {
+                    val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+                    result.success(caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true)
                 }
                 // «نسخ احتياطي»: the system's «save as» and «open» pickers, so a backup is a
                 // file wherever the user puts it (Downloads, Drive…), with no storage permission.
