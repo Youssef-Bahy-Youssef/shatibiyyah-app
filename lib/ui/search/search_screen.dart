@@ -22,7 +22,9 @@ import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
+import '../design/components/dock.dart' show DockTab;
 import '../reader/reader_controller.dart';
+import '../reader/split_panel.dart' show kSplitMinWidth;
 import '../shell/app_shell.dart';
 import '../shell/shell_page.dart' show readingPadding;
 
@@ -101,6 +103,21 @@ class _SearchScreenState extends State<SearchScreen> {
       _commentary = [..._commentary, ...more];
       _loadingMore = false;
     });
+  }
+
+  /// A hit in a book. On a phone: back to the reader, the passage in the sheet
+  /// over its verse, in the hit's book (item 3.9). A tablet keeps the pushed
+  /// screen: its split panel follows the reader, not a chosen book.
+  void _openPassage(CommentaryHit hit) {
+    final reader = widget.reader;
+    if (MediaQuery.sizeOf(context).width >= kSplitMinWidth) {
+      CommentaryScreen.open(context, reader.content, hit.fromVerse, bookId: hit.bookId);
+      return;
+    }
+    reader.setCommentaryBook(hit.bookId);
+    (AppShell.of(context) ?? appShell.currentState)?.select(DockTab.matn);
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    reader.openCommentary(hit.fromVerse);
   }
 
   void _remember() => _recent.add(_field.text);
@@ -418,7 +435,7 @@ class _SearchScreenState extends State<SearchScreen> {
           card(
             onTap: () {
               _remember();
-              CommentaryScreen.open(context, widget.reader.content, h.fromVerse, bookId: h.bookId);
+              _openPassage(h);
             },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
