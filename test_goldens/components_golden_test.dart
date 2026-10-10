@@ -15,6 +15,8 @@ import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
 import 'package:shatibiyyah/ui/design/components/tz_sheet.dart';
 import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
+import 'package:shatibiyyah/ui/design/components/rubric.dart';
+import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
@@ -25,6 +27,31 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'verse_unit': (390, 332, () => const Padding(
+        padding: EdgeInsets.fromLTRB(12, 4, 12, 0),
+        child: Column(children: [
+          VerseUnit(
+            number: '٢٢٦',
+            first: 'وَحَرِّكْ لِوَرْشٍ كُلَّ سَاكِنٍ آخِرٍ',
+            second: 'صَحِيحٍ بِشَكْلِ الْهَمْزِ واحْذِفْهُ مُسْهِلَا',
+            rubrics: [Rubric.name('لِوَرْشٍ')],
+          ),
+          VerseUnit(
+            number: '٢٢٩',
+            first: 'وَشَيْءٍ وَشَيْئًا لَمْ يَزِدْ وَلِنَافِعٍ',
+            second: 'لَدَى يُونُسٍ آلانَ بِالنَّقْلِ نُقِّلَا',
+            rubrics: [Rubric.name('وَلِنَافِعٍ')],
+            playing: true,
+          ),
+          VerseUnit(
+            number: '٢٣٠',
+            first: 'وَقُلْ عَادًا الأُوْلَى بِإِسْكَانِ لامِهِ',
+            second: 'وَتَنْوِينُهُ بِالْكَسْرِ كَاسِيهِ ظَلَّلَا',
+            rubrics: [Rubric.symbol('كَ', inWord: 'كَاسِيهِ'), Rubric.symbol('ظَ', inWord: 'ظَلَّلَا')],
+            chosen: true,
+          ),
+        ]),
+      )),
   'stepper': (370, 60, () => BindingStepper(
         previous: 'البيت ٢٢٥',
         next: 'البيت ٢٢٧',
