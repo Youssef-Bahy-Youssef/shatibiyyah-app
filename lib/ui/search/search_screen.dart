@@ -1,14 +1,10 @@
-// lib/ui/search/search_screen.dart — «البحث» and «الانتقال السريع».
+// lib/ui/search/search_screen.dart — «البحث».
 //
 // Search (features-v3 search, plan P6 search v2): one field over verses,
 // chapters, the user's notes and the three books, with a count per group; a verse,
 // chapter or note opens the reader there, a book passage opens that book at its
 // verse. Long groups show a page and «عرض المزيد». A number alone is not searched
-// for: it offers the verse and the page of that number. Empty, it offers the recent queries, the
-// prototype's suggestions and the quick jump.
-//
-// Quick jump (quick-jump): a page or verse number on an Arabic-Indic keypad, with a
-// live preview of the target.
+// for: it offers the verse and the page of that number. Empty, it offers the recent queries.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -27,8 +23,6 @@ import '../reader/reader_controller.dart';
 import '../reader/split_panel.dart' show kSplitMinWidth;
 import '../shell/app_shell.dart';
 import '../shell/shell_page.dart' show readingPadding;
-
-const List<String> kSearchSuggestions = ['ورش', 'النقل', 'حمزة', 'بدأت'];
 
 /// Verses shown before «عرض المزيد», and how many more each tap shows.
 const int kVersePageSize = 40;
@@ -245,39 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ],
           ),
           Wrap(spacing: 8, runSpacing: 8, children: [for (final s in recent) _chip(t, s)]),
-          const SizedBox(height: 18),
         ],
-        Text('جرّب: ${kSearchSuggestions.join(' · ')}', style: TzType.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [for (final s in kSearchSuggestions) _chip(t, s)],
-        ),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute<void>(builder: (_) => JumpScreen(reader: widget.reader))),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 52),
-            child: Row(
-              children: [
-                Icon(LucideIcons.hash, size: 20, color: t.goldText),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('الانتقال السريع إلى صفحة أو بيت', style: TzType.body.copyWith(color: t.text)),
-                      Text('لوحة أرقام هندية', style: TzType.caption.copyWith(color: t.muted)),
-                    ],
-                  ),
-                ),
-                Icon(LucideIcons.chevronLeft, size: 18, color: t.muted),
-              ],
-            ),
-          ),
-        ),
       ];
 
   List<Widget> _resultList(TaysirColors t) {
@@ -466,192 +428,3 @@ class _SearchScreenState extends State<SearchScreen> {
 
 /// Length of [text] once normalized (a lone letter or mark is not a query yet).
 int normalizedLength(String text) => normalizeMatching(text).length;
-
-/// «الانتقال السريع»: a page or verse number on an Arabic-Indic keypad.
-class JumpScreen extends StatefulWidget {
-  final ReaderController reader;
-  const JumpScreen({super.key, required this.reader});
-
-  @override
-  State<JumpScreen> createState() => _JumpScreenState();
-}
-
-class _JumpScreenState extends State<JumpScreen> {
-  bool _verse = true; // «بيت» or «صفحة»
-  late String _digits = '${widget.reader.verse}';
-
-  int get _max => _verse ? widget.reader.content.matn.lastVerse : widget.reader.content.layout.pageCount;
-  int? get _target {
-    final n = int.tryParse(_digits);
-    return n != null && n >= 1 && n <= _max ? n : null;
-  }
-
-  void _key(String k) {
-    setState(() {
-      if (k == 'del') {
-        _digits = _digits.isEmpty ? '' : _digits.substring(0, _digits.length - 1);
-      } else if (_digits.length < '$_max'.length) {
-        _digits = _digits == '0' ? k : '$_digits$k';
-      }
-    });
-  }
-
-  void _go() {
-    final n = _target;
-    if (n == null) return;
-    final reader = widget.reader;
-    if (_verse) {
-      reader.tapVerse(n);
-    } else {
-      reader.viewer.setPage(n, true); // browse to the page; playback, if any, carries on
-    }
-    Navigator.of(context).popUntil((r) => r.isFirst);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final content = widget.reader.content;
-    final n = _target;
-    final String previewA, previewB;
-    if (n == null) {
-      previewA = 'من ١ إلى ${ar(_max)}';
-      previewB = '';
-    } else if (_verse) {
-      previewA = content.matn.verse(n).firstHemistich;
-      previewB = content.matn.verse(n).secondHemistich;
-    } else {
-      final verses = content.layout.versesOnPage(n);
-      previewA = 'صفحة المخطوط ${ar(n)}';
-      previewB = verses.isEmpty
-          ? ''
-          : '${content.matn.chapterOfVerse(verses.first).shortLabel}، الأبيات ${isolatedRange(verses.first, verses.last)}';
-    }
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: t.bg,
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: 56,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: 'رجوع',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: Icon(LucideIcons.chevronRight, size: 21, color: t.text),
-                    ),
-                    Expanded(
-                      child: Text('الانتقال السريع',
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.display.copyWith(color: t.text)),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    for (final (isVerse, l) in [(false, 'صفحة'), (true, 'بيت')])
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: ChoiceChip(
-                            label: SizedBox(
-                              width: double.infinity,
-                              child: Text(l,
-                                  textAlign: TextAlign.center,
-                                  style: TzType.label.copyWith(color: _verse == isVerse ? t.onGold : t.text)),
-                            ),
-                            selected: _verse == isVerse,
-                            showCheckmark: false,
-                            selectedColor: t.gold,
-                            backgroundColor: t.panel2,
-                            side: BorderSide(color: t.line),
-                            shape: const StadiumBorder(),
-                            onSelected: (_) => setState(() {
-                              _verse = isVerse;
-                              _digits = isVerse ? '${widget.reader.verse}' : '${widget.reader.page}';
-                            }),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '${_digits.isEmpty ? '—' : ar(int.parse(_digits))} من ${ar(_max)}',
-                textAlign: TextAlign.center,
-                style: TzType.display.copyWith(color: t.goldText),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                // At least two lines tall, so the keypad does not jump as the preview changes.
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 88),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(previewA,
-                          textAlign: _verse && n != null ? TextAlign.start : TextAlign.center,
-                          style: TzType.verse.copyWith(color: t.dim)),
-                      if (previewB.isNotEmpty)
-                        Text(previewB,
-                            textAlign: _verse ? TextAlign.end : TextAlign.center,
-                            style: _verse
-                                ? TzType.verse.copyWith(color: t.dim)
-                                : TzType.label.copyWith(color: t.muted)),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  shrinkWrap: true,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 2,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    for (final k in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'])
-                      _keyButton(t, k, n != null),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _keyButton(TaysirColors t, String k, bool canGo) {
-    final go = k == 'go';
-    return Material(
-      color: go ? (canGo ? t.gold : t.line) : t.panel2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: go ? BorderSide.none : BorderSide(color: t.line),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: go ? (canGo ? _go : null) : () => _key(k),
-        child: Center(
-          child: k == 'del'
-              ? Icon(LucideIcons.delete, size: 24, color: t.text, semanticLabel: 'حذف')
-              : go
-                  ? Icon(LucideIcons.arrowLeft, size: 24, color: t.onGold, semanticLabel: 'انتقال')
-                  : Text(ar(int.parse(k)), style: TzType.hero.copyWith(color: t.text)),
-        ),
-      ),
-    );
-  }
-}
