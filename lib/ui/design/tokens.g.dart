@@ -250,12 +250,15 @@ abstract final class TzMotion {
 /// A night-page ink (ADR 0020): the accent the scan's coloured ink is drawn in at night.
 class TzNightInk {
   final String id, ar, en;
+
+  /// Its character in a few words, under its name in the picker.
+  final String arMood;
   final Color accent, strong, wash, disabled, frame;
 
   /// The 4×5 colour matrix the scan is drawn through (ColorFilter.matrix order).
   final List<double> matrix;
 
-  const TzNightInk({required this.id, required this.ar, required this.en, required this.accent, required this.strong, required this.wash, required this.disabled, required this.frame, required this.matrix});
+  const TzNightInk({required this.id, required this.ar, required this.en, required this.arMood, required this.accent, required this.strong, required this.wash, required this.disabled, required this.frame, required this.matrix});
 }
 
 /// The night page and its offered inks (tokens.json color.night.pageAccent).
@@ -266,6 +269,13 @@ abstract final class TzNightPage {
   static const double frameMix = 0.28;
   static const String preference = 'v2.night.page_accent';
   static const String defaultInk = 'jade';
+
+  /// The picker in settings (ADR 0020): its title, its one explanation, the default's tag,
+  /// and the part of a page (in scan pixels, 1130 wide) each option previews.
+  static const String pickerTitle = 'لون الحبر الليلي';
+  static const String pickerHelp = 'يُلوَّن به أسماء القراء ورموزهم وإطار الصفحة في الوضع الليلي. في الوضع الورقي تبقى ألوان الكتاب كما طُبعت.';
+  static const String defaultTag = 'الافتراضي';
+  static const Rect previewCrop = Rect.fromLTWH(540, 215, 520, 175);
 
   /// What every offered ink must meet (tools/night_page_accent.py).
   static const Map<String, double> contrastTargets = {
@@ -282,6 +292,7 @@ abstract final class TzNightPage {
     id: 'jade',
     ar: 'يشم',
     en: 'Jade',
+    arMood: 'هادئ · أخضر الحواشي',
     accent: Color(0xFF44B88D),
     strong: Color(0xFF6DC8A6),
     wash: Color(0xFF172A23),
@@ -293,6 +304,7 @@ abstract final class TzNightPage {
     id: 'turquoise',
     ar: 'فيروزج',
     en: 'Turquoise',
+    arMood: 'مشرق · زرقة البلاط',
     accent: Color(0xFF34AECF),
     strong: Color(0xFF61C0DA),
     wash: Color(0xFF15282E),
@@ -304,6 +316,7 @@ abstract final class TzNightPage {
     id: 'lapis',
     ar: 'لازورد',
     en: 'Moon lapis',
+    arMood: 'منسجم · لازورد التطبيق',
     accent: Color(0xFF86A3F2),
     strong: Color(0xFFA1B7F5),
     wash: Color(0xFF222733),
@@ -315,6 +328,7 @@ abstract final class TzNightPage {
     id: 'wisteria',
     ar: 'بنفسج',
     en: 'Wisteria',
+    arMood: 'ناعم · بنفسج الغسق',
     accent: Color(0xFFB693F2),
     strong: Color(0xFFC6ABF5),
     wash: Color(0xFF2A2433),
@@ -326,6 +340,7 @@ abstract final class TzNightPage {
     id: 'pistachio',
     ar: 'فستقي',
     en: 'Pistachio',
+    arMood: 'منعش · أعلى تباين',
     accent: Color(0xFF8EB23C),
     strong: Color(0xFFA7C367),
     wash: Color(0xFF232916),

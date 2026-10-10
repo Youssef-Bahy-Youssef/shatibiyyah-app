@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 
 import '../services/preferences_service.dart';
+import 'settings_store.dart';
 import 'user_store.dart';
 
 const String kBackupFormat = 'shatibiyyah-backup';
@@ -27,6 +28,7 @@ const int kBackupVersion = 2;
 bool isBackupSetting(String key) =>
     const {
       'v2.theme',
+      kNightInkPref,
       'v2.reader.view',
       'v2.text.scale',
       'v2.repeat.verse',

@@ -88,15 +88,34 @@ void main() {
 
   testWidgets('theme and text size are set and kept; rows lead on', (tester) async {
     final (r, _) = await open(tester, (r) => SettingsScreen(reader: r));
-    await tester.tap(find.text('ورقية'));
+    await tester.tap(find.text('ورقي'));
     await tester.pump();
     expect(appTheme.value, ReaderTheme.paper);
-    expect(r.store!.theme, ReaderTheme.paper);
+    expect(r.store!.themeChoice, ThemeChoice.paper);
 
-    await tester.tap(find.text('١٥٠٪'));
+    // «حجم نص المتن» opens the size steps; the row then says the chosen one.
+    await tester.tap(find.text('حجم نص المتن'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('١٥٠٪'));
     await tester.pump();
     expect(r.textScale, 1.5);
     expect(r.store!.textScale, 1.5);
+    await tester.tap(find.text('تم'));
+    await tester.pumpAndSettle();
+    expect(find.text('١٥٠٪'), findsOneWidget);
+
+    // «عناوين الأبواب» says its state, and «العرض عند الفتح» is the reader's view.
+    expect(r.settings.playTitles, isTrue);
+    await tester.tap(find.text('تُتلى'));
+    await tester.pump();
+    expect((r.settings.playTitles, r.store!.playTitles), (false, false));
+    expect(find.text('لا تُتلى'), findsOneWidget);
+    await tester.tap(find.text('النص'));
+    await tester.pump();
+    expect((r.textMode, r.store!.textMode), (true, true));
+    await tester.tap(find.text('الصفحة'));
+    await tester.pump();
+    expect(r.textMode, isFalse);
 
     await tester.tap(find.text('رموز القراء'));
     await tester.pumpAndSettle();
@@ -146,7 +165,7 @@ void main() {
     expect(find.text('تمت الاستعادة ودُمجت مع ما على الجهاز'), findsOneWidget);
     expect(personal2.noteFor(230)!.body, 'قارن بالوافي');
     expect(appTheme.value, ReaderTheme.paper); // applied at once
-    expect(r2.store!.theme, ReaderTheme.paper);
+    expect(r2.store!.themeChoice, ThemeChoice.paper);
 
     await tester.tap(find.text('استعادة من ملف'));
     await settle(tester);

@@ -24,17 +24,17 @@ void main() {
     test('defaults, ∞ repeats and per-reciter speed round-trip', () async {
       SharedPreferences.setMockInitialValues({});
       final s = SettingsStore(await Prefs.create());
-      expect((s.verseRepeats, s.sectionRepeats, s.gapMs, s.playTitles, s.theme), (1, 1, 0, true, ReaderTheme.dark));
+      expect((s.verseRepeats, s.sectionRepeats, s.gapMs, s.playTitles, s.themeChoice), (1, 1, 0, true, ThemeChoice.auto));
       s.verseRepeats = null;
       s.sectionRepeats = 5;
       s.setSpeedFor('rec:a', 1.25);
-      s.theme = ReaderTheme.paper;
+      s.themeChoice = ThemeChoice.paper;
       final again = SettingsStore(s.prefs);
       expect(again.verseRepeats, isNull);
       expect(again.sectionRepeats, 5);
       expect(again.speedFor('rec:a'), 1.25);
       expect(again.speedFor('rec:b'), 1); // another reciter keeps its own
-      expect(again.theme, ReaderTheme.paper);
+      expect(again.themeChoice, ThemeChoice.paper);
     });
 
     test('values outside the v3 option sets fall back', () async {
@@ -97,7 +97,7 @@ void main() {
       await tester.tap(find.text('ورقية'));
       await tester.pump();
       expect(appTheme.value, ReaderTheme.paper);
-      expect(r.store!.theme, ReaderTheme.paper);
+      expect(r.store!.themeChoice, ThemeChoice.paper);
 
       for (var i = 0; i < 8; i++) {
         await tester.tap(find.bySemanticsLabel('أخفت'));

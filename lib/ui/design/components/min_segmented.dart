@@ -45,7 +45,7 @@ class MinSegmented<T> extends StatelessWidget {
                 children: [
                   for (final (i, MapEntry(:key, :value)) in options.entries.indexed) ...[
                     if (i > 0) const SizedBox(width: 2),
-                    _segment(c, key, value),
+                    Flexible(child: _segment(c, key, value)),
                   ],
                 ],
               ),
@@ -68,16 +68,23 @@ class MinSegmented<T> extends StatelessWidget {
           child: SizedBox(
             height: TzSize.touchTarget,
             child: Center(
+              widthFactor: 1,
               child: Container(
                 constraints: const BoxConstraints(minWidth: 52),
                 height: 38,
-                alignment: Alignment.center,
                 decoration: on
                     ? BoxDecoration(color: c.raised, borderRadius: BorderRadius.circular(10), boxShadow: _raise)
                     : null,
-                child: Text(label,
-                    style: TzType.label.copyWith(
-                        fontSize: 13, color: on ? c.ink : c.ink2, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+                // Large text that no longer fits its share of the row is drawn smaller, never cut.
+                child: Center(
+                  widthFactor: 1, // as wide as its word (at least 52), not its whole share of the row
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label,
+                        style: TzType.label.copyWith(
+                            fontSize: 13, color: on ? c.ink : c.ink2, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+                  ),
+                ),
               ),
             ),
           ),

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pairs each handoff golden with its design render, side by side.
 
-    tool/handoff_compare.py [name ...]      e.g. tool/handoff_compare.py verse-paper
+    tool/handoff_compare.py [name ...]      e.g. tool/handoff_compare.py verse-paper inks/verse-night-jade
 
 Reads test_goldens/goldens/handoff/<state>-<theme>.png (the app, 2×) and
 ../design/redesign/handoff/screens/<state>-<theme>.png (the design, 2×), and
@@ -21,7 +21,7 @@ if screens is None:
     sys.exit("the workspace (design/redesign/handoff/) is not around the app")
 out = app / "build" / "handoff"
 out.mkdir(parents=True, exist_ok=True)
-names = sys.argv[1:] or sorted(p.stem for p in goldens.glob("*.png"))
+names = sys.argv[1:] or sorted(str(p.relative_to(goldens).with_suffix("")) for p in goldens.rglob("*.png"))
 for name in names:
     ours, design = Image.open(goldens / f"{name}.png").convert("RGB"), Image.open(screens / f"{name}.png").convert("RGB")
     bar = 28
@@ -31,5 +31,6 @@ for name in names:
         draw.rectangle([x, 0, x + image.width, bar - 1], fill=(0, 0, 0))
         draw.text((x + 8, 8), label, fill=(255, 255, 255))
         sheet.paste(image, (x, bar))
+    (out / f"{name}.png").parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out / f"{name}.png")
     print(out / f"{name}.png")
