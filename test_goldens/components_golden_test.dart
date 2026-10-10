@@ -10,6 +10,7 @@ import 'package:shatibiyyah/ui/design/components/binding_stepper.dart';
 import 'package:shatibiyyah/ui/design/components/chapter_head.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
+import 'package:shatibiyyah/ui/design/components/matn_strip.dart';
 import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
@@ -28,6 +29,28 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'matn_strip': (390, 261, () => Column(children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(14, 10, 14, 0),
+          child: MatnStrip(
+            number: '٢٢٦',
+            hemistichs: ('وَحَرِّكْ لِوَرْشٍ كُلَّ سَاكِنٍ آخِرٍ', 'صَحِيحٍ بِشَكْلِ الْهَمْزِ واحْذِفْهُ مُسْهِلَا'),
+            rubrics: [Rubric.name('لِوَرْشٍ')],
+            caption: 'البيت ٢٢٦ · المتن',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+          child: MatnStrip(
+            number: '٢٣١',
+            hemistichs: const ('وَأَدْغَمَ بَاقِيهِمْ وَبِالنَّقْلِ وَصْلُهُمْ', 'وَبَدْؤُهُمُ وَالْبَدْءُ بِالأَصْلِ فُضِّلاَ'),
+            caption: 'يشرح الأبيات ٢٣٠–٢٣٣',
+            verses: const ['٢٣٠', '٢٣١', '٢٣٢', '٢٣٣'],
+            current: 1,
+            onVerse: (_) {},
+          ),
+        ),
+      ])),
   'chapter_head': (390, 168, () => const Padding(
         padding: EdgeInsets.symmetric(horizontal: 12),
         child: ChapterHead(

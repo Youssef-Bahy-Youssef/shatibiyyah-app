@@ -38,6 +38,9 @@ class Hemistich extends StatelessWidget {
   /// A key for the hemistich's own box (its [widthFactor] of the column).
   final Key? boxKey;
 
+  /// A phrase washed in gilt (a matn quote being read).
+  final String? highlight;
+
   const Hemistich({
     super.key,
     required this.text,
@@ -46,16 +49,17 @@ class Hemistich extends StatelessWidget {
     this.widthFactor = 0.93,
     this.atEnd = false,
     this.boxKey,
+    this.highlight,
   });
 
   @override
   Widget build(BuildContext context) {
-    final rubric = TzTheme.of(context).rubric;
+    final tz = TzTheme.of(context);
     final direction = Directionality.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth * widthFactor;
-        final spans = rubricate(text, rubrics, rubric);
+        final spans = rubricate(text, rubrics, tz.rubric, highlight: highlight, wash: tz.colors.giltWash);
         final natural = (TextPainter(
           text: TextSpan(style: style, children: spans),
           textDirection: direction,
@@ -176,7 +180,7 @@ class VerseUnit extends StatelessWidget {
                                   Expanded(child: h2),
                                 ],
                               )
-                            : Column(children: [h1, h2]);
+                            : Column(mainAxisSize: MainAxisSize.min, children: [h1, h2]);
                       },
                     ),
                   ),
