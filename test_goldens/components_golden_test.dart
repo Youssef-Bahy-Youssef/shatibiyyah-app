@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
+import 'package:shatibiyyah/ui/design/components/tz_button.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 import 'golden_fonts.dart';
@@ -15,6 +16,14 @@ import 'golden_fonts.dart';
 /// pixels) and the component as the prototype shows it.
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
+  'button': (390, 72, () => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Expanded(flex: 13, child: TzButton.primary(label: 'تشغيل الباب', icon: 'play', iconFilled: true, onPressed: () {})),
+          const SizedBox(width: 8),
+          Expanded(flex: 10, child: TzButton.tonal(label: 'الشرح', icon: 'book', onPressed: () {})),
+        ]),
+      )),
   'gilt_rule': (390, 60, () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
         child: Column(children: [
