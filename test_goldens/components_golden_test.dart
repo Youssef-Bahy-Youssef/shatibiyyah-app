@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
+import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
@@ -17,6 +18,13 @@ import 'golden_fonts.dart';
 /// pixels) and the component as the prototype shows it.
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
+  'min_segmented': (390, 68, () => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10), // 12 around the 44 px pill: its 48 px target adds 2 each side
+        child: Align(
+          alignment: AlignmentDirectional.topStart,
+          child: MinSegmented<String>(options: const {'page': 'الصفحة', 'text': 'النص'}, selected: 'text', onSelect: (_) {}),
+        ),
+      )),
   'stat_tile': (390, 90, () => Padding(
         padding: const EdgeInsets.all(12),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
