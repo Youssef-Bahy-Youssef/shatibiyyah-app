@@ -18,7 +18,9 @@ import 'package:shatibiyyah/models/verse.dart';
 import 'package:shatibiyyah/services/data_service.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
+import 'package:shatibiyyah/ui/design/components/chapter_head.dart';
 import 'package:shatibiyyah/ui/design/components/chapter_row.dart';
+import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
@@ -192,14 +194,14 @@ void main() {
       return r;
     }
 
-    String sadr(int v) => content.matn.verse(v).firstHemistich;
+    Finder unit(int v) => find.byWidgetPredicate((w) => w is VerseUnit && w.number == ar(v));
 
-    testWidgets('shows the chapter as rows in place of the page; the chrome stays', (tester) async {
+    testWidgets('shows the poem as verse units in place of the page; the chrome stays', (tester) async {
       final r = await textMode(tester);
-      expect(find.text('الباب ١١، ٩ أبيات'), findsOneWidget);
-      expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
-      expect(find.text(sadr(226)), findsOneWidget);
-      expect(find.text(content.matn.verse(226).secondHemistich), findsOneWidget);
+      final head = tester.widget<ChapterHead>(find.byType(ChapterHead).first);
+      expect((head.order, head.title), ('١١', 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'));
+      final first = tester.widget<VerseUnit>(unit(226)), v = content.matn.verse(226);
+      expect((first.first, first.second), (v.firstHemistich, v.secondHemistich));
       expect(find.byType(PageViewer), findsNothing); // offstage, still mounted
       expect(find.byType(PageViewer, skipOffstage: false), findsOneWidget);
       r.toggleChrome();
@@ -208,53 +210,21 @@ void main() {
       await unmount(tester);
     });
 
-    testWidgets('a tap moves the reader, a double tap opens the menu at the row', (tester) async {
+    testWidgets('a tap moves the reader, a double tap opens the menu at the unit', (tester) async {
       final r = await textMode(tester);
-      await tester.ensureVisible(find.text(sadr(229)));
-      await tester.pump();
-      await tester.tap(find.text(sadr(229)));
+      await tester.tap(unit(227));
       await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 20));
-      expect(r.verse, 229);
+      expect(r.verse, 227);
       expect(r.menuVerse, isNull);
+      await tester.pumpAndSettle(); // the column glides the verse clear of the dock's zone
 
-      await tester.ensureVisible(find.text(sadr(230)));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text(sadr(230)));
+      await tester.tap(unit(226));
       await tester.pump(const Duration(milliseconds: 60));
-      await tester.tap(find.text(sadr(230)));
+      await tester.tap(unit(226));
       await tester.pump();
-      expect(r.menuVerse, 230);
-      expect(r.verse, 229); // opening the menu does not move the reader
-      expect(find.text('البيت ٢٣٠'), findsOneWidget);
-      await unmount(tester);
-    });
-
-    testWidgets('font size steps by a quarter within 0.75×–2×', (tester) async {
-      final r = await textMode(tester);
-      expect(find.text('١×'), findsOneWidget);
-      await tester.tap(find.text('أ+'));
-      await tester.pump();
-      expect(r.textScale, 1.25);
-      expect(find.text('١٫٢٥×'), findsOneWidget);
-      r.setTextScale(0.75);
-      await tester.pump();
-      await tester.tap(find.text('أ−')); // disabled at the minimum
-      await tester.pump();
-      expect(r.textScale, 0.75);
-      await unmount(tester);
-    });
-
-    testWidgets('the chapter buttons browse; the reader moving brings the view back', (tester) async {
-      final r = await textMode(tester);
-      await tester.scrollUntilVisible(find.text('الباب التالي'), 200);
-      await tester.tap(find.text('الباب التالي'));
-      await tester.pump();
-      expect(find.text('الباب ١٢، ٢٠ بيتًا'), findsOneWidget);
-      expect(r.verse, 226); // browsing does not move the reader
-      r.tapVerse(228);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('الباب ١١، ٩ أبيات'), findsOneWidget);
+      expect(r.menuVerse, 226);
+      expect(r.verse, 227); // opening the menu does not move the reader
+      expect(find.text('البيت ٢٢٦'), findsOneWidget);
       await unmount(tester);
     });
   });

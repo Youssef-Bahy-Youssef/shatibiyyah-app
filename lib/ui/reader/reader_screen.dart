@@ -29,13 +29,13 @@ import '../study/study_sheets.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
 import 'chapter_popover.dart';
+import 'display_sheet.dart';
 import 'fixed_page_layout.dart';
 import 'listen_sheet.dart';
 import 'reader_controller.dart';
 import 'split_panel.dart';
 import 'shamsa.dart';
 import 'text_reader.dart';
-import 'tools_sheet.dart';
 
 class ReaderScreen extends StatefulWidget {
   final ReaderController reader;
@@ -201,7 +201,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         if (reader.textMode)
           Positioned.fromRect(
             rect: layout.textZone,
-            child: TextReader(key: _text, reader: reader),
+            child: TextReader(key: _text, reader: reader, bottomInset: layout.textInset),
           ),
         if (!reader.chromeVisible && !reader.textMode)
           Positioned(
@@ -223,7 +223,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               : _TopBar(
                   reader: reader,
                   onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
-                  onTools: widget.onTools ?? () => showToolsSheet(context, reader),
+                  onTools: widget.onTools ?? () => showDisplaySheet(context, reader),
                 ),
         ),
         if (widget.dock case final dock? when !reader.selecting)

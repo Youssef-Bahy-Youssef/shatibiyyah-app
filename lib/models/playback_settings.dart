@@ -21,7 +21,6 @@ class K {
   static const pause = 'shatibiyyah_pause';
   // page-viewer.js K{}
   static const night = 'shatibiyyah_night';
-  static const bright = 'shatibiyyah_brightness';
   static const boxes = 'shatibiyyah_showboxes';
   // app.js keys
   static const session = 'shatibiyyah_last_session';

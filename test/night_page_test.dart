@@ -21,7 +21,7 @@ List<int> _rgb(Color c) => [_c(c.r), _c(c.g), _c(c.b)];
 void main() {
   test('every ink: white paper becomes the night page, black ink its ivory', () {
     for (final ink in TzNightPage.inks) {
-      final m = PageViewerController.nightPageMatrix(ink, 1);
+      final m = PageViewerController.nightPageMatrix(ink);
       expect(_rgb(through(m, 255, 255, 255)), _rgb(TzNightPage.pageBg), reason: '${ink.id}: paper');
       expect(_rgb(through(m, 0, 0, 0)), _rgb(TzNightPage.pageInk), reason: '${ink.id}: ink');
     }
@@ -32,7 +32,7 @@ void main() {
     // tools/night_page_accent.py solves each matrix so that this maps to the accent.
     const printed = [0xD8, 0x1B, 0x60];
     for (final ink in TzNightPage.inks) {
-      final out = _rgb(through(PageViewerController.nightPageMatrix(ink, 1), printed[0], printed[1], printed[2]));
+      final out = _rgb(through(PageViewerController.nightPageMatrix(ink), printed[0], printed[1], printed[2]));
       final want = _rgb(ink.accent);
       for (var i = 0; i < 3; i++) {
         expect((out[i] - want[i]).abs(), lessThanOrEqualTo(40), reason: '${ink.id} channel $i: $out vs $want');
@@ -43,18 +43,9 @@ void main() {
   });
 
   test('the matrix is the token matrix with its offset column on Flutter\'s scale', () {
-    final m = PageViewerController.nightPageMatrix(TzNightPage.jade, 1), j = TzNightPage.jade.matrix;
+    final m = PageViewerController.nightPageMatrix(TzNightPage.jade), j = TzNightPage.jade.matrix;
     for (var i = 0; i < 20; i++) {
       expect(m[i], closeTo(i % 5 == 4 ? j[i] * 255 : j[i], 1e-9), reason: 'cell $i');
     }
-  });
-
-  test('brightness scales the colour rows, not the alpha row', () {
-    final full = PageViewerController.nightPageMatrix(TzNightPage.jade, 1);
-    final half = PageViewerController.nightPageMatrix(TzNightPage.jade, 0.5);
-    for (var i = 0; i < 15; i++) {
-      expect(half[i], closeTo(full[i] * 0.5, 1e-9), reason: 'cell $i');
-    }
-    expect(half.sublist(15), full.sublist(15));
   });
 }
