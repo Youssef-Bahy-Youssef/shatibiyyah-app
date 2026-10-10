@@ -209,7 +209,7 @@ void main() {
     expect(find.text('\u2066٢:٣٠:٣٧\u2069، ١٤٥ م.ب'), findsOneWidget);
     expect(find.text('على الجهاز · مُتحقَّق منه'), findsOneWidget);
     expect(find.text('المختار'), findsOneWidget);
-    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ٢٥٢ م.ب'), findsOneWidget);
+    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ١٢٥ م.ب'), findsOneWidget);
     expect(find.text('غير منزّل'), findsOneWidget);
     expect(find.text('التلاوات على الجهاز: ١٤٥ م.ب'), findsOneWidget);
 
@@ -307,7 +307,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
       await settle(tester);
-      expect(find.text('تنزيل ٢٥٢ م.ب والبدء'), findsOneWidget);
+      expect(find.text('تنزيل ١٢٥ م.ب والبدء'), findsOneWidget);
       await tester.tap(find.text('لاحقًا، ابدأ بالقراءة'));
       await tester.pumpAndSettle();
       expect(tourDone(prefs), isTrue);
