@@ -132,6 +132,7 @@ final Map<String, (double, double, Widget Function())> components = {
             subtitle: 'محمد بن عتيق · ١٫٢٥× · تكرار ٢/٣',
             playing: true,
             progress: 3.5 / 9,
+            onPrevious: () {},
             onToggle: () {},
             onNext: () {},
           ),

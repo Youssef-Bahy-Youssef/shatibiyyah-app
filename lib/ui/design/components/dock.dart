@@ -4,7 +4,10 @@
 // One floating lapis object: the now-playing row (62 px) in one of four states
 // over the four tabs (54 px). The active tab is filled, in onCover, with a gilt
 // lozenge under it. The row's 44 px buttons have 48 px targets; their gaps are
-// 4 px smaller, so they are drawn exactly where the prototype puts them.
+// 4 px smaller, so they are drawn exactly where the prototype puts them. While
+// a recitation is loaded the row ends in the player's transport, in the player's
+// order: previous verse, play, next verse, 4 px apart (v2.css .np-ctl), so
+// their targets touch.
 import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
@@ -34,9 +37,13 @@ class NpPlaying extends NowPlaying {
   final String verse; // «٢٢٩»
   final String position; // «٤ من ٩»
   final String subtitle; // «محمد بن عتيق · ١٫٢٥× · تكرار ٢/٣»
+
+  /// The line without the reciter's name («١٫٢٥× · تكرار ٢/٣»), shown when the
+  /// whole of [subtitle] does not fit beside the buttons. Null when the name is all there is.
+  final String? compactSubtitle;
   final bool playing;
   final double progress; // through the section, 0…1
-  final VoidCallback onToggle, onNext;
+  final VoidCallback onPrevious, onToggle, onNext;
 
   /// A tap on the row itself (the khatam and the text): the player.
   final VoidCallback? onOpen;
@@ -44,8 +51,10 @@ class NpPlaying extends NowPlaying {
       {required this.verse,
       required this.position,
       required this.subtitle,
+      this.compactSubtitle,
       required this.playing,
       required this.progress,
+      required this.onPrevious,
       required this.onToggle,
       required this.onNext,
       this.onOpen});
@@ -154,7 +163,7 @@ class _NowPlayingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
     final (Widget khatam, Widget title, String subtitle, List<Widget> actions) = switch (np) {
-      NpPlaying(:final verse, :final position, :final subtitle, :final playing, :final onToggle, :final onNext) => (
+      NpPlaying(:final verse, :final position, :final subtitle, :final playing, :final onPrevious, :final onToggle, :final onNext) => (
           Khatam(verse, size: 42, onCover: true),
           Text.rich(
             TextSpan(text: 'البيت $verse ', children: [
@@ -166,9 +175,9 @@ class _NowPlayingRow extends StatelessWidget {
           ),
           subtitle,
           [
-            _IconButton(icon: 'next', label: 'البيت التالي', color: c.onCover, onTap: onNext),
-            const SizedBox(width: 6),
+            _IconButton(icon: 'prev', label: 'البيت السابق', color: c.onCover, onTap: onPrevious),
             _PlayButton(playing: playing, onTap: onToggle),
+            _IconButton(icon: 'next', label: 'البيت التالي', color: c.onCover, onTap: onNext),
           ],
         ),
       NpNone(:final subtitle, :final action, :final onDownload) => (
@@ -193,6 +202,7 @@ class _NowPlayingRow extends StatelessWidget {
     // Buttons drawn 44 px in 48 px targets: 2 px of target on each side, taken from the gaps.
     final endsInTarget = actions.last is! _PillButton;
     final onOpen = switch (np) { NpPlaying(:final onOpen) => onOpen, _ => null };
+    final compact = switch (np) { NpPlaying(:final compactSubtitle) => compactSubtitle, _ => null };
     final meta = Row(
       children: [
         khatam,
@@ -203,10 +213,7 @@ class _NowPlayingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               title,
-              Text(subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
+              _Subtitle(subtitle, compact: compact, style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
             ],
           ),
         ),
@@ -248,6 +255,47 @@ class _NowPlayingRow extends StatelessWidget {
 
   static TextStyle _titleStyle(Color color) =>
       TzType.label.copyWith(fontSize: 14.5, height: 20 / 14.5, fontWeight: FontWeight.w600, color: color);
+}
+
+/// The row's second line. When the whole line does not fit and there is a
+/// [compact] form, that is shown in its place; a screen reader still hears the whole line.
+///
+/// The line's numbers tick (the repeat count) and its digits differ in width, so
+/// it is measured at its widest, every digit taken in turn for all of them: the
+/// line does not change form from one repetition to the next.
+class _Subtitle extends StatelessWidget {
+  final String text;
+  final String? compact;
+  final TextStyle style;
+  const _Subtitle(this.text, {required this.compact, required this.style});
+
+  static final _digit = RegExp('[٠-٩0-9]');
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = this.compact;
+    if (compact == null) return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    return LayoutBuilder(builder: (context, box) {
+      final whole = TextPainter(
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      );
+      final measured = DefaultTextStyle.of(context).style.merge(style);
+      var fits = true;
+      for (final d in '٠١٢٣٤٥٦٧٨٩'.split('')) {
+        whole
+          ..text = TextSpan(text: text.replaceAll(_digit, d), style: measured)
+          ..layout();
+        if (whole.width > box.maxWidth) {
+          fits = false;
+          break;
+        }
+      }
+      whole.dispose();
+      return Text(fits ? text : compact, semanticsLabel: fits ? null : text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    });
+  }
 }
 
 /// The section's progress: 2 px of gilt on the binding's hairline, from the start.
