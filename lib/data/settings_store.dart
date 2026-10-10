@@ -54,6 +54,10 @@ class SettingsStore {
   String? get nightInk => prefs.getString(kNightInkPref);
   set nightInk(String? id) => id == null ? prefs.remove(kNightInkPref) : prefs.setString(kNightInkPref, id);
 
+  /// Whether reader names and symbols are set in the rubric ink («إبراز رموز القراء وأسمائهم»).
+  bool get showRubric => prefs.getString('v2.text.rubric') != '0';
+  set showRubric(bool on) => prefs.setString('v2.text.rubric', on ? '1' : '0');
+
   /// The commentary last read (ADR 0018), or null before any.
   String? get commentaryBook => prefs.getString('v2.commentary.book');
   set commentaryBook(String? id) =>

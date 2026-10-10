@@ -242,9 +242,10 @@ class ShareCardVerse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Hemistich line(String text, {required bool atEnd}) => Hemistich(
-          text: text,
-          rubrics: verse.rubrics,
+    // A mark belongs to its own hemistich (1 or 2).
+    Hemistich line(int half, {required bool atEnd}) => Hemistich(
+          text: half == 1 ? verse.first : verse.second,
+          rubrics: rubricsOf(verse.rubrics, half),
           style: style,
           widthFactor: pair ? 1 : 0.92,
           atEnd: atEnd,
@@ -255,12 +256,12 @@ class ShareCardVerse extends StatelessWidget {
         ? Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: line(verse.first, atEnd: false)),
+              Expanded(child: line(1, atEnd: false)),
               const SizedBox(width: _Geometry.pairGap),
-              Expanded(child: line(verse.second, atEnd: false)),
+              Expanded(child: line(2, atEnd: false)),
             ],
           )
-        : Column(mainAxisSize: MainAxisSize.min, children: [line(verse.first, atEnd: false), line(verse.second, atEnd: true)]);
+        : Column(mainAxisSize: MainAxisSize.min, children: [line(1, atEnd: false), line(2, atEnd: true)]);
   }
 }
 

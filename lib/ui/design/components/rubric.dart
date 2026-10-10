@@ -21,15 +21,29 @@ class Rubric {
   /// A symbol's letter gets a dotted underline; a name does not.
   final bool isSymbol;
 
-  const Rubric.name(this.text) : inWord = null, start = null, end = null, hemistich = null, isSymbol = false;
+  /// What a symbol stands for, said aloud and shown in its tip: «رمز كَ: ابن عامر».
+  final String? label;
+
+  const Rubric.name(this.text)
+      : inWord = null,
+        start = null,
+        end = null,
+        hemistich = null,
+        isSymbol = false,
+        label = null;
   const Rubric.symbol(this.text, {required String this.inWord})
       : start = null,
         end = null,
         hemistich = null,
-        isSymbol = true;
-  const Rubric.at(int this.start, int this.end, {required int this.hemistich, this.isSymbol = false})
+        isSymbol = true,
+        label = null;
+  const Rubric.at(int this.start, int this.end, {required int this.hemistich, this.isSymbol = false, this.label})
       : text = '',
         inWord = null;
+
+  /// Whether [other] is the mark at the same place.
+  bool sameMark(Rubric? other) =>
+      other != null && start != null && other.start == start && other.end == end && other.hemistich == hemistich;
 
   /// Whether the mark belongs to [half] (1 or 2): a mark found by its text belongs to both.
   bool inHemistich(int half) => hemistich == null || hemistich == half;

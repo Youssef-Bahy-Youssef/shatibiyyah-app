@@ -82,10 +82,11 @@ void main() {
     // The second hemistich has the phrase: a rounded wash behind its words, 2 px wider all round.
     final washes = tester.widgetList<PhraseWash>(find.descendant(of: find.byType(MatnStrip), matching: find.byType(PhraseWash))).toList();
     final at = h226.$2.indexOf('صَحِيحٍ');
-    expect([for (final w in washes) w.range], [null, (start: at, end: at + 'صَحِيحٍ'.length)]);
-    expect(washes[1].color, TzColors.paper.giltWash);
-    final box = tester.renderObject(find.byWidget(washes[1])) as dynamic;
-    final wash = (box.washes as List<RRect>).single;
+    expect([for (final w in washes) w.washes], [
+      const <Wash>[],
+      [(start: at, end: at + 'صَحِيحٍ'.length, color: TzColors.paper.giltWash, spread: 2.0, radius: 6.0)],
+    ]);
+    final wash = tester.renderObject<RenderPhraseWash>(find.byWidget(washes[1])).painted.single.$1;
     final words = tester.renderObject<RenderParagraph>(find.descendant(of: find.byWidget(washes[1]), matching: find.byType(RichText)));
     final glyphs = words.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 'صَحِيحٍ'.length)).first.toRect();
     expect(wash.left, closeTo(glyphs.left - 2, 0.01));

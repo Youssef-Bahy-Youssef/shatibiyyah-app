@@ -9,7 +9,10 @@
 // are in the rubric ink. Playing is the soft gilt wash with a 3 px gilt bar just
 // outside the start edge; chosen is a 2 px ring and a tint (lapis on paper, the
 // reader's night ink at night). The background changes in 320 ms.
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../tokens.g.dart';
 import '../tz_theme.dart';
@@ -48,6 +51,12 @@ class Hemistich extends StatelessWidget {
   /// The space above and below the line (v2.css .hm padding-block).
   final double padBlock;
 
+  /// The symbol whose tip is open: lit from behind (v2.css .rb.sym.on).
+  final Rubric? activeSymbol;
+
+  /// A key for the text itself, to find where its words are.
+  final Key? textKey;
+
   const Hemistich({
     super.key,
     required this.text,
@@ -59,6 +68,8 @@ class Hemistich extends StatelessWidget {
     this.highlight,
     this.rubricColor,
     this.padBlock = 1,
+    this.activeSymbol,
+    this.textKey,
   });
 
   @override
@@ -84,9 +95,23 @@ class Hemistich extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: padBlock),
               child: PhraseWash(
-                range: lit < 0 ? null : (start: lit, end: lit + highlight!.length),
-                color: tz.colors.giltWash,
+                washes: [
+                  // v2.css mark.mqhl: the gilt wash, 2 px past the words, on a 4 px radius.
+                  if (lit >= 0)
+                    (start: lit, end: lit + highlight!.length, color: tz.colors.giltWash, spread: 2, radius: 6),
+                  // v2.css .rb.sym.on: the lapis wash (the night ink's tint), 3 px past the letter.
+                  for (final m in rubrics)
+                    if (m.sameMark(activeSymbol))
+                      (
+                        start: m.start!,
+                        end: m.end!,
+                        color: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : tz.colors.lapisWash,
+                        spread: 3,
+                        radius: 7,
+                      ),
+                ],
                 child: RichText(
+                  key: textKey,
                   textAlign: atEnd ? TextAlign.end : TextAlign.start,
                   textDirection: direction,
                   text: TextSpan(
@@ -103,13 +128,20 @@ class Hemistich extends StatelessWidget {
   }
 }
 
-class VerseUnit extends StatelessWidget {
+class VerseUnit extends StatefulWidget {
   final String number; // «٢٢٦»
   final String first, second;
   final List<Rubric> rubrics;
   final bool playing, chosen;
   final double fontSize;
   final VoidCallback? onTap, onDoubleTap, onLongPress;
+
+  /// A tap on a reader symbol (a mark with [Rubric.isSymbol]): its tip. The
+  /// letter is small, so the tap may land up to 24 px from its centre.
+  final ValueChanged<Rubric>? onSymbol;
+
+  /// The symbol whose tip is open.
+  final Rubric? activeSymbol;
 
   const VerseUnit({
     super.key,
@@ -123,11 +155,70 @@ class VerseUnit extends StatelessWidget {
     this.onTap,
     this.onDoubleTap,
     this.onLongPress,
+    this.onSymbol,
+    this.activeSymbol,
   });
 
   static const surfaceKey = ValueKey('verse-unit-surface');
   static const barKey = ValueKey('verse-unit-bar');
   static const hemistichKeys = [ValueKey('verse-unit-h1'), ValueKey('verse-unit-h2')];
+
+  @override
+  State<VerseUnit> createState() => VerseUnitState();
+}
+
+class VerseUnitState extends State<VerseUnit> {
+  // The two hemistichs' texts, to find a symbol's letter under a tap.
+  final _texts = [GlobalKey(), GlobalKey()];
+  Offset? _tapAt;
+
+  /// Where the mark [mark] is on screen, or null when it is not laid out.
+  Rect? symbolRect(Rubric mark) {
+    final half = mark.hemistich, from = mark.start, to = mark.end;
+    if (half == null || from == null || to == null) return null;
+    final text = _texts[half - 1].currentContext?.findRenderObject();
+    if (text is! RenderParagraph || !text.hasSize) return null;
+    final boxes = text.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to));
+    if (boxes.isEmpty) return null;
+    final box = boxes.map((b) => b.toRect()).reduce((a, b) => a.expandToInclude(b));
+    return text.localToGlobal(box.topLeft) & box.size;
+  }
+
+  /// The symbol under a tap at [at]: the nearest whose letter, widened to a
+  /// 48 px target (handoff rule 6), holds the point.
+  Rubric? _symbolAt(Offset at) {
+    Rubric? best;
+    var nearest = double.infinity;
+    for (final mark in widget.rubrics) {
+      if (!mark.isSymbol) continue;
+      final box = symbolRect(mark);
+      if (box == null) continue;
+      final target = Rect.fromCenter(
+          center: box.center,
+          width: math.max(box.width, TzSize.touchTarget),
+          height: math.max(box.height, TzSize.touchTarget));
+      final distance = (at - box.center).distance;
+      if (target.contains(at) && distance < nearest) (best, nearest) = (mark, distance);
+    }
+    return best;
+  }
+
+  void _tap() {
+    final at = _tapAt;
+    final symbol = widget.onSymbol == null || at == null ? null : _symbolAt(at);
+    symbol != null ? widget.onSymbol!(symbol) : widget.onTap?.call();
+  }
+
+  String get number => widget.number;
+  String get first => widget.first;
+  String get second => widget.second;
+  List<Rubric> get rubrics => widget.rubrics;
+  bool get playing => widget.playing;
+  bool get chosen => widget.chosen;
+  double get fontSize => widget.fontSize;
+  VoidCallback? get onTap => widget.onTap;
+  VoidCallback? get onDoubleTap => widget.onDoubleTap;
+  VoidCallback? get onLongPress => widget.onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -136,14 +227,20 @@ class VerseUnit extends StatelessWidget {
     final (Color? fill, Color? ring) = chosen
         ? (tz.night ? (tz.nightInk.accent.withValues(alpha: 0.16), tz.nightInk.accent) : (c.lapisWash, c.lapis))
         : (playing ? (c.giltWashSoft, null) : (null, null));
+    final symbols = widget.onSymbol == null ? const <Rubric>[] : [for (final m in rubrics) if (m.isSymbol && m.label != null) m];
     return Semantics(
       label: 'البيت $number: $first، $second',
       button: onTap != null,
       onTap: onTap,
       onLongPress: onLongPress,
+      // The verse stays one item; each of its symbols is an action on it.
+      customSemanticsActions: {
+        for (final m in symbols) CustomSemanticsAction(label: m.label!): () => widget.onSymbol!(m),
+      },
       excludeSemantics: true,
       child: GestureDetector(
-        onTap: onTap,
+        onTapUp: (d) => _tapAt = d.globalPosition,
+        onTap: onTap == null && widget.onSymbol == null ? null : _tap,
         onDoubleTap: onDoubleTap,
         onLongPress: onLongPress,
         behavior: HitTestBehavior.opaque,
@@ -151,7 +248,7 @@ class VerseUnit extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             AnimatedContainer(
-              key: surfaceKey,
+              key: VerseUnit.surfaceKey,
               duration: tzDuration(context, TzMotion.long),
               curve: TzMotion.standard,
               // v2.css padding 12/4/14, less the 2 px ring (an inset shadow there, a border here).
@@ -174,14 +271,18 @@ class VerseUnit extends StatelessWidget {
                       builder: (context, constraints) {
                         final wide = constraints.maxWidth + 26 + 8 + 8 >= 600;
                         final h1 = Hemistich(
-                          boxKey: hemistichKeys[0],
+                          boxKey: VerseUnit.hemistichKeys[0],
+                          textKey: _texts[0],
+                          activeSymbol: widget.activeSymbol,
                           text: first,
                           rubrics: rubricsOf(rubrics, 1),
                           style: style,
                           widthFactor: wide ? 1 : 0.93,
                         );
                         final h2 = Hemistich(
-                          boxKey: hemistichKeys[1],
+                          boxKey: VerseUnit.hemistichKeys[1],
+                          textKey: _texts[1],
+                          activeSymbol: widget.activeSymbol,
                           text: second,
                           rubrics: rubricsOf(rubrics, 2),
                           style: style,
@@ -210,7 +311,7 @@ class VerseUnit extends StatelessWidget {
                 top: 14,
                 bottom: 14,
                 child: Container(
-                  key: barKey,
+                  key: VerseUnit.barKey,
                   width: 3,
                   decoration: BoxDecoration(color: c.gilt, borderRadius: BorderRadius.circular(2)),
                 ),

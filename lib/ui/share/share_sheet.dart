@@ -27,6 +27,7 @@ import '../design/components/tz_switch.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
+import '../reader/verse_rubrics.dart';
 
 /// Hands the image to the system; replaceable in tests.
 typedef ShareHandler = Future<void> Function(ShareParams params);
@@ -54,7 +55,9 @@ ShareCardData shareCardData(AppContent content, int from, int to, CardFormat for
     firstVerse: from,
     lastVerse: to,
     verses: [
-      for (var n = from; n <= to; n++) CardVerse(content.matn.verse(n).firstHemistich, content.matn.verse(n).secondHemistich),
+      for (var n = from; n <= to; n++)
+        CardVerse(content.matn.verse(n).firstHemistich, content.matn.verse(n).secondHemistich,
+            rubrics: verseRubrics(content, n)),
     ],
     chapterTitle: chapter.title,
     chapterOrdinal: numbered ? chapterOrdinal(chapter.orderIndex) : content.matn.partOf(chapter).title,

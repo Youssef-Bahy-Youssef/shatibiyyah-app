@@ -18,9 +18,11 @@ import 'package:flutter/material.dart';
 import '../../data/matn_repository.dart';
 import '../../utils/arabic.dart';
 import '../design/components/chapter_head.dart';
+import '../design/components/rubric.dart';
 import '../design/components/verse_unit.dart';
 import '../shell/shell_page.dart' show readingPadding;
 import 'reader_controller.dart';
+import 'verse_rubrics.dart';
 
 /// The poem as a row of items: each chapter's head, then its verses.
 class PoemItems {
@@ -65,6 +67,7 @@ class TextReader extends StatefulWidget {
 
 class TextReaderState extends State<TextReader> {
   final Map<int, GlobalKey> _rows = {};
+  final Map<int, GlobalKey<VerseUnitState>> _units = {};
   late final PoemItems _items = PoemItems(_reader.content.matn);
 
   /// The item at the column's top when it was last laid out afresh, and how far
@@ -153,6 +156,9 @@ class TextReaderState extends State<TextReader> {
     setState(() => _anchorOn(verse));
   }
 
+  /// Where the mark [mark] of [verse] is on screen, for placing a symbol's tip.
+  Rect? symbolRect(int verse, Rubric mark) => _units[verse]?.currentState?.symbolRect(mark);
+
   /// Where [verse]'s unit is on screen, for anchoring the verse menu.
   Rect? rowRect(int verse) {
     final box = _rows[verse]?.currentContext?.findRenderObject() as RenderBox?;
@@ -191,12 +197,18 @@ class TextReaderState extends State<TextReader> {
     }
     final v = matn.verse(n);
     final sel = _reader.selection;
+    final symbol = _reader.symbol;
     return KeyedSubtree(
       key: _rows.putIfAbsent(n, GlobalKey.new),
       child: VerseUnit(
+        key: _units.putIfAbsent(n, GlobalKey<VerseUnitState>.new),
         number: ar(n),
         first: v.firstHemistich,
         second: v.secondHemistich,
+        // Reader names and symbols in the rubric ink, unless the student hid them.
+        rubrics: _reader.showRubric ? verseRubrics(_reader.content, n) : const [],
+        onSymbol: (mark) => _reader.openSymbol(n, mark),
+        activeSymbol: symbol != null && symbol.verse == n ? symbol.mark : null,
         fontSize: size,
         playing: _reader.playing && n == _reader.verse,
         chosen: n == _reader.menuVerse || n == _reader.commentaryVerse || (sel != null && sel.from <= n && n <= sel.to),

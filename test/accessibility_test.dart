@@ -25,6 +25,7 @@ import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
+import 'package:shatibiyyah/ui/reader/verse_rubrics.dart';
 import 'package:shatibiyyah/ui/reader/display_sheet.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/about_screen.dart';
@@ -205,6 +206,7 @@ void main() {
     'listen sheet': (c, r) => showListenSheet(c, r, 229),
     'verse menu': (c, r) async => r.openMenu(229),
     'night-ink picker': (c, r) => showNightInkSheet(c, r),
+    'symbol tip': (c, r) async => r.openSymbol(230, verseRubrics(r.content, 230).first),
   };
   for (final MapEntry(key: name, value: open) in sheets.entries) {
     testWidgets('$name: labelled tap targets of 48 × 48 or more; 200 % text fits', (tester) async {

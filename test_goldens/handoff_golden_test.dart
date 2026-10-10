@@ -21,6 +21,7 @@ import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
+import 'package:shatibiyyah/ui/reader/verse_rubrics.dart';
 import 'package:shatibiyyah/ui/share/share_sheet.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import 'package:shatibiyyah/ui/shell/saved_screen.dart';
@@ -164,6 +165,22 @@ final Map<String, _State> _states = {
     audio: true,
     download: null,
     setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))
+  ),
+  'textmode-symbol': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, _) async {
+      // The design's sample: verse 227 loaded, the list moved so 230 stands 140 dp down it.
+      r.setTextMode(true);
+      await tester.runAsync(() => r.tapVerse(227));
+      await tester.pump(const Duration(milliseconds: 400));
+      final unit = find.byWidgetPredicate((w) => w is VerseUnit && w.number == ar(230));
+      final list = tester.state<ScrollableState>(find.ancestor(of: unit, matching: find.byType(Scrollable)).first).position;
+      list.jumpTo(list.pixels + tester.getTopLeft(unit).dy - 239.5);
+      await tester.pump(const Duration(milliseconds: 400));
+      r.openSymbol(230, verseRubrics(r.content, 230).first);
+    }
   ),
   'saved-bookmarks': (tab: DockTab.saved, audio: false, download: null, setup: _savedSwiped),
   'saved-notes': (tab: DockTab.saved, audio: false, download: null, setup: (tester, _, _) => tester.tap(find.text('الملاحظات ٠'))),
