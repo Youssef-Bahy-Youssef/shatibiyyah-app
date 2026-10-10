@@ -1,6 +1,7 @@
 // The recordings library: choosing a reciter keeps the verse and swaps the audio;
 // one not on the device leaves the reader without audio; deleting the chosen one
 // takes its audio away; offline, a download fails cleanly (no test reaches the network).
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -15,15 +16,15 @@ import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
 import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 /// No network in unit tests: every mirror fails at once.
-class _OfflineTransfer implements Transfer {
+class _OfflineTransfer extends Transfer {
   int attempts = 0;
   @override
   Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
@@ -197,7 +198,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(theme: ThemeData(extensions: const [TaysirColors.dark]), home: home));
+    await tester.pumpWidget(MaterialApp(theme: tzThemeData(TzTheme.dark), home: home));
     await tester.pump();
   }
 
@@ -209,7 +210,7 @@ void main() {
     expect(find.text('\u2066٢:٣٠:٣٧\u2069، ١٤٥ م.ب'), findsOneWidget);
     expect(find.text('على الجهاز · مُتحقَّق منه'), findsOneWidget);
     expect(find.text('المختار'), findsOneWidget);
-    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ٢٥٢ م.ب'), findsOneWidget);
+    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ١٢٥ م.ب'), findsOneWidget);
     expect(find.text('غير منزّل'), findsOneWidget);
     expect(find.text('التلاوات على الجهاز: ١٤٥ م.ب'), findsOneWidget);
 
@@ -220,6 +221,53 @@ void main() {
     }
     expect(find.text('تعذّر الاتصال؛ يُستأنف من حيث توقف'), findsOneWidget); // offline in the test
     expect(find.text('إعادة المحاولة'), findsOneWidget);
+  });
+
+  testWidgets('a recording missing a cue: boot goes on, it shows «غير صالحة» (F-41)', (tester) async {
+    late AudioLibrary library;
+    late AppContent broken;
+    await tester.runAsync(() async {
+      // A snapshot whose default recording (Atiq) has no cue for verse 500.
+      final dir = await Directory.systemTemp.createTemp('missing_cue');
+      addTearDown(() => dir.delete(recursive: true));
+      final copy = await File('assets/content/content.sqlite').copy('${dir.path}/content.sqlite');
+      final db = await databaseFactoryFfi.openDatabase(copy.path);
+      await db.rawDelete("DELETE FROM verse_timings WHERE recording_id = 'recording:shatibiyyah:muhammad-atiq-1' "
+          "AND matn_verse_id = 'verse:shatibiyyah:500'");
+      await db.close(); // no VACUUM: the size stays what content.json says
+      broken = await AppContent.open(
+        loadAsset: (key) async =>
+            ByteData.sublistView(await File(key.endsWith('.sqlite') ? copy.path : key).readAsBytes()),
+        supportDir: await Directory('${dir.path}/support').create(),
+        factory: databaseFactoryFfi,
+      );
+      addTearDown(broken.store.close);
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await Prefs.create();
+      final dm = DownloadManager(
+          supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true, transfer: _OfflineTransfer());
+      library = AudioLibrary(content: broken, prefs: prefs, downloads: dm, engineFactory: (r, path, plan) async {
+        fail('no engine for an unusable recording');
+      });
+      final atiq = broken.recordings.defaultRecording;
+      expect(broken.isUsable(atiq), isFalse);
+      expect(broken.isUsable(library.recordings.firstWhere((r) => !r.isDefault)), isTrue);
+      await sideLoad(dm, atiq); // even on the device, it is not played
+      await library.refresh();
+      // What reader_boot does: windows only for a usable recording, then the engine.
+      final windows = await broken.windowsOrNull(atiq);
+      expect(windows, isNull);
+      final other = await broken.windowsFor(library.recordings.firstWhere((r) => !r.isDefault));
+      expect(await library.openCurrent(PlaybackPlan(other, const PlaybackScope(1, 1), const PlaybackSettings())), isNull);
+      ReaderController(
+        content: broken,
+        recording: atiq,
+        viewer: PageViewerController(legacyData(broken, windows), prefs),
+        initialVerse: 500,
+      );
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.textContaining('غير صالحة'), findsOneWidget);
   });
 
   testWidgets('delete asks first, then the recording is gone', (tester) async {
@@ -235,6 +283,71 @@ void main() {
     expect(library.isOnDevice(library.current), isFalse);
     expect(reader.audioAvailable, isFalse);
     expect(find.text('التلاوات على الجهاز: ٠ م.ب'), findsOneWidget);
+  });
+
+  /// What a download stopped part-way leaves (ADR 0007): the part file, and the
+  /// sidecar that ties it to its delivery file.
+  Future<void> keepPartial(DownloadManager dm, Recording r, int bytes, {required bool paused}) async {
+    final part = dm.partFileFor(r);
+    await part.parent.create(recursive: true);
+    final raf = await part.open(mode: FileMode.write);
+    await raf.truncate(bytes);
+    await raf.close();
+    await File(part.path.replaceFirst(RegExp(r'\.mp3\.part$'), '.part.json')).writeAsString(jsonEncode({
+      'delivery_sha256': r.delivery!.sha256,
+      'delivery_bytes': r.delivery!.bytes,
+      'received': bytes,
+      'paused': paused,
+    }));
+  }
+
+  Future<void> confirmDelete(WidgetTester tester) async {
+    await tester.tap(find.text('حذف').last);
+    await tester.pumpAndSettle();
+    expect(find.text('حذف التلاوة؟'), findsOneWidget);
+    await tester.tap(find.text('حذف').last);
+  }
+
+  testWidgets('«حذف» for a paused recording: «متوقف عند ٦٠٪», then deleted', (tester) async {
+    late AudioLibrary library;
+    late DownloadManager dm;
+    late Recording other;
+    await tester.runAsync(() async {
+      (library, _, dm, _) = await setUpLibrary();
+      other = library.recordings.firstWhere((r) => !r.isDefault);
+      await keepPartial(dm, other, (other.localBytes * 0.6).ceil(), paused: true);
+      await library.refresh(); // as after a relaunch
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.text('متوقف عند ٦٠٪'), findsOneWidget);
+    expect(find.text('متابعة'), findsOneWidget);
+    expect(find.text('حذف'), findsNWidgets(2)); // Atiq on the device, and the paused one
+
+    await confirmDelete(tester);
+    await settle(tester);
+    expect(dm.partFileFor(other).existsSync(), isFalse);
+    expect(find.text('غير منزّل'), findsOneWidget);
+    expect(find.text('حذف'), findsOneWidget);
+  });
+
+  testWidgets('«حذف» for a failed recording that holds bytes', (tester) async {
+    late AudioLibrary library;
+    late DownloadManager dm;
+    late Recording other;
+    await tester.runAsync(() async {
+      (library, _, dm, _) = await setUpLibrary();
+      other = library.recordings.firstWhere((r) => !r.isDefault);
+      await keepPartial(dm, other, 4000000, paused: false);
+      await library.download(other); // offline in the test: fails, the bytes stay
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.text('تعذّر الاتصال؛ يُستأنف من حيث توقف'), findsOneWidget);
+    expect(find.text('حذف'), findsNWidgets(2));
+
+    await confirmDelete(tester);
+    await settle(tester);
+    expect(dm.partFileFor(other).existsSync(), isFalse);
+    expect(find.text('غير منزّل'), findsOneWidget);
   });
 
   testWidgets('«القارئ»: choosing one not on the device keeps the verse and opens «التنزيلات»', (tester) async {
@@ -307,7 +420,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
       await settle(tester);
-      expect(find.text('تنزيل ٢٥٢ م.ب والبدء'), findsOneWidget);
+      expect(find.text('تنزيل ١٢٥ م.ب والبدء'), findsOneWidget);
       await tester.tap(find.text('لاحقًا، ابدأ بالقراءة'));
       await tester.pumpAndSettle();
       expect(tourDone(prefs), isTrue);

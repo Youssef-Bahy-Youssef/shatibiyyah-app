@@ -18,7 +18,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/app_content.dart';
 import '../../data/commentary_repository.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
+import '../design/tz_type.dart';
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
@@ -71,7 +72,7 @@ class CommentaryScreen extends StatelessWidget {
                     child: Text(title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: kufi(size: 20, weight: 600, color: t.text)),
+                        style: TzType.display.copyWith(color: t.text)),
                   ),
                   const SizedBox(width: 12),
                 ],
@@ -250,10 +251,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
                         ),
                       ),
                       child: Text(book.shortTitle,
-                          style: kufi(
-                              size: 14,
-                              weight: book.id == _bookId ? 600 : 400,
-                              color: book.id == _bookId ? t.goldText : t.dim)),
+                          style: TzType.label.copyWith(color: book.id == _bookId ? t.goldText : t.dim)),
                     ),
                   ),
                 ),
@@ -323,7 +321,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
                 height: 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.gold, width: 1.5)),
-                child: Text(ar(n), style: naskh(size: 15, weight: FontWeight.w700, color: t.goldText)),
+                child: Text(ar(n), style: TzType.head.copyWith(color: t.goldText)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -331,9 +329,9 @@ class _CommentaryPaneState extends State<CommentaryPane> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(matn.verse(n).firstHemistich,
-                        textAlign: TextAlign.right, style: naskh(size: 18 * widget.textScale, height: 1.65, color: t.text)),
+                        textAlign: TextAlign.right, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
                     Text(matn.verse(n).secondHemistich,
-                        textAlign: TextAlign.left, style: naskh(size: 18 * widget.textScale, height: 1.65, color: t.text)),
+                        textAlign: TextAlign.left, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
                   ],
                 ),
               ),
@@ -341,7 +339,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
           ),
         ),
       if (to - from + 1 > 3)
-        Text(_moreVerses(to - from - 2), style: kufi(size: 12.5, weight: 400, color: t.muted)),
+        Text(_moreVerses(to - from - 2), style: TzType.caption.copyWith(color: t.muted)),
     ];
   }
 
@@ -358,7 +356,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
           child: OutlinedButton.icon(
             onPressed: () => _step(direction),
             icon: Icon(icon, size: 17, color: t.text),
-            label: Text(label, style: kufi(size: 14.5, weight: 400, color: t.text)),
+            label: Text(label, style: TzType.label.copyWith(color: t.text)),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               side: BorderSide(color: t.line),

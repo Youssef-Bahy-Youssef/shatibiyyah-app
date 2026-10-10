@@ -13,7 +13,7 @@ import '../../app/audio_library.dart';
 import '../../data/recording_repository.dart';
 import '../../services/device_storage.dart';
 import '../../services/download_manager.dart';
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import 'shell_page.dart';
@@ -43,8 +43,8 @@ class DownloadsScreen extends StatelessWidget {
               onChanged: (on) => library.wifiOnly = on,
               activeThumbColor: t.onGold,
               activeTrackColor: t.gold,
-              title: Text('التنزيل عبر Wi-Fi فقط', style: kufi(size: 15, weight: 400, color: t.text)),
-              subtitle: Text('لا تُستهلك بيانات الجوال', style: kufi(size: 12, weight: 400, color: t.muted)),
+              title: Text('التنزيل عبر Wi-Fi فقط', style: TzType.body.copyWith(color: t.text)),
+              subtitle: Text('لا تُستهلك بيانات الجوال', style: TzType.caption.copyWith(color: t.muted)),
             ),
             const SizedBox(height: 8),
             for (final r in library.recordings) ...[
@@ -53,7 +53,7 @@ class DownloadsScreen extends StatelessWidget {
             ],
             const SizedBox(height: 6),
             Text('التنزيل يُستأنف إن انقطع، ويُتحقق من كل ملف قبل تفعيله.',
-                textAlign: TextAlign.center, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
           ],
         ),
       ),
@@ -71,13 +71,13 @@ class DownloadsScreen extends StatelessWidget {
           children: [
             Expanded(
               child: Text('التلاوات على الجهاز: ${megabytes(library.bytesOnDevice)}',
-                  style: kufi(size: 13.5, weight: 400, color: t.text)),
+                  style: TzType.label.copyWith(color: t.text)),
             ),
             FutureBuilder<int?>(
               future: deviceFreeBytes(),
               builder: (_, snap) => snap.data == null
                   ? const SizedBox.shrink()
-                  : Text('المتاح ${gigabytes(snap.data!)}', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                  : Text('المتاح ${gigabytes(snap.data!)}', style: TzType.caption.copyWith(color: t.muted)),
             ),
           ],
         ),
@@ -102,7 +102,13 @@ class _RecordingCard extends StatelessWidget {
     Color stateColor = t.muted;
     String? action;
     VoidCallback? onAction;
-    if (onDevice) {
+    if (!library.content.isUsable(r)) {
+      // A recording whose cues are incomplete is not played (F-41).
+      state = 'غير صالحة: ينقصها توقيت بعض الأبيات';
+      stateColor = t.warn;
+      action = onDevice ? 'حذف' : 'غير متاحة';
+      onAction = onDevice ? () => _confirmDelete(context, t) : null;
+    } else if (onDevice) {
       state = 'على الجهاز · مُتحقَّق منه';
       stateColor = t.teal;
       action = 'حذف';
@@ -116,8 +122,8 @@ class _RecordingCard extends StatelessWidget {
             : 'يُنزَّل ${ar((p.fraction * 100).floor())}٪، ${megabytes(p.received)} من ${megabytes(p.total)}',
       };
       stateColor = t.goldText;
-      action = 'إيقاف';
-      onAction = () => library.cancel(r);
+      action = 'إيقاف مؤقت';
+      onAction = () => library.pause(r);
     } else if (p?.phase == DownloadPhase.failed) {
       state = switch (p!.error) {
         DownloadError.noUrls => 'التنزيل غير متاح بعد',
@@ -128,7 +134,7 @@ class _RecordingCard extends StatelessWidget {
       stateColor = t.warn;
       action = 'إعادة المحاولة';
       onAction = () => library.download(r);
-    } else if (p?.phase == DownloadPhase.cancelled && p!.received > 0) {
+    } else if ((p?.phase == DownloadPhase.paused || p?.phase == DownloadPhase.cancelled) && p!.received > 0) {
       state = 'متوقف عند ${ar((p.fraction * 100).floor())}٪';
       action = 'متابعة';
       onAction = () => library.download(r);
@@ -160,20 +166,20 @@ class _RecordingCard extends StatelessWidget {
                       runSpacing: 2,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(r.reciterName, style: kufi(size: 15.5, weight: 600, color: t.text)),
+                        Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
                         if (chosen) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999)),
-                            child: Text('المختار', style: kufi(size: 11, weight: 600, color: t.onGold)),
+                            child: Text('المختار', style: TzType.caption.copyWith(color: t.onGold)),
                           ),
                         ],
                       ],
                     ),
                     Text('${durationHms(r.durationMs)}، ${megabytes(r.localBytes)}',
-                        style: kufi(size: 12, weight: 400, color: t.muted)),
+                        style: TzType.caption.copyWith(color: t.muted)),
                     const SizedBox(height: 2),
-                    Text(state, style: kufi(size: 12.5, weight: 500, color: stateColor)),
+                    Text(state, style: TzType.caption.copyWith(color: stateColor)),
                   ],
                 ),
               ),
@@ -190,11 +196,21 @@ class _RecordingCard extends StatelessWidget {
                   child: Text(action,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: kufi(size: 13.5, weight: 500, color: t.text)),
+                      style: TzType.label.copyWith(color: t.text)),
                 ),
               ),
             ],
           ),
+          // «حذف» in every state that holds bytes (ADR 0007); a verified file has it above.
+          if (!onDevice && library.holdsBytes(r))
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: () => _confirmDelete(context, t),
+                style: TextButton.styleFrom(minimumSize: const Size(48, 44)),
+                child: Text('حذف', style: TzType.label.copyWith(color: t.warn)),
+              ),
+            ),
           if (downloading && p != null && p.phase == DownloadPhase.downloading) ...[
             const SizedBox(height: 10),
             Directionality(
@@ -217,18 +233,20 @@ class _RecordingCard extends StatelessWidget {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           backgroundColor: t.panel,
-          title: Text('حذف التلاوة؟', style: kufi(size: 17, weight: 600, color: t.text)),
+          title: Text('حذف التلاوة؟', style: TzType.head.copyWith(color: t.text)),
           content: Text(
-            'تُحذف تلاوة ${recording.reciterName} من الجهاز (${megabytes(recording.localBytes)})، ويمكن تنزيلها متى شئت.',
-            style: kufi(size: 14, weight: 400, color: t.dim),
+            library.isOnDevice(recording)
+                ? 'تُحذف تلاوة ${recording.reciterName} من الجهاز (${megabytes(recording.localBytes)})، ويمكن تنزيلها متى شئت.'
+                : 'يُحذف ما نُزّل من تلاوة ${recording.reciterName} (${megabytes(library.progressOf(recording)?.received ?? 0)})، ويمكن تنزيلها متى شئت.',
+            style: TzType.label.copyWith(color: t.dim),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(dialog).pop(false),
-                child: Text('إلغاء', style: kufi(size: 14, weight: 500, color: t.text))),
+                child: Text('إلغاء', style: TzType.label.copyWith(color: t.text))),
             TextButton(
                 onPressed: () => Navigator.of(dialog).pop(true),
-                child: Text('حذف', style: kufi(size: 14, weight: 600, color: t.warn))),
+                child: Text('حذف', style: TzType.label.copyWith(color: t.warn))),
           ],
         ),
       ),
@@ -267,8 +285,8 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text('القارئ', style: kufi(size: 18, weight: 600, color: t.text)),
-                  Text('يبقى البيت الحالي عند التبديل', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                  Text('القارئ', style: TzType.title.copyWith(color: t.text)),
+                  Text('يبقى البيت الحالي عند التبديل', style: TzType.caption.copyWith(color: t.muted)),
                   const SizedBox(height: 12),
                   for (final r in library.recordings) ...[
                     ReciterOption(
@@ -293,7 +311,7 @@ Future<void> showReciterSheet(BuildContext context, AudioLibrary library) => sho
                       navigator.push(MaterialPageRoute<void>(builder: (_) => DownloadsScreen(library: library)));
                     },
                     icon: Icon(LucideIcons.download, size: 17, color: t.goldText),
-                    label: Text('إدارة التنزيلات', style: kufi(size: 14, weight: 500, color: t.text)),
+                    label: Text('إدارة التنزيلات', style: TzType.label.copyWith(color: t.text)),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       side: BorderSide(color: t.line),
@@ -341,11 +359,11 @@ class ReciterOption extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.reciterName, style: kufi(size: 15, weight: 600, color: t.text)),
+                    Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
                     Text(
                       '${durationHms(r.durationMs)}، ${megabytes(r.localBytes)}، '
                       '${library.isOnDevice(r) ? 'على الجهاز' : 'غير منزّل'}',
-                      style: kufi(size: 12, weight: 400, color: t.muted),
+                      style: TzType.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),

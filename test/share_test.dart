@@ -8,10 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shatibiyyah/data/app_content.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/share/share_sheet.dart';
 import 'package:shatibiyyah/ui/widgets/verse_menu.dart' show verseCopyText;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 /// Loads assets from the project directory, as the app bundle would.
 class _FileBundle extends CachingAssetBundle {
@@ -44,7 +44,7 @@ void main() {
     addTearDown(tester.view.reset);
     final shared = <ShareParams>[];
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(

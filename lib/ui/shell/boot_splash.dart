@@ -12,7 +12,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../design/taysir_logo.dart';
 
 const Duration kSplashMinimum = Duration(milliseconds: 1200);
@@ -105,12 +105,12 @@ class _SplashFace extends StatelessWidget {
       child: Directionality(
         textDirection: TextDirection.rtl,
         child: DecoratedBox(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: RadialGradient(
-              center: Alignment(0, -0.24),
+              center: const Alignment(0, -0.24),
               radius: 1.1,
-              colors: [Color(0xFF3F2F15), Color(0xFF1B1307), Color(0xFF120C05)],
-              stops: [0, 0.62, 1],
+              colors: [TzColors.night.raised, TzColors.night.bg, TzColors.night.bg],
+              stops: const [0, 0.62, 1],
             ),
           ),
           child: Stack(
@@ -121,11 +121,11 @@ class _SplashFace extends StatelessWidget {
                 children: [
                   const TaysirLogo(size: 176),
                   const SizedBox(height: 26),
-                  Text('تيسير الشاطبية', style: kufi(size: 30, weight: 600, color: const Color(0xFFFADBAE))),
+                  Text('تيسير الشاطبية', style: TzType.display.copyWith(color: TzColors.night.ink)),
                   const SizedBox(height: 6),
                   Text(
                     'حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي',
-                    style: naskh(size: 18, color: const Color(0xFFD6CCB8)),
+                    style: TzType.chapter.copyWith(color: TzColors.night.ink2),
                   ),
                 ],
               ),
@@ -141,16 +141,16 @@ class _SplashFace extends StatelessWidget {
                         height: 3,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(999),
-                          child: const LinearProgressIndicator(
-                            color: Color(0xFFFFAB2E),
-                            backgroundColor: Color(0xFF4A3719),
+                          child: LinearProgressIndicator(
+                            color: TzColors.night.action,
+                            backgroundColor: TzColors.night.line,
                           ),
                         ),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         'يعمل دون اتصال',
-                        style: kufi(size: 12, weight: 400, color: const Color(0xFFB39A6B)),
+                        style: TzType.caption.copyWith(color: TzColors.night.ink3),
                       ),
                     ],
                   ),

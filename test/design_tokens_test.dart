@@ -139,6 +139,43 @@ void main() {
     expect(TzTheme.dark.copyWith(nightInk: TzNightPage.wisteria).rubric, TzNightPage.wisteria.accent);
   });
 
+  test('no colour or font-size literal outside lib/ui/design/', () {
+    final literals = {
+      'a colour literal': RegExp(r'\bColor(\.fromARGB|\.fromRGBO)?\(\s*[0-9]'),
+      'a Material colour': RegExp(r'\bColors\.(?!transparent\b)\w+'),
+      'a font-size literal': RegExp(r'\bfontSize:\s*[0-9]'),
+    };
+    final found = <String>[];
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
+      if (!f.path.endsWith('.dart') || f.path.startsWith('lib/ui/design/')) continue;
+      final lines = f.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final code = lines[i].split('//').first;
+        for (final e in literals.entries) {
+          if (e.value.hasMatch(code)) found.add('${f.path}:${i + 1}: ${e.key}: ${lines[i].trim()}');
+        }
+      }
+    }
+    expect(found, isEmpty, reason: 'colours and type sizes come from tokens.g.dart');
+  });
+
+  test('the legacy palette and helpers are gone', () {
+    expect(File('lib/theme.dart').existsSync(), isFalse, reason: 'C, R, kufi(), naskh() and ui() are replaced by the tokens');
+    final uses = <String>[];
+    final legacy = RegExp(r'''[/']theme\.dart['"]|(?<![\w.])(kufi|naskh)\(|(?<![\w.])C\.\w|\bkFont(Naskh|Kufi|Fallback)\b''');
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
+      if (!f.path.endsWith('.dart')) continue;
+      final lines = f.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        if (legacy.hasMatch(lines[i].split('//').first)) uses.add('${f.path}:${i + 1}: ${lines[i].trim()}');
+      }
+    }
+    expect(uses, isEmpty);
+    // The legacy role names survive only as names: each is one token (decision D1, option A).
+    final roles = File('lib/ui/design/taysir_colors.dart').readAsStringSync();
+    expect(RegExp(r'Color\(\s*0x').hasMatch(roles), isFalse, reason: 'taysir_colors.dart holds no colour values');
+  });
+
   group('every offered night ink meets pageAccent.targets', () {
     final page = _rgb(TzNightPage.pageBg), ink = _rgb(TzNightPage.pageInk), on = _rgb(TzNightPage.onAccent);
     final playingWash = _mix(page, _rgb(TzColors.night.gilt), 0.24);

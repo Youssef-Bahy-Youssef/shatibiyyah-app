@@ -10,7 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/matn_repository.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
+import '../design/tz_type.dart';
 import '../../utils/arabic.dart';
 import '../../data/settings_store.dart';
 import '../design/dashed.dart';
@@ -138,7 +139,7 @@ class TextReaderState extends State<TextReader> {
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: t.line),
             ),
-            child: Text(label, style: naskh(size: 17, color: enabled ? t.text : t.muted)),
+            child: Text(label, style: TzType.chapter.copyWith(color: enabled ? t.text : t.muted)),
           ),
         ),
       );
@@ -148,10 +149,10 @@ class TextReaderState extends State<TextReader> {
       padding: const EdgeInsets.fromLTRB(0, 10, 0, 8),
       child: Column(
         children: [
-          Text('$where، ${versesCount(chapter.verseCount)}', style: kufi(size: 12, weight: 400, color: t.muted)),
+          Text('$where، ${versesCount(chapter.verseCount)}', style: TzType.caption.copyWith(color: t.muted)),
           Text(title,
               textAlign: TextAlign.center,
-              style: naskh(size: 22, weight: FontWeight.w700, color: t.goldText, height: 1.7)),
+              style: TzType.title.copyWith(color: t.goldText)),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -160,7 +161,7 @@ class TextReaderState extends State<TextReader> {
               SizedBox(
                 width: 52,
                 child: Text('${ar(scale)}×',
-                    textAlign: TextAlign.center, style: kufi(size: 13, weight: 400, color: t.dim)),
+                    textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.dim)),
               ),
               step('أ+', 'تكبير الخط', scale + _kScaleStep),
             ],
@@ -172,13 +173,14 @@ class TextReaderState extends State<TextReader> {
 
   Widget _row(TaysirColors t, MatnVerse v, double scale) {
     final on = v.number == _reader.verse;
-    final ribbon = _reader.personal?.ribbons[v.number];
+    final mark = _reader.personal?.ribbons[v.number];
+    final ribbon = mark == null ? null : t.bookmark(mark.index);
     final sel = _reader.selection;
     final selected = sel != null && sel.from <= v.number && v.number <= sel.to;
     // The page's selection colours: accent blue on paper, gold on espresso.
-    final selColor = _reader.theme == ReaderTheme.paper ? const Color(0xFF4314FF) : t.gold;
+    final selColor = _reader.theme == ReaderTheme.paper ? t.accent : t.gold;
     final badge = 36 * scale.clamp(0.75, 1.5);
-    final line = naskh(size: 20 * scale, color: t.text, height: 1.65);
+    final line = TzType.verse.scaled(scale).copyWith(color: t.text);
     final key = _rows.putIfAbsent(v.number, GlobalKey.new);
     // One item for a screen reader: the number, both hemistichs and the actions.
     return MergeSemantics(
@@ -212,7 +214,7 @@ class TextReaderState extends State<TextReader> {
                       border: Border.all(color: on ? t.gold : t.line, width: 1.5),
                     ),
                     child: Text(ar(v.number),
-                        style: naskh(size: 15 * scale.clamp(0.75, 1.5), weight: FontWeight.w700, color: t.goldText)),
+                        style: TzType.head.scaled(scale.clamp(0.75, 1.5)).copyWith(color: t.goldText)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -259,7 +261,7 @@ class TextReaderState extends State<TextReader> {
           child: Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: kufi(size: 13.5, weight: 500, color: enabled ? t.text : t.muted)),
+              style: TzType.label.copyWith(color: enabled ? t.text : t.muted)),
         ),
       ];
       return Expanded(
@@ -291,7 +293,7 @@ class TextReaderState extends State<TextReader> {
           ),
           const SizedBox(height: 10),
           Text('نقرتان على بيت تفتحان قائمته',
-              textAlign: TextAlign.center, style: kufi(size: 12, weight: 400, color: t.muted)),
+              textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
         ],
       ),
     );

@@ -14,11 +14,11 @@ import 'package:shatibiyyah/app/rating.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/home_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 class FakeReview implements ReviewPort {
   int requests = 0;
@@ -185,7 +185,7 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(extensions: const [TaysirColors.dark]),
+          theme: tzThemeData(TzTheme.dark),
           home: HomeScreen(reader: r),
         ),
       );

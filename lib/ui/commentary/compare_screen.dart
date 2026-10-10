@@ -11,7 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/app_content.dart';
 import '../../data/commentary_repository.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import 'commentary_parts.dart';
@@ -107,13 +107,13 @@ class _CompareScreenState extends State<CompareScreen> {
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               Expanded(
-                child: Text('قارن الشروح', style: kufi(size: 20, weight: 600, color: t.text)),
+                child: Text('قارن الشروح', style: TzType.display.copyWith(color: t.text)),
               ),
               if (columns)
                 MergeSemantics(
                   child: Row(
                     children: [
-                      Text('مزامنة التمرير', style: kufi(size: 13.5, weight: 400, color: t.dim)),
+                      Text('مزامنة التمرير', style: TzType.label.copyWith(color: t.dim)),
                       Switch(
                         value: _sync,
                         onChanged: (on) => setState(() => _sync = on),
@@ -153,7 +153,7 @@ class _CompareScreenState extends State<CompareScreen> {
                 child: Text(
                   ar(widget.verse),
                   textAlign: TextAlign.center,
-                  style: naskh(size: 15, weight: FontWeight.w700, color: t.goldText),
+                  style: TzType.head.copyWith(color: t.goldText),
                 ),
               ),
               const SizedBox(width: 10),
@@ -164,12 +164,12 @@ class _CompareScreenState extends State<CompareScreen> {
                     Text(
                       v.firstHemistich,
                       textAlign: TextAlign.right,
-                      style: naskh(size: 18, height: 1.6, color: t.text),
+                      style: TzType.verse.copyWith(color: t.text),
                     ),
                     Text(
                       v.secondHemistich,
                       textAlign: TextAlign.left,
-                      style: naskh(size: 18, height: 1.6, color: t.text),
+                      style: TzType.verse.copyWith(color: t.text),
                     ),
                   ],
                 ),
@@ -245,8 +245,8 @@ class _CompareScreenState extends State<CompareScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(book.title, style: kufi(size: 19, weight: 600, color: t.goldText)),
-          if (by.isNotEmpty) Text(by, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+          Text(book.title, style: TzType.title.copyWith(color: t.goldText)),
+          if (by.isNotEmpty) Text(by, style: TzType.caption.copyWith(color: t.muted)),
         ],
       ),
     );
@@ -264,7 +264,7 @@ class _CompareScreenState extends State<CompareScreen> {
               final view = snap.data;
               if (view == null) {
                 return Center(
-                  child: Text('لا شرح لهذا البيت في هذا الكتاب', style: kufi(size: 14, weight: 400, color: t.dim)),
+                  child: Text('لا شرح لهذا البيت في هذا الكتاب', style: TzType.label.copyWith(color: t.dim)),
                 );
               }
               final parts = CommentaryParts(context, t, scale: 0.92);

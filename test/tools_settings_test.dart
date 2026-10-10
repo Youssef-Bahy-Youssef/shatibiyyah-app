@@ -15,6 +15,7 @@ import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/tools_sheet.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -89,7 +90,7 @@ void main() {
       await tester.pumpWidget(ValueListenableBuilder<ReaderTheme>(
         valueListenable: appTheme,
         builder: (_, theme, _) => MaterialApp(
-          theme: ThemeData(extensions: [colorsFor(theme)]),
+          theme: tzThemeData(tzThemeFor(theme)),
           home: Scaffold(body: ToolsSheet(reader: r)),
         ),
       ));

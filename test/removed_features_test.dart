@@ -19,7 +19,9 @@ List<(String, int, String)> _libLines() {
     if (!f.path.endsWith('.dart') || f.path.endsWith('retired_features.dart')) continue;
     var text = f.readAsStringSync();
     if (f.path.endsWith('user_store.dart')) {
-      text = text.replaceFirst(RegExp(r'const List<String> kUserMigrations = \[.*?\n\];', dotAll: true), '');
+      final migrations = RegExp(r'const List<List<String>> kUserMigrations = \[.*?\n\];', dotAll: true);
+      if (!migrations.hasMatch(text)) throw StateError('kUserMigrations not found in ${f.path}');
+      text = text.replaceFirst(migrations, '');
     }
     final lines = text.split('\n');
     for (var i = 0; i < lines.length; i++) {

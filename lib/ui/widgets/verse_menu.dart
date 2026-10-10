@@ -9,7 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/app_content.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
@@ -112,7 +112,7 @@ class VerseMenu extends StatelessWidget {
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: onClose,
-                  child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+                  child: ColoredBox(color: t.scrim),
                 ),
               ),
             ),
@@ -150,7 +150,7 @@ class VerseMenu extends StatelessWidget {
       Clipboard.setData(ClipboardData(text: verseCopyText(content, verse)));
       onClose();
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('تم نسخ البيت مع الإسناد', style: kufi(size: 14, weight: 500, color: t.text)),
+        SnackBar(content: Text('تم نسخ البيت مع الإسناد', style: TzType.label.copyWith(color: t.text)),
             backgroundColor: t.raised, duration: const Duration(seconds: 2)),
       );
     }
@@ -165,7 +165,7 @@ class VerseMenu extends StatelessWidget {
       child: Material(
         color: t.panel,
         elevation: 12,
-        shadowColor: Colors.black54,
+        shadowColor: t.float.first.color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: t.line)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
@@ -180,9 +180,9 @@ class VerseMenu extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('البيت ${ar(verse)}', style: kufi(size: 16, weight: 600, color: t.goldText)),
+                        Text('البيت ${ar(verse)}', style: TzType.head.copyWith(color: t.goldText)),
                         Text('$sadr …',
-                            maxLines: 1, overflow: TextOverflow.ellipsis, style: naskh(size: 15, color: t.dim)),
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.verse.copyWith(color: t.dim)),
                       ],
                     ),
                   ),
@@ -202,7 +202,7 @@ class VerseMenu extends StatelessWidget {
                     _action(
                       t,
                       (bookmarked?.call(verse) ?? false) ? LucideIcons.bookmarkCheck : LucideIcons.bookmarkPlus,
-                      'مرجع',
+                      (bookmarked?.call(verse) ?? false) ? 'تعديل المرجع' : 'مرجع',
                       () {
                         onClose();
                         onBookmark!(verse);
@@ -260,7 +260,7 @@ class VerseMenu extends StatelessWidget {
                     child: Icon(icon, size: 22, color: primary ? t.onGold : t.goldText),
                   ),
                   const SizedBox(height: 6),
-                  Text(label, style: kufi(size: 12.5, weight: 400, color: t.text)),
+                  Text(label, style: TzType.caption.copyWith(color: t.text)),
                 ],
               ),
             ),
@@ -282,7 +282,7 @@ class VerseMenu extends StatelessWidget {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(icon, size: 17, color: t.goldText),
               const SizedBox(width: 7),
-              Text(label, style: kufi(size: 13, weight: 400, color: t.text)),
+              Text(label, style: TzType.label.copyWith(color: t.text)),
             ]),
           ),
         ),

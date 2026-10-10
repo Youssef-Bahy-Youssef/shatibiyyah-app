@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/settings_store.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../commentary/commentary_screen.dart';
 import '../commentary/compare_screen.dart';
@@ -68,13 +68,13 @@ class _SplitPanelState extends State<SplitPanel> {
                       'شرح البيت ${ar(_shown)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: kufi(size: 18, weight: 600, color: t.text),
+                      style: TzType.title.copyWith(color: t.text),
                     ),
                     Text(
                       chapter.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: naskh(size: 15, color: t.muted, height: 1.5),
+                      style: TzType.chapter.copyWith(color: t.muted),
                     ),
                   ],
                 );
@@ -85,7 +85,7 @@ class _SplitPanelState extends State<SplitPanel> {
                     'يتبع التلاوة',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: kufi(size: 13.5, weight: 400, color: t.dim),
+                    style: TzType.label.copyWith(color: t.dim),
                   );
                   return MergeSemantics(
                     child: Row(

@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../theme.dart' show kufi;
+import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 
 class ShellPage extends StatelessWidget {
@@ -40,7 +40,7 @@ class ShellPage extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: kufi(size: 20, weight: 600, color: t.text),
+                        style: TzType.display.copyWith(color: t.text),
                       ),
                     ),
                   ],
@@ -78,7 +78,7 @@ class ComingSoonScreen extends StatelessWidget {
               Text(
                 'قريبًا في تحديث قادم',
                 textAlign: TextAlign.center,
-                style: kufi(size: 16, weight: 600, color: t.text),
+                style: TzType.head.copyWith(color: t.text),
               ),
             ],
           ),

@@ -9,7 +9,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../theme.dart' show naskh, kufi;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 
@@ -106,7 +106,7 @@ class _ShamsaState extends State<Shamsa> with SingleTickerProviderStateMixin {
               child: Padding(
                 padding: EdgeInsets.only(top: fontSize * 0.1),
                 child: Text(ar(widget.verse),
-                    style: naskh(size: fontSize, weight: FontWeight.w700, color: t.goldBright, height: 1)),
+                    style: TzType.title.copyWith(fontSize: fontSize, height: 1, color: t.goldBright)),
               ),
             ),
             if (widget.chip != null)
@@ -118,7 +118,7 @@ class _ShamsaState extends State<Shamsa> with SingleTickerProviderStateMixin {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
                     decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999)),
-                    child: Text(widget.chip!, style: kufi(size: 12, weight: 600, color: t.onGold, height: 1.5)),
+                    child: Text(widget.chip!, style: TzType.caption.copyWith(color: t.onGold)),
                   ),
                 ),
               ),
