@@ -51,6 +51,7 @@ Future<ReaderController> bootReader() async {
       supportDir: support,
       freeBytes: deviceFreeBytes,
       onUnmeteredNetwork: deviceOnUnmeteredNetwork,
+      online: deviceOnline,
       transfer: background,
     ),
   );

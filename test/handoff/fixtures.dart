@@ -129,7 +129,13 @@ class HandoffContent {
             ? AudioLibrary(content: content, prefs: prefs, downloads: manager)
             : (FixedLibrary(content: content, prefs: prefs, downloads: manager)
               ..progress = download
-              ..downloading = download.phase == DownloadPhase.downloading);
+              // A download that waits (for a network, for Wi-Fi) or verifies is still running.
+              ..downloading = const {
+                DownloadPhase.downloading,
+                DownloadPhase.waitingForNetwork,
+                DownloadPhase.waitingForWifi,
+                DownloadPhase.verifying,
+              }.contains(download.phase));
         await lib.refresh();
         lib.attach(r);
       }

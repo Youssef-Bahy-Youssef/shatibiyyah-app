@@ -46,6 +46,8 @@ class AudioLibrary extends ChangeNotifier {
   final Map<String, DownloadCancel> _cancels = {};
   final Map<String, Future<void>> _running = {};
   final Set<String> _onDevice = {};
+  final Set<String> _needsUpdate = {};
+  int? _freeBytes;
   ReaderController? _reader;
   Future<void> Function()? _disposeEngine;
 
@@ -66,6 +68,20 @@ class AudioLibrary extends ChangeNotifier {
   }
 
   bool isOnDevice(Recording r) => _onDevice.contains(r.id);
+
+  /// A file is on the device for [r], but an app update brought another recording
+  /// in its place: «يلزم تحديث التلاوة». It is never played (ADR 0007).
+  bool needsUpdate(Recording r) => _needsUpdate.contains(r.id);
+
+  /// Free space on the device when last looked at; null when the platform cannot say.
+  int? get freeBytes => _freeBytes;
+
+  /// What a download of [r] still needs on the device: the rest of the file and the margin.
+  int spaceNeeded(Recording r) => r.localBytes - (progressOf(r)?.received ?? 0) + kFreeSpaceMargin;
+
+  /// «نزّل عبر البيانات»: the download of [r] that is waiting for Wi-Fi goes on
+  /// over mobile data, this once. The «Wi-Fi only» setting stays.
+  void useMobileData(Recording r) => _cancels[r.id]?.allowMetered();
   DownloadProgress? progressOf(Recording r) => _progress[r.id];
   bool isDownloading(Recording r) => _cancels.containsKey(r.id);
 
@@ -73,7 +89,8 @@ class AudioLibrary extends ChangeNotifier {
   bool isPaused(Recording r) => !isDownloading(r) && _progress[r.id]?.phase == DownloadPhase.paused;
 
   /// Whether any bytes of [r] are on the device: «حذف» is offered (ADR 0007).
-  bool holdsBytes(Recording r) => isOnDevice(r) || isDownloading(r) || (_progress[r.id]?.received ?? 0) > 0;
+  bool holdsBytes(Recording r) =>
+      isOnDevice(r) || needsUpdate(r) || isDownloading(r) || (_progress[r.id]?.received ?? 0) > 0;
 
   bool get wifiOnly => prefs.getString(kWifiOnlyPref) != '0';
   set wifiOnly(bool on) {
@@ -88,11 +105,15 @@ class AudioLibrary extends ChangeNotifier {
   /// closed is verified and moved into place first. A partial left from before
   /// shows where it stopped: paused, or interrupted.
   Future<void> refresh() async {
+    _freeBytes = await downloads.freeBytes();
     for (final r in recordings) {
       if (await downloads.isDownloaded(r) || (!isDownloading(r) && await downloads.recover(r))) {
         _onDevice.add(r.id);
+        _needsUpdate.remove(r.id);
+        await downloads.adoptVerified(r); // a file from before the markers
       } else {
         _onDevice.remove(r.id);
+        await downloads.needsUpdate(r) ? _needsUpdate.add(r.id) : _needsUpdate.remove(r.id);
         if (isDownloading(r) || _progress.containsKey(r.id)) continue;
         final kept = await downloads.partialOf(r);
         if (kept != null && kept.received > 0) {
@@ -208,6 +229,11 @@ class AudioLibrary extends ChangeNotifier {
   /// Starts (or resumes) downloading [r]; errors land in [progressOf].
   Future<void> download(Recording r) async {
     if (isDownloading(r)) return;
+    if (needsUpdate(r)) {
+      // The old file goes first; the reader cannot have been playing it.
+      _needsUpdate.remove(r.id);
+      _progress.remove(r.id);
+    }
     final cancel = DownloadCancel();
     _cancels[r.id] = cancel;
     final finished = Completer<void>();
@@ -219,6 +245,7 @@ class AudioLibrary extends ChangeNotifier {
         notifyListeners();
       });
       _onDevice.add(r.id);
+      _needsUpdate.remove(r.id);
       if (r.id == current.id) {
         await _reconnect(); // playable now
       } else if (r.id == pending?.id) {
@@ -271,7 +298,9 @@ class AudioLibrary extends ChangeNotifier {
     }
     await downloads.delete(r);
     _onDevice.remove(r.id);
+    _needsUpdate.remove(r.id);
     _progress.remove(r.id);
+    _freeBytes = await downloads.freeBytes();
     notifyListeners();
   }
 }

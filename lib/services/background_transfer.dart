@@ -149,6 +149,8 @@ class BackgroundTransfer extends Transfer {
         case TaskStatus.canceled when cancel?.stopped ?? false:
           throw const TransferCancelled();
         default:
+          // A write that failed is the manager's to judge (a full disk has its own state).
+          if (update.exception case final TaskFileSystemException e) throw FileSystemException(e.description, part.path);
           throw HttpException('${update.status.name} ${update.responseStatusCode ?? ''}'.trim(), uri: url);
       }
     } finally {

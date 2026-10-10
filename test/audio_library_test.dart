@@ -21,6 +21,7 @@ import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
 import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
+import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
@@ -54,6 +55,27 @@ class _SilentAudio implements AudioPort {
   Future<void> pause() async => _playing = false;
   @override
   Future<void> setSpeed(double speed) async {}
+}
+
+/// The downloads with every recording but the chosen one fixed in one state, to
+/// look at how «التنزيلات» words it.
+class _FixedLibrary extends AudioLibrary {
+  DownloadProgress? progress;
+  bool downloading = false;
+  int? free;
+  int mobileData = 0, downloads_ = 0;
+  _FixedLibrary({required super.content, required super.prefs, required super.downloads});
+
+  @override
+  DownloadProgress? progressOf(Recording r) => r.isDefault ? null : progress;
+  @override
+  bool isDownloading(Recording r) => !r.isDefault && downloading;
+  @override
+  int? get freeBytes => free;
+  @override
+  void useMobileData(Recording r) => mobileData++;
+  @override
+  Future<void> download(Recording r) async => downloads_++;
 }
 
 void main() {
@@ -135,6 +157,34 @@ void main() {
     expect(reader.audioAvailable, isTrue);
     expect(opened, ['muhammad-atiq-1']);
     expect(reader.library, library);
+  });
+
+  // ADR 0007: a verified file whose hash is no longer in the snapshot.
+  test('an older recording\'s file on the device needs an update: not «on the device», never played', () async {
+    final (library, reader, dm, opened) = await setUpLibrary();
+    final atiq = library.current;
+    // An app update brought another file for Atiq: what is on the device has another size.
+    final raf = await dm.fileFor(atiq).open(mode: FileMode.write);
+    await raf.truncate(atiq.localBytes - 10);
+    await raf.close();
+    await library.refresh();
+    expect((library.needsUpdate(atiq), library.isOnDevice(atiq), library.holdsBytes(atiq)), (true, false, true));
+    final windows = await content.windowsFor(atiq);
+    opened.clear();
+    expect(await library.openCurrent(PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings())), isNull);
+    expect(opened, isEmpty); // no engine was built on the old file
+    expect(reader.verse, 229);
+
+    await library.delete(atiq);
+    expect((library.needsUpdate(atiq), library.holdsBytes(atiq), dm.fileFor(atiq).existsSync()), (false, false, false));
+  });
+
+  test('a file verified before the markers is adopted at refresh; a later change of its hash is then seen', () async {
+    final (library, _, dm, _) = await setUpLibrary();
+    final atiq = library.current;
+    expect(library.isOnDevice(atiq), isTrue);
+    final marker = File(dm.fileFor(atiq).path.replaceAll(RegExp(r'\.mp3$'), '.ok'));
+    expect(await marker.readAsString(), atiq.delivery?.sha256 ?? atiq.audioSha256);
   });
 
   // ADR 0006: switching reciter keeps the verse and keeps playing.
@@ -452,6 +502,91 @@ void main() {
     await settle(tester);
     expect(dm.partFileFor(other).existsSync(), isFalse);
     expect(find.text('غير منزّل'), findsOneWidget);
+  });
+
+  group('«التنزيلات» words each state of a download (ADR 0007)', () {
+    Future<_FixedLibrary> fixed(WidgetTester tester) async {
+      late _FixedLibrary library;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await Prefs.create();
+        final dir = await Directory.systemTemp.createTemp('lib');
+        addTearDown(() => dir.delete(recursive: true));
+        final dm = DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true);
+        library = _FixedLibrary(content: content, prefs: prefs, downloads: dm);
+        await sideLoad(dm, content.recordings.defaultRecording);
+        await library.refresh();
+      });
+      return library;
+    }
+
+    testWidgets('before a start: the size, and the free space when the device tells it', (tester) async {
+      final library = await fixed(tester)..free = 3400 * 1000 * 1000;
+      await host(tester, DownloadsScreen(library: library));
+      await settle(tester);
+      expect(find.text('غير منزّل · المتاح على الجهاز ٣٫٤ غ.ب'), findsOneWidget);
+      expect(find.textContaining('١٢٥ م.ب'), findsWidgets); // its size
+    });
+
+    testWidgets('waiting for Wi-Fi: «نزّل عبر البيانات» for this one download', (tester) async {
+      final library = await fixed(tester);
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      library
+        ..downloading = true
+        ..progress = DownloadProgress(DownloadPhase.waitingForWifi, 0, other.localBytes);
+      await host(tester, DownloadsScreen(library: library));
+      await settle(tester);
+      expect(find.text('بانتظار شبكة Wi-Fi'), findsOneWidget);
+      await tester.tap(find.text('نزّل عبر البيانات'));
+      expect(library.mobileData, 1);
+      expect(library.wifiOnly, isTrue); // the setting stays
+    });
+
+    testWidgets('waiting for a network, a file that does not verify, a full disk', (tester) async {
+      final library = await fixed(tester);
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      library
+        ..downloading = true
+        ..progress = DownloadProgress(DownloadPhase.waitingForNetwork, 40 * 1000 * 1000, other.localBytes);
+      await host(tester, DownloadsScreen(library: library));
+      await settle(tester);
+      expect(find.text('بانتظار الاتصال بالشبكة؛ يُستأنف تلقائيًا'), findsOneWidget);
+      expect(find.text('نزّل عبر البيانات'), findsNothing);
+
+      library
+        ..downloading = false
+        ..progress = DownloadProgress(DownloadPhase.failed, 0, other.localBytes, DownloadError.verification);
+      library.wifiOnly = true; // any change: the screen is drawn again
+      await settle(tester);
+      expect(find.text('تعذّر التحقق من الملف'), findsOneWidget);
+      await tester.tap(find.text('إعادة المحاولة'));
+      expect(library.downloads_, 1);
+
+      library.progress = DownloadProgress(DownloadPhase.failed, 40 * 1000 * 1000, other.localBytes, DownloadError.noSpace);
+      library.wifiOnly = true;
+      await settle(tester);
+      // What is still needed: the rest of the file and the 50 MB margin.
+      final needed = megabytes(other.localBytes - 40 * 1000 * 1000 + kFreeSpaceMargin);
+      expect(find.text('المساحة غير كافية: يلزم $needed'), findsOneWidget);
+    });
+
+    testWidgets('a file of an older recording: «يلزم تحديث التلاوة», with «تنزيل» and «حذف»', (tester) async {
+      late AudioLibrary library;
+      late DownloadManager dm;
+      await tester.runAsync(() async {
+        (library, _, dm, _) = await setUpLibrary();
+        final other = library.recordings.firstWhere((r) => !r.isDefault);
+        final f = dm.fileFor(other);
+        await f.parent.create(recursive: true);
+        await f.writeAsBytes(List.filled(64, 1)); // what an older version left
+        await library.refresh();
+      });
+      await host(tester, DownloadsScreen(library: library));
+      await settle(tester);
+      expect(find.text('يلزم تحديث التلاوة'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'تنزيل'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'حذف'), findsOneWidget);
+    });
   });
 
   testWidgets('«القارئ»: choosing one not on the device keeps the verse and opens «التنزيلات»', (tester) async {
