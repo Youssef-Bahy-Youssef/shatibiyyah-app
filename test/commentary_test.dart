@@ -170,7 +170,8 @@ void main() {
     expect(reader.menuVerse, 3);
     expect(find.byType(VerseMenu), findsOneWidget);
     expect(find.text('البيت ٣'), findsOneWidget);
-    expect(find.text('تشغيل من هنا'), findsNothing); // no recording on the device
+    // No recording on the device: «استمع» is there, disabled.
+    expect(tester.getSemantics(find.text('استمع')), matchesSemantics(label: 'استمع', isButton: true, hasEnabledState: true, isEnabled: false));
 
     await tester.tap(find.text('نسخ'));
     await tester.pump();

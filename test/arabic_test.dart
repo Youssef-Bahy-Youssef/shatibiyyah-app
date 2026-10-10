@@ -14,4 +14,28 @@ void main() {
     expect(versesCount(103), '١٠٣ أبيات');
     expect(versesCount(1173), '١١٧٣ بيتًا');
   });
+
+  test('chapter ordinals: «الباب الحادي عشر» and the rest, 1…77', () {
+    expect(chapterOrdinal(1), 'الباب الأول');
+    expect(chapterOrdinal(2), 'الباب الثاني');
+    expect(chapterOrdinal(3), 'الباب الثالث');
+    expect(chapterOrdinal(10), 'الباب العاشر');
+    expect(chapterOrdinal(11), 'الباب الحادي عشر');
+    expect(chapterOrdinal(12), 'الباب الثاني عشر');
+    expect(chapterOrdinal(19), 'الباب التاسع عشر');
+    expect(chapterOrdinal(20), 'الباب العشرون');
+    expect(chapterOrdinal(21), 'الباب الحادي والعشرون');
+    expect(chapterOrdinal(33), 'الباب الثالث والثلاثون');
+    expect(chapterOrdinal(70), 'الباب السبعون');
+    expect(chapterOrdinal(77), 'الباب السابع والسبعون');
+  });
+
+  test('plain names: no tashkeel; the bar title also drops a leading «باب»', () {
+    const label = 'باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا';
+    expect(plainName(label), 'باب نقل حركة الهمزة إلى الساكن قبلها');
+    expect(chapterBarTitle(label), 'نقل حركة الهمزة إلى الساكن قبلها');
+    expect(chapterBarTitle('سورة الْبَقَرَةِ'), 'سورة البقرة');
+    expect(chapterBarTitle('خطبة الكتاب'), 'خطبة الكتاب');
+    expect(plainName('آلانَ بِالنَّقْلِ'), 'آلان بالنقل'); // the madda and the letters stay
+  });
 }

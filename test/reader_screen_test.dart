@@ -26,6 +26,8 @@ import 'package:shatibiyyah/ui/shell/index_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
+import 'package:shatibiyyah/ui/design/components/anchored_popover.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 
 /// An audio port that plays nothing: enough for the reader to offer playback.
 class SilentAudio implements AudioPort {
@@ -134,11 +136,16 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('top bar: short label and «القسم · ص N من ٩٤»', (tester) async {
+  testWidgets('top bar: the chapter in short, the gilt folio «ص ١٩» and «القسم · الباب N من ٧٨»', (tester) async {
     final r = await reader(tester);
     await show(tester, r);
-    expect(find.text('باب نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
-    expect(find.text('الأصول · ص ١٩ من ٩٤'), findsOneWidget);
+    // In short form: no «باب», no tashkeel; the full title is printed on the page below.
+    expect(find.text('نقل حركة الهمزة إلى الساكن قبلها'), findsOneWidget);
+    expect(find.text('ص ١٩'), findsOneWidget);
+    expect(find.text('الأصول · الباب ١١ من ${ar(content.matn.chapters.length)}'), findsOneWidget);
+    expect(tester.widget<Text>(find.text('ص ١٩')).style!.color, TzColors.night.gilt); // gilt at night; ink on paper (ADR 0019)
+    expect(find.byTooltip('بحث'), findsOneWidget);
+    expect(find.byTooltip('العرض'), findsOneWidget);
     await unmount(tester);
   });
 
@@ -165,8 +172,11 @@ void main() {
     r.viewer.setPage(21, true);
     await tester.pump(const Duration(milliseconds: 400));
     final first = content.layout.versesOnPage(21).first;
-    expect(find.text('الأصول · ص ٢١ من ٩٤'), findsOneWidget);
-    expect(find.text(content.matn.chapterOfVerse(first).shortLabel), findsOneWidget);
+    final ch = content.matn.chapterOfVerse(first);
+    expect(find.text('ص ٢١'), findsOneWidget);
+    expect(find.text('${content.matn.partOf(ch).title} · الباب ${ar(ch.orderIndex)} من ${ar(content.matn.chapters.length)}'),
+        findsOneWidget);
+    expect(find.text(chapterBarTitle(ch.shortLabel)), findsOneWidget);
     expect(r.verse, 226); // browsing does not move the reader
     await unmount(tester);
   });
@@ -260,12 +270,12 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('«تشغيل من هنا» asks how far: the verse, the chapter or the poem', (tester) async {
+  testWidgets('«استمع» asks how far: the verse, the chapter or the poem', (tester) async {
     final r = await reader(tester, audio: true);
     await show(tester, r);
     r.openMenu(229);
     await tester.pump();
-    await tester.tap(find.text('تشغيل من هنا'));
+    await tester.tap(find.text('استمع'));
     await tester.pumpAndSettle();
     expect(r.menuVerse, isNull);
     expect(find.text('الاستماع إلى؟'), findsOneWidget);
@@ -287,8 +297,82 @@ void main() {
     await unmount(tester);
   });
 
+  group('verse popover (3.5)', () {
+    for (final (size, padding) in [(const Size(390, 844), const FakeViewPadding(top: 44, bottom: 34)), (const Size(360, 640), const FakeViewPadding(top: 24, bottom: 16))]) {
+      testWidgets('${size.width.toInt()}×${size.height.toInt()}: below verse 229 and above verse 234, the arrow at the verse, never over it', (tester) async {
+        final r = await reader(tester);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.view.padding = padding;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MaterialApp(theme: tzThemeData(TzTheme.paper), home: ReaderScreen(reader: r)));
+        await tester.pump(const Duration(milliseconds: 300));
+        for (final (verse, below) in [(229, true), (234, false)]) {
+          r.openMenu(verse);
+          await tester.pump(const Duration(milliseconds: 300));
+          final anchor = r.viewer.viewRectOfVerse(verse)!.shift(tester.getTopLeft(find.byType(PageViewer)));
+          final popover = tester.renderObject<RenderAnchoredPopover>(find.byType(AnchoredPopoverLayout));
+          final body = tester.getRect(find.byKey(AnchoredPopover.bodyKey));
+          expect(popover.below, below, reason: '$verse');
+          expect(popover.arrowCenterX, inInclusiveRange(anchor.left, anchor.right), reason: '$verse');
+          expect(body.top, greaterThanOrEqualTo(0), reason: '$verse');
+          expect(body.bottom, lessThanOrEqualTo(size.height), reason: '$verse');
+          if (size.height >= 844) {
+            // The prototype's phone: a clear 12 px gap, never over the verse.
+            expect(below ? body.top - anchor.bottom : anchor.top - body.bottom, closeTo(12, 0.5), reason: '$verse');
+            expect(body.overlaps(anchor), isFalse, reason: '$verse');
+          } else {
+            // A small phone: the roomier side, kept on the screen; it may cover the edge of a
+            // verse at the page's foot, never more than 16 px of it.
+            expect(body.overlaps(anchor.deflate(16)), isFalse, reason: '$verse');
+          }
+          expect(body.left, closeTo(12, 0.5));
+          expect(size.width - body.right, closeTo(12, 0.5));
+          r.closeMenu();
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        await unmount(tester);
+      });
+    }
+
+    testWidgets('the popover: khatam, «البيت ٢٢٩», where it is, the four tiles with «الشرح» filled, then copy, share, select', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      r.openMenu(229);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('البيت ٢٢٩'), findsOneWidget);
+      expect(find.text('باب نقل حركة الهمزة إلى الساكن قبلها · ص ١٩'), findsOneWidget);
+      expect(find.text(content.matn.verse(229).firstHemistich), findsOneWidget);
+      expect(find.text(content.matn.verse(229).secondHemistich), findsOneWidget);
+      for (final label in ['الشرح', 'استمع', 'المرجع', 'ملاحظة', 'نسخ', 'مشاركة', 'تحديد أبيات']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      // RTL: «الشرح» is the first tile, at the start (right); «نسخ» the first of the row below.
+      expect(tester.getCenter(find.text('الشرح')).dx, greaterThan(tester.getCenter(find.text('ملاحظة')).dx));
+      expect(tester.getCenter(find.text('نسخ')).dx, greaterThan(tester.getCenter(find.text('تحديد أبيات')).dx));
+      // Without a recording «استمع» is there but disabled.
+      expect(tester.getSemantics(find.text('استمع')), matchesSemantics(label: 'استمع', isButton: true, hasEnabledState: true, isEnabled: false));
+      await unmount(tester);
+    });
+  });
+
+  testWidgets('the playing wash glides from the old verse to the new one in 320 ms', (tester) async {
+    final r = await reader(tester);
+    await show(tester, r);
+    final box226 = r.viewer.activeBox!;
+    r.tapVerse(227);
+    final t0 = r.viewer.hiliteStart;
+    final box227 = r.viewer.activeBox!;
+    expect(r.viewer.playingRectAt(t0), box226);
+    expect(r.viewer.playingRectAt(t0 + 320), box227);
+    final mid = r.viewer.playingRectAt(t0 + 160)!;
+    expect(mid.top, greaterThan(box226.top));
+    expect(mid.top, lessThan(box227.top));
+    await unmount(tester);
+  });
+
   group('selection', () {
-    testWidgets('«بداية نطاق», then a second verse: the header counts, the bar replaces the player', (tester) async {
+    testWidgets('«تحديد أبيات», then a second verse: the header counts, the bar replaces the dock', (tester) async {
       final copied = <String>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
         if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
@@ -298,7 +382,7 @@ void main() {
       await show(tester, r);
       r.openMenu(226);
       await tester.pump();
-      await tester.tap(find.text('بداية نطاق'));
+      await tester.tap(find.text('تحديد أبيات'));
       await tester.pump();
       expect(r.menuVerse, isNull);
       expect(r.selection, (from: 226, to: 226));
@@ -376,9 +460,19 @@ void main() {
       await tester.tapAt(at);
       await tester.pump();
       expect(r.headingChapter?.fromVerse, 226);
-      expect(r.viewer.chapterSel, index); // outlined on the page
-      expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsOneWidget);
-      expect(find.text('الباب ١١، الأبيات \u2068٢٢٦–٢٣٤\u2069، ص ١٩'), findsOneWidget);
+      expect(r.viewer.chapterSel, index); // lit on the page
+      // The popover does not repeat the title lit right above it (ADR 0011): the
+      // number in a khatam, the ordinal, the size, the range, the page, the first words.
+      expect(find.text('الباب الحادي عشر'), findsOneWidget);
+      expect(find.text('٩ أبيات · \u2068٢٢٦–٢٣٤\u2069 · ص ١٩'), findsOneWidget);
+      expect(find.textContaining('يبدأ بـ'), findsOneWidget);
+      expect(find.text(content.matn.verse(226).firstHemistich), findsOneWidget);
+      expect(find.text('بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'), findsNothing);
+      // Anchored to the heading: the arrow at its centre, the body below it.
+      final headingRect = r.viewer.viewRectOfChapter(index)!.shift(tester.getTopLeft(find.byType(PageViewer)));
+      final popover = tester.renderObject<RenderAnchoredPopover>(find.byType(AnchoredPopoverLayout));
+      expect(popover.arrowCenterX, closeTo(headingRect.center.dx, 0.5));
+      expect(tester.getRect(find.byKey(AnchoredPopover.bodyKey)).top, closeTo(headingRect.bottom + 12, 0.5));
       expect(find.text('الشرح'), findsOneWidget);
       expect(find.text('تشغيل الباب'), findsNothing); // no recording
 

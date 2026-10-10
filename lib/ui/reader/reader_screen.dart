@@ -1,27 +1,34 @@
-// lib/ui/reader/reader_screen.dart — the reader: the page and the top bar.
+// lib/ui/reader/reader_screen.dart — the reading screen (items 3.4, 3.5; ADRs
+// 0011, 0019, 0020; v2.css .topbar, .folio, .page, .sheetback).
 //
-// features-v3: fixed-page-layout, immersive-mode, page-header-info,
-// detach-resume-chip. The page sits in a rectangle computed once (ReaderLayout)
-// between the top bar's zone and the dock's; the top bar fades over its zone in
-// 200 ms with 10 px of travel (v2.css .topbar, .chrome-off .topbar; instant
-// under reduced motion), so nothing ever moves or covers the page. The dock itself, with now playing and the tabs, is the shell's
-// (lib/ui/shell/app_shell.dart, item 3.4); the selection bar takes its zone.
+// The top bar: the chapter's short name in Naskh, the gilt folio «ص ١٩», the
+// location caption, search and «العرض». The page sits in a rectangle computed
+// once (ReaderLayout) between the top bar's zone and the dock's, a page sheet
+// over a back sheet; the top bar fades over its zone in 200 ms with 10 px of
+// travel (instant under reduced motion), so nothing ever moves or covers the
+// page. The dock itself is the shell's (lib/ui/shell/app_shell.dart); the
+// selection bar takes its zone. The verse and chapter popovers are
+// lib/ui/widgets/verse_menu.dart and chapter_popover.dart.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/personal_data.dart' show kBookmarkTagLabels;
+
 import '../design/components/tz_motion.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
-import '../../data/matn_repository.dart';
 import '../../data/settings_store.dart' show kSplitDefault;
 import '../commentary/commentary_screen.dart';
 import '../design/taysir_colors.dart';
+import '../design/tz_icon.dart';
+import '../design/tz_theme.dart';
 import '../search/search_screen.dart';
 import '../share/share_sheet.dart';
 import '../study/study_sheets.dart';
 import '../widgets/page_viewer.dart';
 import '../widgets/verse_menu.dart';
+import 'chapter_popover.dart';
 import 'fixed_page_layout.dart';
 import 'listen_sheet.dart';
 import 'reader_controller.dart';
@@ -35,7 +42,14 @@ class ReaderScreen extends StatefulWidget {
   final VoidCallback? onSearch;
   final VoidCallback? onTools;
 
-  const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools});
+  /// The shell's dock, placed in the dock zone under the popovers and their scrim
+  /// (v2: the dock at z 6, the spotlight at 8, the popover at 9); null on its own.
+  final Widget? dock;
+
+  const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools, this.dock});
+
+  static const folioKey = ValueKey('reader-folio');
+  static const backSheetKey = ValueKey('reader-back-sheet');
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -58,39 +72,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: t.bg,
-        body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: const Alignment(0, -0.4),
-              radius: 1.2,
-              colors: [t.panel, t.bg],
-              stops: const [0, 0.7],
-            ),
-          ),
-          child: AnimatedBuilder(
-            animation: reader,
-            // Every child is positioned, so without `expand` the stack is 0×0 and clips them all.
-            // Back closes the verse menu, then the selection, before it leaves the reader
-            // (neither is a route).
-            builder: (context, _) => PopScope(
-              canPop: reader.menuVerse == null &&
-                  reader.headingChapter == null &&
-                  !reader.selecting &&
-                  !_splitOn(context),
-              onPopInvokedWithResult: (didPop, _) {
-                if (didPop) return;
-                if (reader.menuVerse != null) {
-                  reader.closeMenu();
-                } else if (_splitOn(context)) {
-                  reader.closeSplit();
-                } else if (reader.headingChapter != null) {
-                  reader.closeHeading();
-                } else {
-                  reader.clearSelection();
-                }
-              },
-              child: LayoutBuilder(builder: _body),
-            ),
+        body: AnimatedBuilder(
+          animation: reader,
+          // Every child is positioned, so without `expand` the stack is 0×0 and clips them all.
+          // Back closes the verse menu, then the selection, before it leaves the reader
+          // (neither is a route).
+          builder: (context, _) => PopScope(
+            canPop:
+                reader.menuVerse == null && reader.headingChapter == null && !reader.selecting && !_splitOn(context),
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+              if (reader.menuVerse != null) {
+                reader.closeMenu();
+              } else if (_splitOn(context)) {
+                reader.closeSplit();
+              } else if (reader.headingChapter != null) {
+                reader.closeHeading();
+              } else {
+                reader.clearSelection();
+              }
+            },
+            child: LayoutBuilder(builder: _body),
           ),
         ),
       ),
@@ -103,8 +105,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   /// The split as Back sees it: decided from the screen width, which is known before
   /// the layout below runs ([_splitShown] is set there, a frame later).
-  bool _splitOn(BuildContext context) =>
-      widget.reader.splitOpen && MediaQuery.sizeOf(context).width >= kSplitMinWidth;
+  bool _splitOn(BuildContext context) => widget.reader.splitOpen && MediaQuery.sizeOf(context).width >= kSplitMinWidth;
   bool _wide = false; // the tablet breakpoint: «الشرح» opens the split
   double? _dragFraction; // while the divider is dragged
 
@@ -151,16 +152,42 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final t = TaysirColors.of(context);
     final mq = MediaQuery.of(context);
     final layout = ReaderLayout.compute(mq.size, mq.padding);
+    final tz = TzTheme.of(context);
+    final c = tz.colors;
+    // At night the page itself is the night page (ADRs 0019, 0020): it follows the
+    // theme, in the reader's chosen ink. There is no separate page switch.
+    reader.viewer
+      ..night = tz.night
+      ..nightInk = tz.nightInk
+      ..showPlaying = reader.audioAvailable && reader.menuVerse == null && reader.headingChapter == null;
     return Stack(
       fit: StackFit.expand,
       children: [
+        // The back sheet (v2.css .sheetback): 3 px down and across, page-bg, a hairline, 90 %.
+        if (!reader.textMode)
+          Positioned.fromRect(
+            key: ReaderScreen.backSheetKey,
+            rect: layout.page.shift(const Offset(3, 3)),
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.9,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: reader.viewer.pageBg,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: c.lineSoft),
+                  ),
+                ),
+              ),
+            ),
+          ),
         Positioned.fromRect(
           rect: layout.page,
           // Kept mounted in text mode so the page is where it was when the student returns.
           child: Offstage(
             offstage: reader.textMode,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(3),
               child: PageViewer(
                 controller: reader.viewer,
                 verseLabel: (n) {
@@ -183,8 +210,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             bottom: mq.padding.bottom + 12,
             child: IgnorePointer(
               child: Center(
-                child: Text(ar(reader.page),
-                    style: TzType.caption.copyWith(color: t.muted.withValues(alpha: 0.7))),
+                child: Text(ar(reader.page), style: TzType.caption.copyWith(color: t.muted.withValues(alpha: 0.7))),
               ),
             ),
           ),
@@ -200,6 +226,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   onTools: widget.onTools ?? () => showToolsSheet(context, reader),
                 ),
         ),
+        if (widget.dock case final dock? when !reader.selecting)
+          Positioned(
+            left: ReaderTokens.dockSide,
+            right: ReaderTokens.dockSide,
+            bottom: ReaderTokens.dockBottom(mq.padding.bottom),
+            child: dock,
+          ),
         // While selecting, the selection bar takes the dock's zone.
         if (reader.selecting)
           _Chrome(
@@ -213,7 +246,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
             left: 0,
             right: 0,
             top: layout.bar.bottom + 8,
-            child: IgnorePointer(child: Center(child: _SelectionHint(reader: reader))),
+            child: IgnorePointer(
+              child: Center(child: _SelectionHint(reader: reader)),
+            ),
           ),
         if (reader.detached && reader.playing && !reader.selecting)
           Positioned(
@@ -222,27 +257,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
             top: layout.dock.top - 24,
             child: Center(child: _ResumeChip(reader: reader)),
           ),
-        if (reader.headingChapter != null) ...[
+        if (reader.headingChapter case final chapter?)
           Positioned.fill(
-            child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: reader.closeHeading),
-          ),
-          Positioned(
-            left: 12,
-            right: 12,
-            top: layout.bar.bottom + 10,
-            child: _HeadingCard(
-              reader: reader,
-              chapter: reader.headingChapter!,
-              onExplain: _wide ? reader.openSplit : null,
+            child: ChapterPopover(
+              anchor: reader.viewer.viewRectOfChapter(reader.headingIndex!)?.shift(layout.page.topLeft),
+              chapter: chapter,
+              page: reader.content.layout.pageOfVerse(chapter.fromVerse),
+              firstHemistich: reader.content.matn.verse(chapter.fromVerse).firstHemistich,
+              audio: reader.audioAvailable,
+              avoidBottom: ReaderTokens.dockInset(mq.padding.bottom),
+              onPlay: () => reader.playChapter(chapter),
+              onExplain: () {
+                reader.closeHeading();
+                if (_wide) {
+                  reader.openSplit(chapter.fromVerse);
+                } else {
+                  CommentaryScreen.open(context, reader.content, chapter.fromVerse);
+                }
+              },
+              onDownload: reader.library == null
+                  ? null
+                  : () {
+                      reader.closeHeading();
+                      reader.library!.download(reader.recording);
+                    },
+              onClose: reader.closeHeading,
             ),
           ),
-        ],
         if (reader.notice != null)
           Positioned(
             left: 16,
             right: 16,
             bottom: mq.size.height - layout.dock.top + 16,
-            child: IgnorePointer(child: Center(child: _Notice(text: reader.notice!))),
+            child: IgnorePointer(
+              child: Center(child: _Notice(text: reader.notice!)),
+            ),
           ),
         VerseMenu(
           listenable: reader,
@@ -256,94 +305,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
           onShare: (v) => showShareSheet(context, reader.content, v),
           onBookmark: reader.personal == null
               ? null
-              : (v) => showBookmarkSheet(context,
-                  personal: reader.personal!, content: reader.content, from: v, onDone: reader.showNotice),
+              : (v) => showBookmarkSheet(
+                  context,
+                  personal: reader.personal!,
+                  content: reader.content,
+                  from: v,
+                  onDone: reader.showNotice,
+                ),
           onNote: reader.personal == null
               ? null
-              : (v) => showNoteSheet(context,
-                  personal: reader.personal!, content: reader.content, verse: v, onDone: reader.showNotice),
+              : (v) => showNoteSheet(
+                  context,
+                  personal: reader.personal!,
+                  content: reader.content,
+                  verse: v,
+                  onDone: reader.showNotice,
+                ),
           // Any bookmark covering the verse, a run included (F-51).
           bookmarked: (v) => reader.personal?.bookmarksCovering(v).isNotEmpty ?? false,
+          bookmarkTag: (v) {
+            final b = reader.personal?.bookmarksCovering(v).firstOrNull;
+            return b == null ? null : kBookmarkTagLabels[b.tag];
+          },
           hasNote: (v) => reader.personal?.noteFor(v) != null,
           onExplain: _wide ? reader.openSplit : null,
         ),
       ],
-    );
-  }
-}
-
-/// The card of a chapter heading tapped on the page: its title, where it is, and
-/// «تشغيل الباب» (with a recording) · «الشرح» (the commentary from its first verse).
-class _HeadingCard extends StatelessWidget {
-  final ReaderController reader;
-  final MatnChapter chapter;
-  final void Function(int verse)? onExplain; // the tablet's split; else the commentary screen
-  const _HeadingCard({required this.reader, required this.chapter, this.onExplain});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final intro = chapter.orderIndex == 0;
-    final range = 'الأبيات ${isolatedRange(chapter.fromVerse, chapter.toVerse)}';
-    final page = reader.content.layout.pageOfVerse(chapter.fromVerse);
-    final meta = intro
-        ? '${chapter.shortLabel}، $range'
-        : 'الباب ${ar(chapter.orderIndex)}، $range، ص ${ar(page)}';
-    return Material(
-      color: t.panel,
-      elevation: 12,
-      shadowColor: t.float.first.color,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: t.line)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(intro ? chapter.shortLabel : chapter.title,
-                style: TzType.chapter.copyWith(color: t.text)),
-            Text(meta, style: TzType.caption.copyWith(color: t.muted)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (reader.audioAvailable) ...[
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => reader.playChapter(chapter),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: t.gold,
-                        foregroundColor: t.onGold,
-                        minimumSize: const Size.fromHeight(48),
-                        shape: const StadiumBorder(),
-                      ),
-                      child: Text('تشغيل الباب', style: TzType.body.copyWith(color: t.onGold)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                OutlinedButton.icon(
-                  onPressed: () {
-                    reader.closeHeading();
-                    if (onExplain case final open?) {
-                      open(chapter.fromVerse);
-                    } else {
-                      CommentaryScreen.open(context, reader.content, chapter.fromVerse);
-                    }
-                  },
-                  icon: Icon(LucideIcons.bookOpen, size: 17, color: t.goldText),
-                  label: Text('الشرح', style: TzType.label.copyWith(color: t.text)),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    side: BorderSide(color: t.line),
-                    shape: const StadiumBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -367,7 +354,11 @@ class _Notice extends StatelessWidget {
           border: Border.all(color: t.line),
           boxShadow: t.float,
         ),
-        child: Text(text, textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.text)),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TzType.label.copyWith(color: t.text),
+        ),
       ),
     );
   }
@@ -404,8 +395,11 @@ class _SelectionHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(selectedVersesCount(sel.to - sel.from + 1),
-                    maxLines: 1, style: TzType.head.copyWith(color: t.goldText)),
+                Text(
+                  selectedVersesCount(sel.to - sel.from + 1),
+                  maxLines: 1,
+                  style: TzType.head.copyWith(color: t.goldText),
+                ),
                 Text(
                   sel.from == sel.to
                       ? 'البيت ${ar(sel.from)}'
@@ -453,8 +447,10 @@ class _SelectionHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: t.line),
       ),
-      child: Text('المس البيت الأخير لتحديد نطاق يبدأ من ${ar(reader.selection!.from)}',
-          style: TzType.caption.copyWith(color: t.goldBright)),
+      child: Text(
+        'المس البيت الأخير لتحديد نطاق يبدأ من ${ar(reader.selection!.from)}',
+        style: TzType.caption.copyWith(color: t.goldBright),
+      ),
     );
   }
 }
@@ -472,44 +468,46 @@ class _SelectionActions extends StatelessWidget {
       if (sel == null) return;
       Clipboard.setData(ClipboardData(text: rangeCopyText(reader.content, sel.from, sel.to)));
       reader.clearSelection();
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-        content: Text(
-          sel.from == sel.to ? 'نُسخ البيت ${ar(sel.from)}' : 'نُسخت الأبيات ${ar(sel.from)}–${ar(sel.to)}',
-          style: TzType.label.copyWith(color: t.text),
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            sel.from == sel.to ? 'نُسخ البيت ${ar(sel.from)}' : 'نُسخت الأبيات ${ar(sel.from)}–${ar(sel.to)}',
+            style: TzType.label.copyWith(color: t.text),
+          ),
+          backgroundColor: t.raised,
+          duration: const Duration(seconds: 2),
         ),
-        backgroundColor: t.raised,
-        duration: const Duration(seconds: 2),
-      ));
+      );
     }
 
     Widget action(IconData icon, String label, VoidCallback onTap, {bool primary = false}) => Expanded(
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: onTap,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: primary ? t.gold : t.panel2,
-                      border: primary ? null : Border.all(color: t.line),
-                    ),
-                    child: Icon(icon, size: 22, color: primary ? t.onGold : t.goldText),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(label, style: TzType.caption.copyWith(color: t.text)),
-                ],
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: primary ? t.gold : t.panel2,
+                  border: primary ? null : Border.all(color: t.line),
+                ),
+                child: Icon(icon, size: 22, color: primary ? t.onGold : t.goldText),
               ),
-            ),
+              const SizedBox(height: 6),
+              Text(label, style: TzType.caption.copyWith(color: t.text)),
+            ],
           ),
-        );
+        ),
+      ),
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -527,12 +525,14 @@ class _SelectionActions extends StatelessWidget {
           if (reader.personal != null && sel != null)
             action(LucideIcons.bookmarkPlus, 'مرجع', () {
               reader.clearSelection();
-              showBookmarkSheet(context,
-                  personal: reader.personal!,
-                  content: reader.content,
-                  from: sel.from,
-                  to: sel.to == sel.from ? null : sel.to,
-                  onDone: reader.showNotice);
+              showBookmarkSheet(
+                context,
+                personal: reader.personal!,
+                content: reader.content,
+                from: sel.from,
+                to: sel.to == sel.from ? null : sel.to,
+                onDone: reader.showNotice,
+              );
             }),
           action(LucideIcons.x, 'إلغاء', reader.clearSelection),
         ],
@@ -574,6 +574,11 @@ class _Chrome extends StatelessWidget {
   }
 }
 
+/// The top bar (v2.css .topbar; handoff specs/reader-*.json): the chapter's
+/// name in short form in Naskh 700 (18/26), under it the folio tag «ص ١٩» and
+/// «القسم · الباب ١١ من ٧٨» (12/16); then «بحث» and «العرض», drawn 44 dp at 52 and
+/// 6 dp from the end with 2 dp between them, each in a 48 dp target (the two
+/// targets overlap by 2 dp). No surface of its own.
 class _TopBar extends StatelessWidget {
   final ReaderController reader;
   final VoidCallback? onSearch, onTools;
@@ -581,53 +586,121 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
+    final c = TzTheme.of(context).colors;
     final chapter = reader.headerChapter;
     final part = reader.content.matn.partOf(chapter);
-    final pages = reader.content.layout.pageCount;
-    Widget icon(IconData i, String label, VoidCallback? onTap) => IconButton(
-          tooltip: label,
-          onPressed: onTap,
-          icon: Icon(i, size: 21, color: t.text),
-          constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-        );
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: t.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: t.line),
-        boxShadow: t.float,
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  height: 24,
-                  child: Text(chapter.shortLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TzType.chapter.copyWith(color: t.text)),
-                ),
-                SizedBox(
-                  height: 15,
-                  child: Text(reader.textMode ? 'العرض النصي' : '${part.title} · ص ${ar(reader.page)} من ${ar(pages)}',
-                      maxLines: 1, style: TzType.caption.copyWith(color: t.muted)),
-                ),
-              ],
+    final caption = chapter.orderIndex == 0
+        ? part.title
+        : '${part.title} · الباب ${ar(chapter.orderIndex)} من ${ar(reader.content.matn.chapters.length)}';
+    // A fixed-height bar (56 dp for 26 + 16 of text): its text follows the system
+    // size up to 1.25×, like the dock's 1.3× (item 3.12 revisits).
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.25)),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(start: 16, end: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    chapterBarTitle(chapter.shortLabel),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TzType.chapter.copyWith(fontWeight: FontWeight.w700, height: 26 / 18, color: c.ink),
+                  ),
+                  // One phrase for a screen reader, as the prototype's caption span: «ص ١٩ · الأصول · …».
+                  MergeSemantics(
+                    child: Row(
+                      children: [
+                        _Folio(reader.textMode ? 'النص' : 'ص ${ar(reader.page)}'),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            caption,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TzType.caption.copyWith(color: c.ink3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          icon(LucideIcons.search, 'بحث وانتقال', onSearch),
-          icon(LucideIcons.slidersHorizontal, 'أدوات العرض والصوت', onTools),
-        ],
+            // 44 + 2 + 44 of drawing, plus 2 dp of target at each end.
+            SizedBox(
+              width: 94,
+              height: TzSize.touchTarget,
+              child: Stack(
+                children: [
+                  PositionedDirectional(start: 0, child: _BarButton(icon: 'search', label: 'بحث', onPressed: onSearch)),
+                  PositionedDirectional(end: 0, child: _BarButton(icon: 'aa', label: 'العرض', onPressed: onTools)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// The folio tag (v2.css .folio): a pill with a gilt edge at 55 %. Its text is
+/// gilt at night and ink on paper: gilt is never text under 16 px on paper
+/// (ADR 0019), and at 12 px it would read at 3.7:1 there. The edge is drawn
+/// behind the text, outside the text's own box, so the text's contrast is its
+/// own.
+class _Folio extends StatelessWidget {
+  final String text;
+  const _Folio(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final tz = TzTheme.of(context);
+    final c = tz.colors;
+    return Stack(
+      key: ReaderScreen.folioKey,
+      children: [
+        Positioned.fill(
+          child: ExcludeSemantics(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(TzRadius.pill),
+                border: Border.all(color: c.gilt.withValues(alpha: 0.55)),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          child: Text(
+            text,
+            style: TzType.caption.copyWith(fontWeight: FontWeight.w600, color: tz.night ? c.gilt : c.ink2),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A 44 px glyph in a 48 px target (v2.css .ib).
+class _BarButton extends StatelessWidget {
+  final String icon, label;
+  final VoidCallback? onPressed;
+  const _BarButton({required this.icon, required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: label,
+    onPressed: onPressed,
+    icon: TzIcon(icon, size: 22, color: TzTheme.of(context).colors.ink2),
+    constraints: const BoxConstraints.tightFor(width: TzSize.touchTarget, height: TzSize.touchTarget),
+    padding: EdgeInsets.zero,
+  );
 }
 
 class _ResumeChip extends StatelessWidget {
@@ -642,16 +715,15 @@ class _ResumeChip extends StatelessWidget {
       child: Container(
         height: 48,
         padding: const EdgeInsetsDirectional.only(start: 8, end: 18),
-        decoration: BoxDecoration(
-          color: t.gold,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: t.float,
+        decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999), boxShadow: t.float),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Shamsa(size: 32, verse: reader.verse, playing: true),
+            const SizedBox(width: 8),
+            Text('عودة إلى البيت ${ar(reader.verse)}', style: TzType.body.copyWith(color: t.onGold)),
+          ],
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Shamsa(size: 32, verse: reader.verse, playing: true),
-          const SizedBox(width: 8),
-          Text('عودة إلى البيت ${ar(reader.verse)}', style: TzType.body.copyWith(color: t.onGold)),
-        ]),
       ),
     );
   }

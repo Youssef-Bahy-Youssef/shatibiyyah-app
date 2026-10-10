@@ -115,7 +115,7 @@ void main() {
   });
 
   const sizes = {
-    '390x844': (Size(390, 844), FakeViewPadding(top: 47, bottom: 34)),
+    '390x844': (Size(390, 844), FakeViewPadding(top: 44, bottom: 34)),
     '360x640': (Size(360, 640), FakeViewPadding(top: 24, bottom: 16)),
   };
 
@@ -178,7 +178,7 @@ void main() {
       testWidgets(name, (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
-        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
         addTearDown(tester.view.reset);
         SharedPreferences.setMockInitialValues({});
         late ReaderController r;
@@ -212,7 +212,7 @@ void main() {
     testWidgets(name, (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
-      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
       addTearDown(tester.view.reset);
       SharedPreferences.setMockInitialValues({
         'flutter.v2.search.recent': '["ورش","بدأت","الإمالة"]',
@@ -254,7 +254,7 @@ void main() {
       testWidgets(name, (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
-        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
         addTearDown(tester.view.reset);
         SharedPreferences.setMockInitialValues({});
         late ReaderController r;
@@ -303,7 +303,7 @@ void main() {
       testWidgets(name, (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
-        tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+        tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
         addTearDown(tester.view.reset);
         SharedPreferences.setMockInitialValues({});
         appTheme.value = theme;
@@ -338,7 +338,7 @@ void main() {
     testWidgets(name, (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
-      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
       addTearDown(tester.view.reset);
       SharedPreferences.setMockInitialValues({'flutter.v2.reminders.chapter': '1'});
       late Reminders reminders;

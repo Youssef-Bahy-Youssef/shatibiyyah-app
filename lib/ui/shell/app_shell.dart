@@ -76,7 +76,6 @@ class AppShellState extends State<AppShell> {
       animation: Listenable.merge([reader, ?reader.library]),
       builder: (context, _) {
         final onReader = _tab == DockTab.matn;
-        final withRow = nowPlayingOn(_tab);
         return Scaffold(
           backgroundColor: TzTheme.of(context).colors.bg,
           body: Stack(
@@ -92,24 +91,15 @@ class AppShellState extends State<AppShell> {
                     ),
                 ],
               ),
-              // While verses are being selected, the reader's own bar takes the dock's place.
-              if (!(onReader && reader.selecting))
+              // On the reader the dock rides inside the screen, under its popovers and
+              // their scrim (v2: dock z 6, spotlight 8, popover 9); here it floats over
+              // the other tabs.
+              if (!onReader)
                 Positioned(
                   left: ReaderTokens.dockSide,
                   right: ReaderTokens.dockSide,
                   bottom: ReaderTokens.dockBottom(safeBottom),
-                  child: _DockChrome(
-                    visible: !onReader || reader.chromeVisible,
-                    height: withRow ? ReaderTokens.dockHeight : ReaderTokens.dockTabsHeight,
-                    // The dock is a fixed-height binding, like a system tab bar: its text
-                    // follows the system size up to 1.3×, not beyond (item 3.12 revisits).
-                    child: MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
-                      ),
-                      child: Dock(nowPlaying: withRow ? _nowPlaying() : null, current: _tab, onTab: select),
-                    ),
-                  ),
+                  child: _dock(reader),
                 ),
             ],
           ),
@@ -118,8 +108,18 @@ class AppShellState extends State<AppShell> {
     );
   }
 
+  /// The dock for the current tab, in its chrome: hidden with the reader's chrome.
+  Widget _dock(ReaderController reader) {
+    final withRow = nowPlayingOn(_tab);
+    return _DockChrome(
+      visible: _tab != DockTab.matn || reader.chromeVisible,
+      height: withRow ? ReaderTokens.dockHeight : ReaderTokens.dockTabsHeight,
+      child: Dock(nowPlaying: withRow ? _nowPlaying() : null, current: _tab, onTab: select),
+    );
+  }
+
   Widget _screen(DockTab t) => switch (t) {
-        DockTab.matn => ReaderScreen(reader: widget.reader),
+        DockTab.matn => ReaderScreen(reader: widget.reader, dock: _dock(widget.reader)),
         DockTab.contents => IndexScreen(reader: widget.reader),
         DockTab.saved => SavedScreen(reader: widget.reader),
         DockTab.settings => SettingsScreen(reader: widget.reader),
@@ -198,7 +198,14 @@ class _DockChrome extends StatelessWidget {
               offset: Offset(0, visible ? 0 : 150 / height),
               duration: tzDuration(context, TzMotion.long),
               curve: TzMotion.emphasized,
-              child: child,
+              // The dock is a fixed-height binding, like a system tab bar: its text
+              // follows the system size up to 1.3×, not beyond (item 3.12 revisits).
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
+                ),
+                child: child,
+              ),
             ),
           ),
         ),
