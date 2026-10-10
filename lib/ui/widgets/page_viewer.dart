@@ -433,7 +433,9 @@ class PageViewerController extends ChangeNotifier {
     return (ix: (local.dx - tx) / eff, iy: (local.dy - ty) / eff);
   }
 
-  int? _hitVerse(double ix, double iy) {
+  /// The verse at (ix, iy), or else the nearest one within 1.2 of its height;
+  /// [exact] takes only a verse whose box holds the point.
+  int? _hitVerse(double ix, double iy, {bool exact = false}) {
     final ids = data.versesOnPage(currentPage);
     int? nearId;
     double nearD = double.infinity, nearH = 0;
@@ -451,7 +453,7 @@ class PageViewerController extends ChangeNotifier {
         nearH = b.h;
       }
     }
-    return nearD < nearH * 1.2 ? nearId : null;
+    return !exact && nearD < nearH * 1.2 ? nearId : null;
   }
 
   int? _hitChapter(double ix, double iy) {
@@ -467,12 +469,15 @@ class PageViewerController extends ChangeNotifier {
 
   void _handleTap(Offset local) {
     final p = _imageCoords(local);
-    final chap = _hitChapter(p.ix, p.iy);
+    // A verse box wins over a heading box (ADR 0011, F-03): a heading rectangle that
+    // strays over a verse must not hide it. Then the heading, then the nearest verse.
+    final inVerse = _hitVerse(p.ix, p.iy, exact: true);
+    final chap = inVerse == null ? _hitChapter(p.ix, p.iy) : null;
     if (chap != null) {
       _chapterTap.add(chap);
       return;
     }
-    final hit = _hitVerse(p.ix, p.iy);
+    final hit = inVerse ?? _hitVerse(p.ix, p.iy);
     if (hit == null) {
       _pageTap.add(null);
       return;
