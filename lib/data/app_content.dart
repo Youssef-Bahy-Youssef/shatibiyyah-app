@@ -52,7 +52,8 @@ class AppContent {
     final announcements = await recordings.announcements(recording.id);
     return PlaybackWindows(
       cues: await recordings.cues(recording.id, matn.lastVerse),
-      durationMs: recording.durationMs,
+      // The file that is played is the delivery file (F-40).
+      durationMs: recording.delivery?.durationMs ?? recording.durationMs,
       titleAtFirstVerse: {
         for (final e in announcements.entries)
           if (!e.value.disputed) matn.chapter(e.key).fromVerse: e.value.startMs,

@@ -57,6 +57,10 @@ class EngineState {
 /// Largest position step still counted as continuous listening.
 const int kMaxTickMs = 500;
 
+/// A player that stops by itself this close to the end of the file has reached it:
+/// decoders often report a file a little shorter than its declared duration (F-40).
+const int kEndOfFileSlackMs = 200;
+
 class PlaybackEngine {
   final AudioPort audio;
   final PlaybackPlan plan;
@@ -67,6 +71,10 @@ class PlaybackEngine {
 
   /// How close to an action's end counts as reaching it (position updates are periodic).
   final int boundaryLeadMs;
+
+  /// The file's length as the player decoded it, when it reports one. The last
+  /// verse ends there if that is before the recording's declared duration (F-40).
+  int? decodedDurationMs;
 
   final _state = StreamController<EngineState>.broadcast();
   StreamSubscription<int>? _positionSub;
@@ -123,7 +131,10 @@ class PlaybackEngine {
   /// the event, so a late event about the engine's own pause or play is harmless.
   void _onPlayerChanged() {
     final nowPlaying = audio.playing;
-    if (!nowPlaying && _active && _current is PlayRange) {
+    final current = _current;
+    if (!nowPlaying && _active && current is PlayRange && _reachedEndOfFile(current)) {
+      _run(plan.advance()); // the file ran out a little early: that is the end of the range
+    } else if (!nowPlaying && _active && current is PlayRange) {
       pause(); // stopped from outside: the student is no longer listening
     } else if (nowPlaying && !_active) {
       resume(); // started from outside (the lock screen)
@@ -165,7 +176,7 @@ class PlaybackEngine {
     // seek or a scrub, and is not counted as listening.
     if (last != null && ms > last && ms - last <= kMaxTickMs) _playedInWindowMs += ms - last;
     _lastPositionMs = ms;
-    if (ms >= current.toMs - boundaryLeadMs) {
+    if (ms >= _endOf(current) - boundaryLeadMs) {
       final window = current.toMs - windows.cue(current.verse);
       if (_playedInWindowMs >= window * 0.9) onVerseCompleted?.call(current.verse);
       _run(plan.advance());
@@ -173,6 +184,19 @@ class PlaybackEngine {
       _emit();
     }
   }
+
+  /// Where [range] really ends: at the decoded end of the file when that comes
+  /// before the declared one.
+  int _endOf(PlayRange range) {
+    final decoded = decodedDurationMs;
+    if (decoded == null || range.toMs < windows.durationMs) return range.toMs;
+    return decoded < range.toMs ? decoded : range.toMs;
+  }
+
+  /// [range] runs to the end of the file, and the player stopped within
+  /// [kEndOfFileSlackMs] of it.
+  bool _reachedEndOfFile(PlayRange range) =>
+      range.toMs >= windows.durationMs && audio.currentPositionMs >= _endOf(range) - kEndOfFileSlackMs;
 
   EngineState _snapshot() {
     final current = _current;

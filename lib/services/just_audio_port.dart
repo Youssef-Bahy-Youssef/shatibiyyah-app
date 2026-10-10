@@ -13,7 +13,8 @@ class JustAudioPort implements AudioPort {
   JustAudioPort(this.player);
 
   /// Loads [filePath] (the lock screen is published by LockScreenHandler, per verse).
-  Future<void> load(String filePath) => player.setFilePath(filePath);
+  /// Opens [filePath]; the duration the decoder found, when it reports one.
+  Future<Duration?> load(String filePath) => player.setFilePath(filePath);
 
   @override
   Stream<int> get positionMs => player.positionStream.map((d) => d.inMilliseconds);

@@ -182,8 +182,9 @@ EngineFactory justAudioEngine(UserStore? user, {MatnRepository? matn, void Funct
     (recording, filePath, plan) async {
       // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
       final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
-      await port.load(filePath);
-      final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording, matn: matn, onChapterFinished: onChapterFinished));
+      final decoded = await port.load(filePath);
+      final engine = PlaybackEngine(port, plan, onVerseCompleted: ReaderController.listenRecorder(user, recording, matn: matn, onChapterFinished: onChapterFinished))
+        ..decodedDurationMs = decoded?.inMilliseconds;
       AudioFocus? focus;
       try {
         focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);
