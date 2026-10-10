@@ -39,7 +39,8 @@ class PlaybackSettings {
   /// Play the spoken chapter titles when crossing into a chapter.
   final bool playTitles;
 
-  /// Lead before a verse when playback jumps to it.
+  /// Lead before a verse when playback jumps to it (ADR 0005): 50 ms, so the
+  /// first syllable is whole and nothing of the verse before is heard again.
   final int preRollMs;
 
   const PlaybackSettings({
@@ -47,7 +48,7 @@ class PlaybackSettings {
     this.sectionRepeats = 1,
     this.gapMs = 0,
     this.playTitles = true,
-    this.preRollMs = 250,
+    this.preRollMs = 50,
   });
 
   static const _keep = Object();

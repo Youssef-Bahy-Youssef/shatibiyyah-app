@@ -62,6 +62,75 @@ class FakeAudio implements AudioPort {
   void dispose() => _ticker?.cancel();
 }
 
+/// A player on the fake clock: its position moves with the time and the speed,
+/// and it reports it every 200 ms only. It records where it stood each time it
+/// was told to stop or to seek while playing.
+class ClockAudio implements AudioPort {
+  final FakeAsync async;
+  ClockAudio(this.async);
+
+  final _positions = StreamController<int>.broadcast(sync: true);
+  final _playingChanges = StreamController<bool>.broadcast(sync: true);
+  final seeks = <int>[];
+  final stops = <({String kind, int at})>[];
+  double _speed = 1;
+  int _base = 0;
+  Duration _since = Duration.zero;
+  bool _playing = false;
+  Timer? _ticker;
+
+  @override
+  Stream<int> get positionMs => _positions.stream;
+  @override
+  int get currentPositionMs =>
+      _playing ? _base + ((async.elapsed - _since).inMicroseconds * _speed / 1000).round() : _base;
+  @override
+  bool get playing => _playing;
+  @override
+  Stream<bool> get playingChanges => _playingChanges.stream;
+
+  void _mark() {
+    _base = currentPositionMs;
+    _since = async.elapsed;
+  }
+
+  @override
+  Future<void> seek(int ms) async {
+    if (_playing) stops.add((kind: 'seek', at: currentPositionMs));
+    seeks.add(ms);
+    _base = ms;
+    _since = async.elapsed;
+  }
+
+  @override
+  Future<void> play() async {
+    if (_playing) return;
+    _since = async.elapsed;
+    _playing = true;
+    _playingChanges.add(true);
+    _ticker ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (_playing) _positions.add(currentPositionMs);
+    });
+  }
+
+  @override
+  Future<void> pause() async {
+    if (!_playing) return;
+    stops.add((kind: 'pause', at: currentPositionMs));
+    _mark();
+    _playing = false;
+    _playingChanges.add(false);
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    _mark();
+    _speed = speed;
+  }
+
+  void dispose() => _ticker?.cancel();
+}
+
 /// A player whose file ends at [endMs]: there it stops by itself, as a decoder does
 /// when the file is a little shorter than the recording's declared duration.
 class EndingAudio extends FakeAudio {
@@ -89,7 +158,7 @@ void main() {
       final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()));
       engine.play();
       async.elapse(const Duration(seconds: 6));
-      expect(audio.seeks, [750]); // everything after the first jump is continuous
+      expect(audio.seeks, [950]); // everything after the first jump is continuous
       expect(engine.state.finished, isTrue);
       audio.dispose();
     });
@@ -139,7 +208,7 @@ void main() {
       final engine = PlaybackEngine(
           audio, PlaybackPlan(windows, const PlaybackScope(1, 2), const PlaybackSettings(gapMs: 500)));
       engine.play();
-      async.elapse(const Duration(milliseconds: 1260)); // 750 → 2000 plus a little
+      async.elapse(const Duration(milliseconds: 1060)); // 950 → 2000 plus a little
       expect(engine.state.inGap, isTrue);
       expect(audio.playing, isFalse);
       expect(engine.state.playing, isTrue); // the student is still listening through the gap
@@ -148,7 +217,7 @@ void main() {
       expect(engine.state.inGap, isFalse);
       expect(engine.state.verse, 2);
       expect(audio.playing, isTrue);
-      expect(audio.seeks, [750]); // resumed where it paused, no seek
+      expect(audio.seeks, [950]); // resumed where it paused, no seek
       expect(audio.currentPositionMs, greaterThanOrEqualTo(pausedAt));
       audio.dispose();
     });
@@ -224,7 +293,7 @@ void main() {
         async.elapse(const Duration(seconds: 6));
         expect(engine.state.playing, isFalse);
         expect(engine.state.finished, isTrue);
-          expect(audio.seeks, [750]); // no jump back
+          expect(audio.seeks, [950]); // no jump back
         audio.dispose();
       });
     });
@@ -257,6 +326,67 @@ void main() {
         expect(engine.state.finished, isFalse);
         expect(engine.state.verse, 1);
         expect(engine.state.playing, isTrue);
+        audio.dispose();
+      });
+    });
+  });
+
+  // ADR 0005: wherever playback stops or jumps, it ends within 40 ms of the
+  // window's end at every speed. The player reports its position only every
+  // 200 ms, so the end is scheduled from the position and the speed.
+  group('stops within 40 ms of the verse\'s end (ADR 0005)', () {
+    for (final speed in [0.25, 1.0, 2.0]) {
+      test('$speed×: a repeat seeks back, the gap pauses and the end pauses on time', () {
+        fakeAsync((async) {
+          final audio = ClockAudio(async);
+          final engine = PlaybackEngine(
+              audio, PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(verseRepeats: 2, gapMs: 1000)));
+          engine.setSpeed(speed);
+          engine.play();
+          async.elapse(Duration(milliseconds: (30000 / speed).round()));
+
+          // Verse 2 twice (a seek back at its end), a gap (a pause), verse 3 straight on
+          // from where the gap paused, then again (a seek back), and the end (a pause).
+          expect(audio.seeks, [1950, 1950, 2950]);
+          expect(audio.stops.map((s) => s.kind), ['seek', 'pause', 'seek', 'pause']);
+          final ends = [3000, 3000, 3800, 3800]; // verse 3 ends where the title before verse 4 begins
+          for (final (i, stop) in audio.stops.indexed) {
+            expect((stop.at - ends[i]).abs(), lessThanOrEqualTo(40), reason: '${stop.kind} at ${stop.at}, the window ends at ${ends[i]}');
+          }
+          expect(engine.state.finished, isTrue);
+          audio.dispose();
+        });
+      });
+    }
+
+    test('a change of speed in the middle of a verse moves the stop with it', () {
+      fakeAsync((async) {
+        final audio = ClockAudio(async);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(2, 2), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(milliseconds: 300));
+        engine.setSpeed(2);
+        async.elapse(const Duration(seconds: 3));
+        expect(audio.stops.single.kind, 'pause');
+        expect((audio.stops.single.at - 3000).abs(), lessThanOrEqualTo(40));
+        audio.dispose();
+      });
+    });
+
+    test('a pause in the middle of a verse cancels the scheduled stop; resuming sets it again', () {
+      fakeAsync((async) {
+        final audio = ClockAudio(async);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(2, 2), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(milliseconds: 500));
+        engine.pause();
+        async.elapse(const Duration(seconds: 5)); // long past where the stop was due
+        expect(engine.state.finished, isFalse);
+        expect(audio.stops, hasLength(1)); // the student's own pause
+        engine.resume();
+        async.elapse(const Duration(seconds: 2));
+        expect(engine.state.finished, isTrue);
+        expect((audio.stops.last.at - 3000).abs(), lessThanOrEqualTo(40));
         audio.dispose();
       });
     });
