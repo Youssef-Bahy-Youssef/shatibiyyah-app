@@ -25,8 +25,8 @@ should see.
    Then press **Run ▶** again (or *Hot Restart*) so the app looks for them.
    (`tool/sideload_audio.sh atiq` copies only the default reciter, 145 MB.)
 
-> **«أدوات التجربة»** is at the bottom of «☰ ← حول» in debug and profile builds,
-> never in the store (release) build.
+> **«أدوات التجربة»** is the last group («نسخة التطوير») of «الإعدادات ← حول تيسير
+> الشاطبية» in debug and profile builds, never in the store (release) build.
 >
 > **Debug or profile?** Use the normal debug **Run** for everything, except the
 > checks that start the app *from a notification with the app closed*. A debug
@@ -37,10 +37,14 @@ should see.
 ## 2. First run and the reader
 
 To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
-«حول ← أعد الجولة».
+«الإعدادات ← حول تيسير الشاطبية ← أعد الجولة» (the cards only, ending with «تم»).
 
-- [ ] Splash, then the tour: **3 cards** on page 19. Card 2 «الشرح والمراجعة حول
-      البيت», card 3 «الشروح الثلاثة على جهازك». «تخطَّ» is always there.
+- [ ] Splash, then the tour: **3 cards** on page 19, each showing the reader as it
+      will look. Card 1 «المخطوط أولًا»: verse 226 washed in gilt, the dock under
+      it. Card 2 «الشرح والمراجعة حول البيت»: verse 229 in its ring, with its menu.
+      Card 3 «الشروح الثلاثة على جهازك»: the commentary sheet with the three books.
+      In «ليلي» the page is the night page. «تخطَّ» is always there; a swipe or
+      Back moves between the cards.
 - [ ] «اختر القارئ»: with the recording side-loaded, «ابدأ التلاوة» plays.
 - [ ] Playback follows verse by verse. The lock screen and the notification
       shade show «البيت N» and the chapter with the reciter; ⏮ ⏯ ⏭ work.
@@ -82,7 +86,8 @@ To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
 - [ ] «حول ← أدوات التجربة ← أرسل فائدة اليوم الآن»: a notification appears with
       the star icon. Expand it for the full text. **Tap it**: the app opens
       Al-Wafi at that verse.
-- [ ] «أرسل تذكير الباب الآن» → tap it: the reader opens on your current verse.
+- [ ] «أدوات التجربة ← تذكير الباب ← أرسل» → tap the notification: the reader
+      opens on your current verse.
 - [ ] *(Profile mode)* «جدولة فائدة اليوم بعد دقيقتين», then **swipe the app
       away**: the notification comes within about 2–10 minutes (inexact on
       purpose). Tap it with the app closed: the app starts and opens Al-Wafi
@@ -98,12 +103,12 @@ To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
 
 ## 6. Rating, update banner, downloads
 
-- [ ] **Update banner:** «أدوات التجربة ← أظهر شريط التحديث», then «الرئيسية»
+- [ ] **Update banner:** «أدوات التجربة ← شريط التحديث ← أظهر», then «الإعدادات»
       shows «إصدار جديد من التطبيق متاح». «إخفاء» hides it. «تحديث» does nothing
       outside a Play install; that's expected.
 - [ ] **Rating:** the Play review sheet only appears for an app installed from
       Google Play (internal testing track or internal app sharing). In a debug
-      build «اطلب التقييم الآن» must just not crash. The real test is on the
+      build «طلب التقييم ← اطلب» must just not crash. The real test is on the
       closed-test build: finish a chapter (listen to all its verses).
 - [ ] **Background downloads:** waiting for hosting (Q1a). Until the files are
       online the downloads screen can only be checked with the side-loaded

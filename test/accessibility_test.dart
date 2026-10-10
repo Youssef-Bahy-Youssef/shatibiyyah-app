@@ -39,6 +39,7 @@ import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/shell/night_ink_sheet.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
+import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -128,6 +129,7 @@ void main() {
     'rumuz': (r) => RumuzScreen(reader: r),
     'about': (r) => AboutScreen(reader: r),
     'debug tools': (r) => DebugToolsScreen(reader: r),
+    'tour': (r) => TourScreen(content: content, library: r.library, prefs: r.store!.prefs, replay: true),
     'commentary': (r) => CommentaryScreen(content: content, verse: 226),
     'commentary sheet': (r) => ReaderScreen(reader: r..setTextMode(true)..openCommentary(226)),
     'commentary sheet (several verses)': (r) => ReaderScreen(reader: r..setTextMode(true)..openCommentary(231)),
