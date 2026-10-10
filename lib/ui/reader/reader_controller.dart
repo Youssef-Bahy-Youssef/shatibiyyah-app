@@ -40,7 +40,7 @@ class ReaderController extends ChangeNotifier {
   /// «التنبيهات», set at boot (none in tests unless given).
   Reminders? reminders;
 
-  /// The rating request after a finished chapter, set at boot.
+  /// The rating request, told of each day audio plays (set at boot).
   RatingPrompt? rating;
 
   /// Google Play's update check, for the home screen's banner (Android builds).
@@ -76,8 +76,6 @@ class ReaderController extends ChangeNotifier {
   int? _selectionStart; // «بداية نطاق»
   int? _selectionEnd; // the verse tapped after it
   EngineState? _engineState;
-  DateTime? _listenStart; // when the current listening session began (for «السجل»)
-  int _listenFrom = 1;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   ReaderController({
@@ -129,7 +127,6 @@ class ReaderController extends ChangeNotifier {
   /// stays, the repeat counters start again (features-v3 reciter-catalog). The
   /// previous engine belongs to [library], which has already stopped it.
   Future<void> setAudio(Recording recording, PlaybackEngine? engine) async {
-    if (playing) _endListening(_verse);
     await _engineSub?.cancel();
     _engineSub = null;
     _recording = recording;
@@ -333,7 +330,7 @@ class ReaderController extends ChangeNotifier {
 
   // ── following playback ──
   void _onEngineState(EngineState s) {
-    _trackListening(s);
+    if (s.playing && !(_engineState?.playing ?? false)) rating?.used();
     final changed = s.verse != _verse;
     _engineState = s;
     // Playback itself crossing into a new chapter (a jump sets _verse first, so never here).
@@ -369,24 +366,6 @@ class ReaderController extends ChangeNotifier {
       notifyListeners();
     });
     notifyListeners();
-  }
-
-  /// A session starts when playback starts and is logged when it stops.
-  void _trackListening(EngineState s) {
-    final was = _engineState?.playing ?? false;
-    if (s.playing && !was) {
-      _listenStart = DateTime.now();
-      _listenFrom = s.verse;
-    } else if (!s.playing && was) {
-      _endListening(s.verse);
-    }
-  }
-
-  void _endListening(int lastVerse) {
-    final start = _listenStart;
-    _listenStart = null;
-    if (start == null) return;
-    personal?.logListening(_recording.id, _listenFrom, lastVerse, DateTime.now().difference(start));
   }
 
   // ── chapter heading (features-v3 chapter-header-tap) ──
@@ -526,20 +505,6 @@ class ReaderController extends ChangeNotifier {
     _splitFollow = false;
     notifyListeners();
   }
-
-  /// Called by the engine for each verse played through (listening progress).
-  /// Records each verse played through; [onChapterFinished] hears of a chapter
-  /// whose last unheard verse it was.
-  static void Function(int verse) listenRecorder(UserStore? user, Recording recording,
-          {MatnRepository? matn, void Function(MatnChapter)? onChapterFinished}) =>
-      (verse) {
-        if (user == null) return;
-        if (matn == null || onChapterFinished == null) {
-          user.recordVerseListened(recording.id, verse);
-        } else {
-          recordListened(user, matn, recording.id, verse, onChapterFinished);
-        }
-      };
 
   @override
   void dispose() {

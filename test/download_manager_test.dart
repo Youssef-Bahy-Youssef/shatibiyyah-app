@@ -253,6 +253,17 @@ void main() {
       expect(await m.isDownloaded(r), isFalse);
     });
 
+    test('two recover() calls at once rename once and neither throws (F-34)', () async {
+      final r = _recording(body, [server.url('/ok')]);
+      final m = manager();
+      await (m.partFileFor(r)..parent.createSync(recursive: true)).writeAsBytes(body);
+      // refresh() at launch and backgroundFinished() can both get here.
+      final results = await Future.wait([m.recover(r), m.recover(r)]);
+      expect(results, [isTrue, isTrue]);
+      expect(await m.isDownloaded(r), isTrue);
+      expect(m.partFileFor(r).existsSync(), isFalse);
+    });
+
     test('any Transfer plugs in: its bytes are verified like the HTTP ones', () async {
       final r = _recording(body, ['https://mirror.invalid/a.mp3']);
       final file = await with_(_InstantTransfer(body)).download(r);

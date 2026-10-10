@@ -223,6 +223,53 @@ void main() {
     expect(find.text('إعادة المحاولة'), findsOneWidget);
   });
 
+  testWidgets('a recording missing a cue: boot goes on, it shows «غير صالحة» (F-41)', (tester) async {
+    late AudioLibrary library;
+    late AppContent broken;
+    await tester.runAsync(() async {
+      // A snapshot whose default recording (Atiq) has no cue for verse 500.
+      final dir = await Directory.systemTemp.createTemp('missing_cue');
+      addTearDown(() => dir.delete(recursive: true));
+      final copy = await File('assets/content/content.sqlite').copy('${dir.path}/content.sqlite');
+      final db = await databaseFactoryFfi.openDatabase(copy.path);
+      await db.rawDelete("DELETE FROM verse_timings WHERE recording_id = 'recording:shatibiyyah:muhammad-atiq-1' "
+          "AND matn_verse_id = 'verse:shatibiyyah:500'");
+      await db.close(); // no VACUUM: the size stays what content.json says
+      broken = await AppContent.open(
+        loadAsset: (key) async =>
+            ByteData.sublistView(await File(key.endsWith('.sqlite') ? copy.path : key).readAsBytes()),
+        supportDir: await Directory('${dir.path}/support').create(),
+        factory: databaseFactoryFfi,
+      );
+      addTearDown(broken.store.close);
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await Prefs.create();
+      final dm = DownloadManager(
+          supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true, transfer: _OfflineTransfer());
+      library = AudioLibrary(content: broken, prefs: prefs, downloads: dm, engineFactory: (r, path, plan) async {
+        fail('no engine for an unusable recording');
+      });
+      final atiq = broken.recordings.defaultRecording;
+      expect(broken.isUsable(atiq), isFalse);
+      expect(broken.isUsable(library.recordings.firstWhere((r) => !r.isDefault)), isTrue);
+      await sideLoad(dm, atiq); // even on the device, it is not played
+      await library.refresh();
+      // What reader_boot does: windows only for a usable recording, then the engine.
+      final windows = await broken.windowsOrNull(atiq);
+      expect(windows, isNull);
+      final other = await broken.windowsFor(library.recordings.firstWhere((r) => !r.isDefault));
+      expect(await library.openCurrent(PlaybackPlan(other, const PlaybackScope(1, 1), const PlaybackSettings())), isNull);
+      ReaderController(
+        content: broken,
+        recording: atiq,
+        viewer: PageViewerController(legacyData(broken, windows), prefs),
+        initialVerse: 500,
+      );
+    });
+    await host(tester, DownloadsScreen(library: library));
+    expect(find.textContaining('غير صالحة'), findsOneWidget);
+  });
+
   testWidgets('delete asks first, then the recording is gone', (tester) async {
     late AudioLibrary library;
     late ReaderController reader;

@@ -1,15 +1,14 @@
 // lib/data/backup.dart — «نسخ احتياطي واستعادة» (features-v3 backup-and-sync, U-03).
 //
-// A JSON envelope with the user's bookmarks, notes, history and listened verses,
-// and the reader settings:
-//   {format: "shatibiyyah-backup", version: 1, exported_at, settings: {…},
-//    bookmarks: […], notes: […], activity: […], verse_listens: […]}
+// A JSON envelope with the user's bookmarks and notes, and the reader settings:
+//   {format: "shatibiyyah-backup", version: 2, exported_at, settings: {…},
+//    bookmarks: […], notes: […]}
+// Version 1 also carried the history and the listened verses (ADR 0008 removed
+// both): a v1 file still restores, and those two lists are ignored.
 // Restoring merges, it never wipes:
 // - bookmarks and notes: union by uuid, the newest updated_at wins, tombstones
 //   (deleted_at) travel both ways. One verse (or range) keeps one live bookmark
-//   and one live note: of two live rows on it, the older becomes a tombstone;
-// - the history is append-only, deduplicated by uuid;
-// - listened verses: the earliest first completion, the larger count (so
+//   and one live note: of two live rows on it, the older becomes a tombstone (so
 //   restoring the same file twice changes nothing);
 // - a setting is restored only where this device has none of its own.
 // Audio and the books are not in it: they come with the app or are downloaded.
@@ -21,7 +20,7 @@ import '../services/preferences_service.dart';
 import 'user_store.dart';
 
 const String kBackupFormat = 'shatibiyyah-backup';
-const int kBackupVersion = 1;
+const int kBackupVersion = 2;
 
 /// The preferences that travel with a backup: reader settings, not device state
 /// (downloads, the chosen recording, the tour).
@@ -49,10 +48,8 @@ class BackupError implements Exception {
 class MergeReport {
   int bookmarks = 0;
   int notes = 0;
-  int activity = 0;
-  int listens = 0;
   final Set<String> settings = {};
-  int get total => bookmarks + notes + activity + listens + settings.length;
+  int get total => bookmarks + notes + settings.length;
 }
 
 Future<Map<String, Object?>> exportBackup(UserStore store, Prefs prefs, {DateTime? now}) async {
@@ -66,8 +63,6 @@ Future<Map<String, Object?>> exportBackup(UserStore store, Prefs prefs, {DateTim
     },
     'bookmarks': await db.query('bookmarks', orderBy: 'created_at'),
     'notes': await db.query('notes', columns: _noteColumns, orderBy: 'created_at'),
-    'activity': await db.query('activity_log', orderBy: 'at'),
-    'verse_listens': await db.query('verse_listens', orderBy: 'first_completed_at'),
   };
 }
 
@@ -95,38 +90,12 @@ Future<MergeReport> mergeBackup(UserStore store, Prefs prefs, Map<String, Object
   final report = MergeReport();
   final bookmarks = _rows(backup['bookmarks'], _bookmarkValid);
   final notes = _rows(backup['notes'], _noteValid);
-  final activity = _rows(backup['activity'], _activityValid);
-  final listens = _rows(backup['verse_listens'], _listenValid);
 
   await store.db.transaction((tx) async {
     report.bookmarks = await _mergeLive(tx, 'bookmarks', bookmarks, _bookmarkColumns,
         "from_verse_id = ? AND ifnull(to_verse_id, '') = ifnull(?, '')", (r) => [r['from_verse_id'], r['to_verse_id']]);
     report.notes = await _mergeLive(
         tx, 'notes', notes, _noteColumns, 'matn_verse_id = ?', (r) => [r['matn_verse_id']]);
-    for (final r in activity) {
-      if ((await tx.query('activity_log', columns: ['uuid'], where: 'uuid = ?', whereArgs: [r['uuid']])).isNotEmpty) {
-        continue;
-      }
-      await tx.insert('activity_log', {for (final c in _activityColumns) c: r[c]});
-      report.activity++;
-    }
-    for (final r in listens) {
-      final key = [r['recording_id'], r['matn_verse_id']];
-      final local = await tx.query('verse_listens',
-          columns: ['first_completed_at', 'completions'], where: 'recording_id = ? AND matn_verse_id = ?', whereArgs: key);
-      if (local.isEmpty) {
-        await tx.insert('verse_listens', {for (final c in _listenColumns) c: r[c]});
-        report.listens++;
-      } else if ((local.first['first_completed_at'] as int) > (r['first_completed_at'] as int) ||
-          (local.first['completions'] as int) < (r['completions'] as int)) {
-        await tx.rawUpdate(
-          'UPDATE verse_listens SET first_completed_at = min(first_completed_at, ?), completions = max(completions, ?) '
-          'WHERE recording_id = ? AND matn_verse_id = ?',
-          [r['first_completed_at'], r['completions'], ...key],
-        );
-        report.listens++;
-      }
-    }
   });
 
   final settings = backup['settings'];
@@ -143,8 +112,6 @@ Future<MergeReport> mergeBackup(UserStore store, Prefs prefs, Map<String, Object
 
 const _bookmarkColumns = ['uuid', 'from_verse_id', 'to_verse_id', 'color', 'tag', 'created_at', 'updated_at', 'deleted_at'];
 const _noteColumns = ['uuid', 'matn_verse_id', 'commentary_block_id', 'body', 'created_at', 'updated_at', 'deleted_at'];
-const _activityColumns = ['uuid', 'at', 'kind', 'from_verse_id', 'to_verse_id', 'recording_id', 'commentary_id', 'seconds'];
-const _listenColumns = ['recording_id', 'matn_verse_id', 'first_completed_at', 'completions'];
 
 /// Bookmarks or notes: newest updated_at first wins per uuid; one live row per [keyWhere].
 Future<int> _mergeLive(Transaction tx, String table, List<Map<String, Object?>> incoming, List<String> columns,
@@ -218,16 +185,3 @@ bool _noteValid(Map<String, Object?> r) =>
     r['created_at'] is int &&
     r['updated_at'] is int &&
     _optInt(r['deleted_at']);
-
-bool _activityValid(Map<String, Object?> r) =>
-    _str(r['uuid']) &&
-    r['at'] is int &&
-    (r['kind'] == 'listen' || r['kind'] == 'commentary') &&
-    _optVerse(r['from_verse_id']) &&
-    _optVerse(r['to_verse_id']) &&
-    (r['recording_id'] == null || r['recording_id'] is String) &&
-    (r['commentary_id'] == null || r['commentary_id'] is String) &&
-    _optInt(r['seconds']);
-
-bool _listenValid(Map<String, Object?> r) =>
-    _str(r['recording_id']) && _verse(r['matn_verse_id']) && r['first_completed_at'] is int && r['completions'] is int;

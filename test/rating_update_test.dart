@@ -1,7 +1,7 @@
-// The rating request and the update banner (P7 steps 5–6). Rating: asked exactly
-// once on the first finished chapter, not again within 90 days, not after an error
-// in this session or in the last minutes (fake clock). A chapter finishes when its
-// last unheard verse is played through, once. Update: the banner follows Play's
+// The rating request and the update banner (P7 steps 5–6). Rating (ADR 0008):
+// asked once after the 5th distinct day with audio played or a commentary opened,
+// at most once per 90 days, and not within 24 h of a recorded error (fake clock);
+// only a day count and the last day are stored. Update: the banner follows Play's
 // answer, hides until the next launch, and never turns a failure into an error.
 import 'dart:io';
 import 'dart:typed_data';
@@ -13,8 +13,6 @@ import 'package:shatibiyyah/app/app_update.dart';
 import 'package:shatibiyyah/app/rating.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
-import 'package:shatibiyyah/data/matn_repository.dart';
-import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
@@ -75,57 +73,73 @@ void main() {
 
     RatingPrompt session() => RatingPrompt(prefs: prefs, port: review, clock: () => now);
 
-    test('asked on the first finished chapter, then not within 90 days', () async {
+    /// Uses the app on [days] more days, one day apart, from today.
+    Future<List<bool>> useOn(RatingPrompt r, int days) async {
+      final asked = <bool>[];
+      for (var i = 0; i < days; i++) {
+        if (i > 0) now = now.add(const Duration(days: 1));
+        asked.add(await r.used());
+      }
+      return asked;
+    }
+
+    test('day 5 prompts once; day 6 does not; 90 days later prompts again', () async {
       final r = session();
-      expect(await r.chapterFinished(), isTrue);
+      expect(await useOn(r, 4), [false, false, false, false]);
+      expect(await r.used(), isFalse); // a second use on day 4 is the same day
+      now = now.add(const Duration(days: 1));
+      expect(await r.used(), isTrue); // day 5
+      expect(await r.used(), isFalse); // again on day 5
       expect(review.requests, 1);
       now = now.add(const Duration(days: 1));
-      expect(await r.chapterFinished(), isFalse); // a second chapter the next day
-      now = now.add(const Duration(days: 88)); // 89 days after
-      expect(await session().chapterFinished(), isFalse);
+      expect(await r.used(), isFalse); // day 6
+      now = now.add(const Duration(days: 88)); // 89 days after the prompt
+      expect(await session().used(), isFalse);
       now = now.add(const Duration(days: 1)); // 90 days after
-      expect(await session().chapterFinished(), isTrue);
+      expect(await session().used(), isTrue);
       expect(review.requests, 2);
     });
 
-    test('not after an error in this session, nor within minutes of one', () async {
-      final r = session()..noteError();
+    test('distinct days, not uses: five uses in one day are one day', () async {
+      final r = session();
+      for (var i = 0; i < 5; i++) {
+        now = now.add(const Duration(minutes: 30));
+        expect(await r.used(), isFalse);
+      }
+      expect(review.requests, 0);
+    });
+
+    test('an error today suppresses it; 24 h later it is asked', () async {
+      final r = session();
+      await useOn(r, 4);
+      now = now.add(const Duration(days: 1)); // day 5, 10:00
+      r.noteError();
       now = now.add(const Duration(hours: 2));
-      expect(await r.chapterFinished(), isFalse); // same session: never
-      final next = session(); // a new launch, 2 h after the error
-      expect(next.mayAsk, isTrue);
-      next.noteError();
-      final soon = session(); // and a launch 3 minutes after an error
-      now = now.add(const Duration(minutes: 3));
-      expect(await soon.chapterFinished(), isFalse);
-      now = now.add(const Duration(minutes: 3));
-      expect(await soon.chapterFinished(), isTrue);
+      expect(await r.used(), isFalse);
+      expect(await session().used(), isFalse); // a new launch does not forget it
+      now = now.add(const Duration(hours: 21)); // day 6, 09:00: 23 h after the error
+      expect(await r.used(), isFalse);
+      now = now.add(const Duration(hours: 1)); // 24 h after
+      expect(await r.used(), isTrue);
       expect(review.requests, 1);
     });
 
-    test('no review sheet on the platform: nothing recorded, asked next time', () async {
-      review.available = false;
-      expect(await session().chapterFinished(), isFalse);
-      expect(prefs.getString(kReviewLastPromptPref), isNull);
-      review.available = true;
-      expect(await session().chapterFinished(), isTrue);
+    test('only the day count and the last day are stored', () async {
+      final r = session();
+      await useOn(r, 3);
+      expect(prefs.keys, {kReviewDaysUsedPref});
+      expect(prefs.getString(kReviewDaysUsedPref), '3 2026-10-02');
     });
 
-    test('a chapter finishes once, on its last unheard verse', () async {
-      final dir = await Directory.systemTemp.createTemp('rating_user');
-      addTearDown(() => dir.delete(recursive: true));
-      final user = await UserStore.open(directory: dir.path, factory: databaseFactoryFfi);
-      addTearDown(user.close);
-      final chapter = content.matn.chapters.first;
-      final finished = <MatnChapter>[];
-      for (var v = chapter.toVerse; v >= chapter.fromVerse; v--) {
-        expect(finished, isEmpty, reason: 'before verse $v');
-        await recordListened(user, content.matn, 'recording:a', v, finished.add);
-      }
-      expect(finished.single.id, chapter.id);
-      await recordListened(user, content.matn, 'recording:a', chapter.fromVerse, finished.add); // heard again
-      await recordListened(user, content.matn, 'recording:b', chapter.toVerse, finished.add); // another reciter
-      expect(finished, hasLength(1));
+    test('no review sheet on the platform: nothing recorded, asked next time', () async {
+      final r = session();
+      await useOn(r, 4);
+      now = now.add(const Duration(days: 1));
+      review.available = false;
+      expect(await r.used(), isFalse);
+      expect(prefs.getString(kReviewLastPromptPref), isNull);
+      review.available = true;
+      expect(await r.used(), isTrue);
     });
   });
 

@@ -1,6 +1,5 @@
 // Today's screens on the snapshot: the legacy data model built by the adapter,
 // and the one-time repair of index-keyed preferences.
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -70,16 +69,12 @@ void main() {
       return Prefs.create();
     }
 
-    test('chapter indices after النور move back by one; النور keeps the better progress', () async {
+    test('chapter indices after النور move back by one', () async {
       final prefs = await prefsWith({
         K.chapter: '53', // old «النور» entry list index 53 = سورة 920 → canonical 052
-        K.chapProg: json.encode({'51': 0.4, '52': 0.9, '60': 1.0}),
       });
       expect(migrateLegacyPrefs(prefs, content.matn), isTrue);
       expect(prefs.getString(K.chapter), '52');
-      final progress = json.decode(prefs.getString(K.chapProg)!) as Map<String, dynamic>;
-      expect(progress['51'], 0.9); // 912 and the stray 913 entry are one chapter now
-      expect(progress['59'], 1.0);
       expect(migrateLegacyPrefs(prefs, content.matn), isFalse); // once only
     });
 

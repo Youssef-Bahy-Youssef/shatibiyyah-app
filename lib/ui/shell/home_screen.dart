@@ -1,21 +1,17 @@
 // lib/ui/shell/home_screen.dart — «الرئيسية والمكتبة» (features-v3 home-screen).
 //
-// «تابع من حيث توقفت» (the reader's verse, chapter and page), then three tabs:
-// «المراجع», «الملاحظات», «السجل» (reading-history: listening sessions and
-// commentary passages read). Each entry opens its verse in the reader, or its
-// passage in its book. When Google Play has a newer version, a banner above them
-// offers it (lib/app/app_update.dart; the only screen that shows it). The
-// prototype's plans tab left with study plans; the rating is asked for natively
-// after a finished chapter (lib/app/rating.dart), not by a card.
+// «تابع من حيث توقفت» (the reader's verse, chapter and page), then two tabs:
+// «المراجع» and «الملاحظات». Each entry opens its verse in the reader. When Google
+// Play has a newer version, a banner above them offers it (lib/app/app_update.dart;
+// the only screen that shows it). The prototype's plans tab left with study plans;
+// the rating is asked for natively (lib/app/rating.dart), not by a card.
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_update.dart';
 import '../../app/personal_data.dart';
-import '../../data/user_store.dart';
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
-import '../commentary/commentary_screen.dart';
 import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
@@ -68,8 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 else
                   switch (_tab) {
                     0 => _bookmarks(t, personal),
-                    1 => _notes(t, personal),
-                    _ => _history(t, personal),
+                    _ => _notes(t, personal),
                   },
               ],
             ),
@@ -164,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final labels = [
       'المراجع (${ar(personal?.bookmarks.length ?? 0)})',
       'الملاحظات (${ar(personal?.notes.length ?? 0)})',
-      'السجل',
     ];
     return PillTabs<int>(
       options: {for (var i = 0; i < labels.length; i++) i: labels[i]},
@@ -276,32 +270,6 @@ class _HomeScreenState extends State<HomeScreen> {
           meta: matn.verse(n.verse).firstHemistich,
           onTap: () => _openVerse(n.verse),
         ),
-    ]);
-  }
-
-  Widget _history(TaysirColors t, PersonalData personal) {
-    if (personal.history.isEmpty) {
-      return _empty(t, LucideIcons.history, 'لا سجل بعد', 'يظهر هنا ما استمعت إليه وما قرأته من الشروح.');
-    }
-    final titles = {for (final b in reader.content.books.books) b.id: b.shortTitle};
-    return Column(children: [
-      for (final a in personal.history)
-        switch (a.kind) {
-          ActivityKind.listen => _entry(
-              t,
-              leading: Icon(LucideIcons.headphones, size: 20, color: t.goldText),
-              title: 'استماع ${_what(a.fromVerse, a.toVerse)}',
-              meta: '${dayLabel(a.at)} ${clockTime(a.at)}، ${minutesCount(((a.seconds ?? 0) / 60).ceil())}',
-              onTap: () => _openVerse(a.fromVerse),
-            ),
-          ActivityKind.commentary => _entry(
-              t,
-              leading: Icon(LucideIcons.bookOpen, size: 20, color: t.goldText),
-              title: 'شرح ${_what(a.fromVerse, a.toVerse)}',
-              meta: '${dayLabel(a.at)} ${clockTime(a.at)}، ${titles[a.commentaryId] ?? ''}',
-              onTap: () => CommentaryScreen.open(context, reader.content, a.fromVerse, bookId: a.commentaryId),
-            ),
-        },
     ]);
   }
 }
