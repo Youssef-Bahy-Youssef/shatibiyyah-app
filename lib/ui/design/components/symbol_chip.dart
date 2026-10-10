@@ -1,8 +1,8 @@
-// lib/ui/design/components/symbol_chip.dart — a reader symbol set on its own, in
-// its frame (ADR 0024; tokens.json symbolFrame): the rubric ink on a tint and a
-// hairline of itself, as the matn text frames it. For the list of symbols.
-// [active] is the symbol the student came from: the chosen-verse tint and a
-// solid ring (lapis on paper, the night ink at night).
+// lib/ui/design/components/symbol_chip.dart — a reader symbol in its frame, for
+// the list of symbols («رموز القراء»; ADR 0024, tokens.json symbolFrame): the
+// rubric ink on a tint and a hairline of itself. [active] is the symbol the
+// student came from: the chosen-verse tint and a solid ring (lapis on paper,
+// the night ink at night). The matn text has no frames (ADR 0021).
 import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
@@ -29,7 +29,7 @@ class SymbolChip extends StatelessWidget {
           )
         : (ink.withValues(alpha: TzSymbolFrame.fill), ink.withValues(alpha: TzSymbolFrame.line), TzSymbolFrame.lineWidth);
     return Container(
-      height: (TzSymbolFrame.above + TzSymbolFrame.below) * size,
+      height: TzSymbolFrame.height * size,
       constraints: BoxConstraints(minWidth: 1.7 * size),
       padding: EdgeInsets.symmetric(horizontal: 0.36 * size),
       decoration: BoxDecoration(

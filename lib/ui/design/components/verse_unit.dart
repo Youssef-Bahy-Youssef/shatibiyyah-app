@@ -6,10 +6,9 @@
 // hemistich is justified only when its natural width fills at least 84 % of its
 // column on one line; short ones stay ragged. At 600 px or wider (the prototype's
 // container query) they sit side by side, 2.4 em apart. Reader names and symbols
-// are in the rubric ink, a symbol in its frame (ADR 0024). Playing is the soft
-// gilt wash with a 3 px gilt bar just outside the start edge; chosen is a 2 px
-// ring and a tint (lapis on paper, the reader's night ink at night). The
-// background changes in 320 ms.
+// are in the rubric ink. Playing is the soft gilt wash with a 3 px gilt bar just
+// outside the start edge; chosen is a 2 px ring and a tint (lapis on paper, the
+// reader's night ink at night). The background changes in 320 ms.
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -52,7 +51,7 @@ class Hemistich extends StatelessWidget {
   /// The space above and below the line (v2.css .hm padding-block).
   final double padBlock;
 
-  /// The symbol whose tip is open: its frame takes the tint and a ring (v2.css .rb.sym.on .sf).
+  /// The symbol whose tip is open: lit from behind (v2.css .rb.sym.on).
   final Rubric? activeSymbol;
 
   /// A key for the text itself, to find where its words are.
@@ -80,11 +79,9 @@ class Hemistich extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth * widthFactor;
-        final ink = rubricColor ?? tz.rubric;
-        final spans = rubricate(text, rubrics, ink);
+        final spans = rubricate(text, rubrics, rubricColor ?? tz.rubric);
         // The lit phrase (a quotation of the verse, chosen in its commentary).
         final lit = highlight == null || highlight!.isEmpty ? -1 : text.indexOf(highlight!);
-        final litEnd = lit < 0 ? -1 : lit + highlight!.length;
         final natural = (TextPainter(
           text: TextSpan(style: style, children: spans),
           textDirection: direction,
@@ -98,36 +95,20 @@ class Hemistich extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: padBlock),
               child: PhraseWash(
-                em: style.fontSize ?? kVerseSize,
-                lineHeight: style.height == null ? null : style.height! * (style.fontSize ?? kVerseSize),
                 washes: [
                   // v2.css mark.mqhl: the gilt wash, 2 px past the words, on a 4 px radius.
-                  if (lit >= 0) (start: lit, end: litEnd, color: tz.colors.giltWash, spread: 2, radius: 6),
-                ],
-                // v2.css .sf: each symbol in its frame, a tint and a hairline of its own ink.
-                frames: [
-                  for (final (start, end, m) in rubricRanges(text, rubrics))
-                    if (m.isSymbol)
-                      // .rb.sym.on .sf: the tip is open, so the chosen-verse tint and a solid ring.
-                      if (m.sameMark(activeSymbol))
-                        (
-                          start: start,
-                          end: end,
-                          fill: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : tz.colors.lapisWash,
-                          line: tz.night ? tz.nightInk.accent : tz.colors.lapis,
-                          lineWidth: TzSymbolFrame.activeLineWidth,
-                          ring: true,
-                        )
-                      else
-                        (
-                          start: start,
-                          end: end,
-                          // mark.mqhl .sf: inside a lit quotation only the gilt wash is behind the letter.
-                          fill: ink.withValues(alpha: start < litEnd && end > lit ? 0 : TzSymbolFrame.fill),
-                          line: ink.withValues(alpha: TzSymbolFrame.line),
-                          lineWidth: TzSymbolFrame.lineWidth,
-                          ring: false,
-                        ),
+                  if (lit >= 0)
+                    (start: lit, end: lit + highlight!.length, color: tz.colors.giltWash, spread: 2, radius: 6),
+                  // v2.css .rb.sym.on: the lapis wash (the night ink's tint), 3 px past the letter.
+                  for (final m in rubrics)
+                    if (m.sameMark(activeSymbol))
+                      (
+                        start: m.start!,
+                        end: m.end!,
+                        color: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : tz.colors.lapisWash,
+                        spread: 3,
+                        radius: 7,
+                      ),
                 ],
                 child: RichText(
                   key: textKey,

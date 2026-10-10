@@ -3,6 +3,7 @@
 // row per reader, a collective name spelled out; a code's source verse opens the
 // reader there, and a symbol's tip opens the screen on that symbol.
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -103,7 +104,7 @@ void main() {
     expect(r.verse, 55);
   });
 
-  testWidgets('every symbol is in its frame, in the rubric ink, as the matn shows it', (tester) async {
+  testWidgets('every symbol is in its frame, in the rubric ink', (tester) async {
     await open(tester, tz: TzTheme.paper);
     expect(chips(tester).join(), 'أبجدهزحطيكلمنصعفضقرست');
     final rubric = TzColors.paper.rubric;
@@ -120,6 +121,24 @@ void main() {
     await tester.tap(find.text('الكلمات'));
     await tester.pump();
     expect(chips(tester), ['صحبة', 'صحاب', 'عمّ', 'سما', 'حقّ', 'نفر', 'حرمي', 'حصن']);
+  });
+
+  test('a symbol keeps at least 4.5:1 on its frame, on paper and in every night ink', () {
+    double lum(Color c) {
+      double f(double v) => v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    }
+
+    double onFrame(Color ink, Color page) {
+      final a = lum(ink), b = lum(Color.alphaBlend(ink.withValues(alpha: TzSymbolFrame.fill), page));
+      return (math.max(a, b) + 0.05) / (math.min(a, b) + 0.05);
+    }
+
+    expect(onFrame(TzColors.paper.rubric, TzColors.paper.bg), closeTo(5.88, 0.05));
+    for (final ink in TzNightPage.inks) {
+      expect(onFrame(ink.accent, TzColors.night.bg), greaterThanOrEqualTo(6.5), reason: ink.id);
+    }
+    expect(TzSymbolFrame.minContrast, 4.5);
   });
 
   testWidgets('the letters: one row per reader, numbered, his letter then his two transmitters\'', (tester) async {
