@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
+import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 import 'golden_fonts.dart';
@@ -14,6 +15,13 @@ import 'golden_fonts.dart';
 /// pixels) and the component as the prototype shows it.
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
+  'gilt_rule': (390, 60, () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Column(children: [
+          Padding(padding: EdgeInsets.fromLTRB(20, 6, 20, 0), child: GiltRule()),
+          Padding(padding: EdgeInsets.only(top: 8, bottom: 6), child: GiltRule(centered: true)),
+        ]),
+      )),
 };
 
 class _Khatams extends StatelessWidget {
