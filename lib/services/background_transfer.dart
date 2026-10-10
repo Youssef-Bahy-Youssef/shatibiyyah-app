@@ -5,36 +5,51 @@
 // foreground service is needed. The file appears at the part path only when
 // complete; DownloadManager verifies it (and DownloadManager.recover does so at
 // the next launch when it finished while the app was closed).
+//
+// «إيقاف مؤقت» pauses the task, and background_downloader keeps its temporary
+// file and resume data; the next fetch resumes it (ADR 0007, F-30). Cancelling a
+// task deletes them, so only a cancel or a delete does.
 import 'dart:async';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import 'download_manager.dart';
 
-class BackgroundTransfer implements Transfer {
+typedef SplitPath = Future<(BaseDirectory, String, String)> Function(String filePath);
+
+class BackgroundTransfer extends Transfer {
   static const String group = 'recordings';
 
   final FileDownloader _downloader;
+  final SplitPath _split;
   final _waiting = <String, Completer<TaskStatusUpdate>>{};
-  final _progress = <String, void Function(double)>{};
+  final _progress = <String, void Function(TaskProgressUpdate)>{};
 
   /// A task finished with nobody waiting for it (it ran while the app was closed).
   void Function()? onUnattendedComplete;
 
-  BackgroundTransfer._(this._downloader);
+  BackgroundTransfer._(this._downloader, this._split);
 
   /// Registers the callbacks, then picks up what happened while the app was away
   /// and reschedules tasks the system killed.
   static Future<BackgroundTransfer> start() async {
-    final transfer = BackgroundTransfer._(FileDownloader());
-    transfer._downloader.registerCallbacks(
+    final transfer = BackgroundTransfer.withDownloader(FileDownloader());
+    await transfer._downloader.start();
+    return transfer;
+  }
+
+  /// Over [downloader] (a fake in tests), with its callbacks registered.
+  @visibleForTesting
+  factory BackgroundTransfer.withDownloader(FileDownloader downloader, {SplitPath? split}) {
+    final transfer = BackgroundTransfer._(downloader, split ?? ((path) => Task.split(filePath: path)));
+    downloader.registerCallbacks(
       group: group,
       taskStatusCallback: transfer._onStatus,
       taskProgressCallback: transfer._onProgress,
     );
-    await transfer._downloader.start();
     return transfer;
   }
 
@@ -44,7 +59,7 @@ class BackgroundTransfer implements Transfer {
   Future<bool> isActive(File part) async => await _downloader.taskForId(taskIdFor(part)) != null;
 
   void _onStatus(TaskStatusUpdate u) {
-    if (!u.status.isFinalState) return;
+    if (!u.status.isFinalState && u.status != TaskStatus.paused) return;
     final waiter = _waiting.remove(u.task.taskId);
     if (waiter != null) {
       waiter.complete(u);
@@ -54,7 +69,15 @@ class BackgroundTransfer implements Transfer {
   }
 
   void _onProgress(TaskProgressUpdate u) {
-    if (u.progress >= 0 && u.progress <= 1) _progress[u.task.taskId]?.call(u.progress);
+    if (u.progress >= 0 && u.progress <= 1) _progress[u.task.taskId]?.call(u);
+  }
+
+  /// A paused or running task for [part] is cancelled: background_downloader then
+  /// deletes its temporary file and resume data.
+  @override
+  Future<void> discard(File part) async {
+    final taskId = taskIdFor(part);
+    if (await _downloader.taskForId(taskId) != null) await _downloader.cancelTaskWithId(taskId);
   }
 
   @override
@@ -68,13 +91,30 @@ class BackgroundTransfer implements Transfer {
   }) async {
     final taskId = taskIdFor(part);
     final done = _waiting[taskId] ??= Completer<TaskStatusUpdate>();
-    _progress[taskId] = (f) => progress((f * total).round());
+    int? served;
+    _progress[taskId] = (u) {
+      // The total of a resumed task is the 206 total: it must be the delivery size.
+      if (u.expectedFileSize > 0 && u.expectedFileSize != total && served == null) {
+        served = u.expectedFileSize;
+        _downloader.cancelTaskWithId(taskId);
+        return;
+      }
+      progress((u.progress * total).round());
+    };
     cancel?.onCancel(() => _downloader.cancelTaskWithId(taskId));
+    cancel?.onPause(() async {
+      final task = await _downloader.taskForId(taskId);
+      if (task is DownloadTask) await _downloader.pause(task);
+    });
     try {
-      // A task still running from before (the app was closed and reopened) is
-      // waited for, not started twice.
-      if (await _downloader.taskForId(taskId) == null) {
-        final (base, directory, filename) = await Task.split(filePath: part.path);
+      final existing = await _downloader.taskForId(taskId);
+      if (existing is DownloadTask) {
+        // A paused task resumes from its temporary file. A task still running from
+        // before (the app was closed and reopened) has nothing to resume (false):
+        // it is waited for, not started twice.
+        await _downloader.resume(existing);
+      } else if (existing == null) {
+        final (base, directory, filename) = await _split(part.path);
         final queued = await _downloader.enqueue(
           DownloadTask(
             taskId: taskId,
@@ -92,11 +132,18 @@ class BackgroundTransfer implements Transfer {
         );
         if (!queued) throw HttpException('not queued', uri: url);
       }
+      // «إيقاف مؤقت» pressed while the task was being queued.
+      if (cancel?.paused ?? false) {
+        final task = await _downloader.taskForId(taskId);
+        if (task is DownloadTask) await _downloader.pause(task);
+      }
       final update = await done.future;
+      if (served != null) throw TransferSizeMismatch(served!);
       switch (update.status) {
         case TaskStatus.complete:
           return;
-        case TaskStatus.canceled when cancel?.cancelled ?? false:
+        case TaskStatus.paused:
+        case TaskStatus.canceled when cancel?.stopped ?? false:
           throw const TransferCancelled();
         default:
           throw HttpException('${update.status.name} ${update.responseStatusCode ?? ''}'.trim(), uri: url);

@@ -50,6 +50,8 @@ class _NoNotifications implements NotificationPort {
   @override
   Future<void> cancelScheduled() async {}
   @override
+  Future<void> cancel(int id) async {}
+  @override
   Future<void> schedule(PlannedNotification n) async {}
   @override
   Future<void> showNow(PlannedNotification n) async {}
@@ -75,7 +77,7 @@ void main() {
   });
 
   Future<ReaderController> reader(WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({'flutter.v2.reminders.benefit': '1'});
+    SharedPreferences.setMockInitialValues({'flutter.v2.reminders.chapter': '1'});
     late ReaderController r;
     await tester.runAsync(() async {
       final dir = await Directory.systemTemp.createTemp('a11y_user');

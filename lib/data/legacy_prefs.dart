@@ -1,12 +1,10 @@
 // lib/data/legacy_prefs.dart — one-time repair of preferences written by the JSON-era app.
 //
-// The old app keyed the selected chapter and per-chapter listening progress by
-// the index into its own 79-entry chapter list. The content database has the 78
+// The old app keyed the selected chapter by the index into its own 79-entry
+// chapter list. The content database has the 78
 // canonical chapters (the duplicate «النور» entry at 913 is merged into سورة النور
 // 912–919), so every index after it would point one chapter too far. There are no
 // published installs; this only keeps development devices consistent.
-import 'dart:convert';
-
 import '../models/playback_settings.dart' show K;
 import '../services/preferences_service.dart';
 import 'matn_repository.dart';
@@ -36,23 +34,6 @@ bool migrateLegacyPrefs(Prefs prefs, MatnRepository matn) {
   if (chapter != null) {
     final canonical = canonicalChapterIndex(matn, chapter) ?? 0;
     prefs.setString(K.chapter, canonical.toString());
-  }
-
-  final rawProgress = prefs.getString(K.chapProg);
-  if (rawProgress != null) {
-    final merged = <int, double>{};
-    try {
-      final old = json.decode(rawProgress) as Map<String, dynamic>;
-      for (final e in old.entries) {
-        final canonical = canonicalChapterIndex(matn, int.parse(e.key));
-        if (canonical == null) continue;
-        final value = (e.value as num).toDouble();
-        if (value > (merged[canonical] ?? -1)) merged[canonical] = value; // النور: max of both
-      }
-    } catch (_) {
-      // Unreadable progress is dropped rather than guessed.
-    }
-    prefs.setString(K.chapProg, json.encode({for (final e in merged.entries) e.key.toString(): e.value}));
   }
 
   prefs.setString(kLegacyPrefsMigrated, '1');
