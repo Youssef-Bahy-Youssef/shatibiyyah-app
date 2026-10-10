@@ -1,4 +1,4 @@
-// The reader: the page never moves when the chrome toggles; the top bar shows what
+// The reader: the page sits between the top bar and the dock, which always show; the top bar shows what
 // the spec says; the verse menu opens from a long-press. The dock is the shell's
 // (app_shell_test.dart).
 import 'dart:async';
@@ -109,7 +109,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   }
 
-  testWidgets('the page rect is the spec example and never moves when the chrome toggles', (tester) async {
+  testWidgets('the page rect is the spec example; a tap on the page moves nothing and hides nothing', (tester) async {
     final r = await reader(tester);
     await show(tester, r);
     // The stack holding the page and chrome must fill the screen: at 0×0 its clip hid
@@ -127,15 +127,13 @@ void main() {
     expect(page.width, closeTo(374, 0.5));
     expect(page.height, closeTo(574.2, 0.5));
 
-    r.toggleChrome(); // hide
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(r.chromeVisible, isFalse);
-    expect(tester.getRect(find.byType(PageViewer)), page);
-    expect(find.text('١٩'), findsOneWidget); // the faint page number while hidden
-
-    r.toggleChrome(); // show
+    final bar = find.text('نقل حركة الهمزة إلى الساكن قبلها');
+    final barRect = tester.getRect(bar);
+    await tester.tapAt(page.topLeft + const Offset(3, 3)); // the page's margin
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.getRect(find.byType(PageViewer)), page);
+    expect(bar.hitTestable(), findsOneWidget);
+    expect(tester.getRect(bar), barRect);
     await unmount(tester);
   });
 
@@ -162,10 +160,9 @@ void main() {
     await tester.pump();
     expect(find.text('البيت ٢٢٩'), findsOneWidget);
     expect(find.text('الشرح'), findsOneWidget);
-    r.toggleChrome(); // a tap on the page while the menu is open closes the menu
+    r.tapPage(); // a tap on the page while the menu is open closes the menu
     await tester.pump();
     expect(r.menuVerse, isNull);
-    expect(r.chromeVisible, isTrue);
     await unmount(tester);
   });
 
@@ -196,17 +193,14 @@ void main() {
 
     Finder unit(int v) => find.byWidgetPredicate((w) => w is VerseUnit && w.number == ar(v));
 
-    testWidgets('shows the poem as verse units in place of the page; the chrome stays', (tester) async {
-      final r = await textMode(tester);
+    testWidgets('shows the poem as verse units in place of the page', (tester) async {
+      await textMode(tester);
       final head = tester.widget<ChapterHead>(find.byType(ChapterHead).first);
       expect((head.order, head.title), ('١١', 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا'));
       final first = tester.widget<VerseUnit>(unit(226)), v = content.matn.verse(226);
       expect((first.first, first.second), (v.firstHemistich, v.secondHemistich));
       expect(find.byType(PageViewer), findsNothing); // offstage, still mounted
       expect(find.byType(PageViewer, skipOffstage: false), findsOneWidget);
-      r.toggleChrome();
-      await tester.pump();
-      expect(r.chromeVisible, isTrue);
       await unmount(tester);
     });
 
@@ -360,9 +354,6 @@ void main() {
       expect(r.viewer.selection, (from: 226, to: 226));
       expect(find.text('المس البيت الأخير لتحديد نطاق يبدأ من ٢٢٦'), findsOneWidget);
       expect(find.text('بيت واحد محدد'), findsOneWidget);
-
-      r.toggleChrome(); // a tap on the page does not hide the selection's controls
-      expect(r.chromeVisible, isTrue);
 
       r.tapVerse(229); // sets the end; the reader stays where it was
       await tester.pump(const Duration(milliseconds: 300));

@@ -83,7 +83,6 @@ typedef _Setup = void Function(ReaderController r, AppContent content);
 
 final Map<String, _Setup> _states = {
   'page': (_, _) {},
-  'chrome_hidden': (r, _) => r.toggleChrome(),
   'menu': (r, _) => r.openMenu(229),
   'text_mode': (r, _) => r.setTextMode(true),
   'selection': (r, _) {

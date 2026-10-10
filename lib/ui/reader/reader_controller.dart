@@ -2,8 +2,7 @@
 //
 // Owns what the reader shows and plays: the current verse, whether the view
 // follows playback or the student has browsed away (the «عودة إلى البيت N» chip),
-// the chrome (top bar + player, faded in and out without moving the page), and
-// the verse menu. Playback runs on the rule-tested PlaybackPlan/PlaybackEngine
+// and the verse menu. The top bar and the dock always show. Playback runs on the rule-tested PlaybackPlan/PlaybackEngine
 // over just_audio; with no recording on the device there is no engine and the
 // player says so. Page drawing reuses PageViewerController.
 import 'dart:async';
@@ -70,7 +69,6 @@ class ReaderController extends ChangeNotifier {
   bool _textMode = false;
   double _textScale = 1;
   bool _detached = false;
-  bool _chromeVisible = true;
   int? _menuVerse;
   int? _heading; // the chapter whose heading was tapped (its card is open)
   String? _notice; // a short notice, e.g. «بدأ باب جديد · …»
@@ -109,7 +107,7 @@ class ReaderController extends ChangeNotifier {
     _attachEngine();
     _subs.add(viewer.onVerseTap.listen(tapVerse));
     _subs.add(viewer.onVerseLongPress.listen(openMenu));
-    _subs.add(viewer.onPageTap.listen((_) => toggleChrome()));
+    _subs.add(viewer.onPageTap.listen((_) => tapPage()));
     _subs.add(viewer.onPageChange.listen((_) => _onPageSwiped()));
     _subs.add(viewer.onChapterTap.listen(openHeading));
     viewer.setActiveVerse(_verse);
@@ -158,7 +156,6 @@ class ReaderController extends ChangeNotifier {
   bool get audioAvailable => engine != null;
   bool get playing => _engineState?.playing ?? false;
   bool get detached => _detached;
-  bool get chromeVisible => _chromeVisible;
   int? get menuVerse => _menuVerse;
 
   /// The chapter whose heading card is open (tapped on the page), if any.
@@ -259,13 +256,11 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Text mode keeps the top bar and the player on screen: there is no page to uncover.
   void setTextMode(bool on) {
     _textMode = on;
     store?.textMode = on;
     _menuVerse = null;
     _symbol = null;
-    if (on) _chromeVisible = true;
     notifyListeners();
   }
 
@@ -461,7 +456,6 @@ class ReaderController extends ChangeNotifier {
     _menuVerse = null;
     _selectionStart = verse;
     _selectionEnd = null;
-    _chromeVisible = true;
     _showSelection();
   }
 
@@ -495,25 +489,15 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── chrome and menu ──
-  void toggleChrome() {
+  // ── menu ──
+  /// A tap on the page outside every verse and heading: closes what is open
+  /// over the page. The top bar and the dock stay.
+  void tapPage() {
     if (_menuVerse != null) {
       closeMenu();
-      return;
-    }
-    if (_heading != null) {
+    } else if (_heading != null) {
       closeHeading();
-      return;
     }
-    if (_textMode || selecting) return; // the chrome carries text mode's and selection's controls
-    _chromeVisible = !_chromeVisible;
-    notifyListeners();
-  }
-
-  void showChrome() {
-    if (_chromeVisible) return;
-    _chromeVisible = true;
-    notifyListeners();
   }
 
   void openMenu(int verse) {
@@ -573,7 +557,6 @@ class ReaderController extends ChangeNotifier {
     _symbol = null;
     closeHeading();
     _commentaryVerse = verse;
-    _chromeVisible = true;
     // On the page, the verse's page is shown.
     final page = content.layout.pageOfVerse(verse);
     if (!_textMode && page != viewer.currentPage) viewer.setPage(page, false);

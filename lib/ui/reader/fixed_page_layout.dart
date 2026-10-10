@@ -1,8 +1,8 @@
 // lib/ui/reader/fixed_page_layout.dart — where the manuscript page sits (features-v3 fixed-page-layout).
 //
-// The page is laid out once, as if the top bar and the dock were always shown,
-// so hiding or showing them (immersive mode), highlighting, masking or swiping
-// never moves or resizes the page — and neither ever covers it. Only the
+// The page is laid out once, between the top bar and the dock, which always
+// show: highlighting, masking or swiping never moves or resizes the page, and
+// neither bar ever covers it. Only the
 // student's own pinch / double-tap zoom changes the view.
 //
 // The zones are the prototype's (item 3.4, v2.css .topbar, .page, .dock, on a
