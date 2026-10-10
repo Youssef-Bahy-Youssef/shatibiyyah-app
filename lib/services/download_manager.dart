@@ -87,9 +87,11 @@ class DownloadCancel {
   }
 
   /// [listener] runs when [cancel] is called (a transfer that is not polling).
+  /// One added after the call does not run: look at [cancelled] as well.
   void onCancel(void Function() listener) => _listeners.add(listener);
 
   /// [listener] runs when [pause] is called (a transfer that is not polling).
+  /// One added after the call does not run: look at [paused] as well.
   void onPause(void Function() listener) => _pauseListeners.add(listener);
 }
 
@@ -286,22 +288,29 @@ class DownloadManager {
       throw const DownloadException(DownloadError.noSpace);
     }
 
+    // A cancel or a pause used while no transfer is running (before the first,
+    // between mirrors, waiting for Wi-Fi) reaches no listener and is not polled
+    // for: the manager stops here.
+    Future<Never> stop() async {
+      if (cancel!.cancelled) {
+        report(DownloadPhase.cancelled, await have());
+        throw const DownloadException(DownloadError.cancelled);
+      }
+      await _writeSidecar(r, await have(), paused: true);
+      report(DownloadPhase.paused, await have());
+      throw const DownloadException(DownloadError.paused);
+    }
+
     var verifiedOnce = false;
     for (var round = 0; round < rounds; round++) {
       for (final url in delivery.urls) {
         while (wifiOnly && !await onUnmeteredNetwork()) {
-          if (cancel?.cancelled ?? false) {
-            report(DownloadPhase.cancelled, await have());
-            throw const DownloadException(DownloadError.cancelled);
-          }
-          if (cancel?.paused ?? false) {
-            await _writeSidecar(r, await have(), paused: true);
-            report(DownloadPhase.paused, await have());
-            throw const DownloadException(DownloadError.paused);
-          }
+          if (cancel?.stopped ?? false) await stop();
           report(DownloadPhase.waitingForWifi, await have());
           await Future<void>.delayed(wifiPoll);
         }
+        // Checked with no await before the fetch: a transfer listens from its first line.
+        if (cancel?.stopped ?? false) await stop();
         try {
           await transfer.fetch(Uri.parse(url), part, total, (n) {
             received = n;

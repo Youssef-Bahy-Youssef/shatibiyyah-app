@@ -132,8 +132,11 @@ class BackgroundTransfer extends Transfer {
         );
         if (!queued) throw HttpException('not queued', uri: url);
       }
-      // «إيقاف مؤقت» pressed while the task was being queued.
-      if (cancel?.paused ?? false) {
+      // Cancelled while the task was being queued: the listener's call found no task.
+      if (cancel?.cancelled ?? false) {
+        await _downloader.cancelTaskWithId(taskId);
+      } else if (cancel?.paused ?? false) {
+        // «إيقاف مؤقت» pressed while the task was being queued.
         final task = await _downloader.taskForId(taskId);
         if (task is DownloadTask) await _downloader.pause(task);
       }

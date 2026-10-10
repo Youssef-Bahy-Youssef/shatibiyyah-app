@@ -16,13 +16,19 @@ import 'package:shatibiyyah/services/download_manager.dart';
 class _InstantTransfer extends Transfer {
   final Uint8List body;
   final bool hang;
+  int fetches = 0;
+
+  /// Completes when a hanging fetch has its cancel listener in place.
+  final listening = Completer<void>();
   _InstantTransfer(this.body, {this.hang = false});
   @override
   Future<void> fetch(Uri url, File part, int total, void Function(int) progress, DownloadCancel? cancel,
       {required bool wifiOnly}) async {
+    fetches++;
     if (hang) {
       final cancelled = Completer<void>();
       cancel?.onCancel(cancelled.complete);
+      listening.complete();
       await cancelled.future; // like a background task: no polling, only the cancel call
       throw const TransferCancelled();
     }
@@ -38,6 +44,7 @@ class _Server {
   final ranges = <String>[]; // "path start" per request
   int corruptLeft = 1; // /corrupt flips a byte this many times
   final dropAfter = <String, int>{}; // path -> close the connection after n bytes
+  void Function(String path)? onRequest; // runs when a request arrives, before its answer
 
   _Server(this.body);
 
@@ -53,6 +60,7 @@ class _Server {
     final range = req.headers.value(HttpHeaders.rangeHeader);
     final start = range == null ? 0 : int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)!.group(1)!);
     ranges.add('$path $start');
+    onRequest?.call(path);
     final res = req.response;
     if (path == '/fail') {
       res.statusCode = 500;
@@ -170,6 +178,17 @@ void main() {
     expect(server.ranges.last, '/slow $kept');
   });
 
+  test('a cancel while a mirror is failing stops the download: the next mirror is not asked', () async {
+    final r = _recording(body, [server.url('/fail'), server.url('/ok')]);
+    final cancel = DownloadCancel();
+    server.onRequest = (_) => cancel.cancel(); // no byte arrives for the transfer to notice it on
+    await expectLater(
+      manager().download(r, cancel: cancel),
+      throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.cancelled)),
+    );
+    expect(server.ranges, ['/fail 0']);
+  });
+
   test('a 206 whose total is not the delivery size is discarded; the download starts over', () async {
     server.dropAfter['/a'] = 100 * 1024;
     final r = _recording(body, [server.url('/a'), server.url('/othersize')]);
@@ -279,10 +298,29 @@ void main() {
     test('a transfer that does not poll is stopped through the cancel call', () async {
       final r = _recording(body, ['https://mirror.invalid/a.mp3']);
       final cancel = DownloadCancel();
-      final done = with_(_InstantTransfer(body, hang: true)).download(r, cancel: cancel);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final transfer = _InstantTransfer(body, hang: true);
+      final done = with_(transfer).download(r, cancel: cancel);
+      await transfer.listening.future; // the transfer is running, however long the manager took to reach it
       cancel.cancel();
       await expectLater(done, throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.cancelled)));
+    });
+
+    test('a cancel or a pause before the transfer starts stops the download; no transfer is started', () async {
+      final r = _recording(body, ['https://mirror.invalid/a.mp3']);
+      for (final (stop, error) in [
+        ((DownloadCancel c) => c.cancel(), DownloadError.cancelled),
+        ((DownloadCancel c) => c.pause(), DownloadError.paused),
+      ]) {
+        final cancel = DownloadCancel();
+        final transfer = _InstantTransfer(body, hang: true);
+        final phases = <DownloadPhase>[];
+        final done = with_(transfer).download(r, cancel: cancel, onProgress: (p) => phases.add(p.phase));
+        stop(cancel); // the manager is still looking at the device: nothing listens yet
+        await expectLater(done, throwsA(isA<DownloadException>().having((e) => e.error, 'error', error)));
+        expect(transfer.fetches, 0);
+        expect(phases, [error == DownloadError.paused ? DownloadPhase.paused : DownloadPhase.cancelled]);
+        expect((await with_(transfer).partialOf(r))!.paused, error == DownloadError.paused);
+      }
     });
   });
 }

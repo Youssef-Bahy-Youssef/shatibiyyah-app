@@ -26,6 +26,9 @@ class _FakeDownloader implements FileDownloader {
   late void Function(TaskStatusUpdate) _status;
   late void Function(TaskProgressUpdate) _progress;
 
+  /// Runs while a task is being queued, before the platform knows the task.
+  void Function()? whileQueueing;
+
   @override
   FileDownloader registerCallbacks({
     String group = 'default',
@@ -40,6 +43,7 @@ class _FakeDownloader implements FileDownloader {
 
   @override
   Future<bool> enqueue(Task task) async {
+    whileQueueing?.call();
     calls.add('enqueue ${(task as DownloadTask).url}');
     active[task.taskId] = task;
     received[task.taskId] = 0;
@@ -193,6 +197,25 @@ void main() {
     fake.progress(1000, body.length);
     await fake.complete(body);
     expect(await (await done).readAsBytes(), body);
+  });
+
+  test('a cancel before the transfer starts: no task is queued', () async {
+    final r = _recording(body, ['https://a.invalid/x.mp3']);
+    final control = DownloadCancel();
+    final done = manager.download(r, cancel: control);
+    control.cancel(); // the manager is still looking at the device
+    await expectLater(done, throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.cancelled)));
+    expect(fake.calls, isEmpty);
+  });
+
+  test('a cancel while the task is being queued: the task is cancelled once the platform has it', () async {
+    final r = _recording(body, ['https://a.invalid/x.mp3']);
+    final control = DownloadCancel();
+    fake.whileQueueing = control.cancel; // this cancel call finds no task yet
+    await expectLater(manager.download(r, cancel: control),
+        throwsA(isA<DownloadException>().having((e) => e.error, 'error', DownloadError.cancelled)));
+    expect(fake.calls, ['cancel', 'enqueue https://a.invalid/x.mp3', 'cancel']);
+    expect(fake.active, isEmpty);
   });
 
   test('delete removes a paused partial: the task, its temp file and the sidecar', () async {
