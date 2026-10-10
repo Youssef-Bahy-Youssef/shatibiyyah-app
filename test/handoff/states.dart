@@ -179,8 +179,11 @@ final Map<String, HandoffState> handoffStates = {
     audio: true,
     download: null,
     setup: (tester, r, _) async {
-      // The design's sample: verse 227 loaded, the list moved so 230 stands 140 dp down it.
+      // The design's sample: the section 226–234 paused on verse 227 («٢ من ٩»), the
+      // list moved so 230 stands 140 dp down it.
       r.setTextMode(true);
+      await tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)));
+      await tester.runAsync(r.playPause);
       await tester.runAsync(() => r.tapVerse(227));
       await tester.pump(const Duration(milliseconds: 400));
       await _standAt(tester, 230, 239.5);
