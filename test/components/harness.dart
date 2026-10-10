@@ -4,8 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
+import '../../test_goldens/golden_fonts.dart';
+
+bool _fontsLoaded = false;
+
 Future<void> pumpTz(WidgetTester tester, Widget child,
     {TzTheme tz = TzTheme.paper, bool reducedMotion = false, double width = 390, bool settle = true}) async {
+  // Measure with the app's real faces, not flutter_test's box font.
+  if (!_fontsLoaded) {
+    await tester.runAsync(loadGoldenFonts);
+    _fontsLoaded = true;
+  }
   tester.view.physicalSize = Size(width, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);

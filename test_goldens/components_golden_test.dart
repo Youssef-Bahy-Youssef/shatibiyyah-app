@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/anchored_popover.dart';
+import 'package:shatibiyyah/ui/design/components/binding_stepper.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
@@ -24,6 +25,14 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'stepper': (370, 60, () => BindingStepper(
+        previous: 'البيت ٢٢٥',
+        next: 'البيت ٢٢٧',
+        step: '١',
+        caption: 'من ٩ في الباب',
+        onPrevious: () {},
+        onNext: () {},
+      )),
   'dock': (390, 560, () => Column(children: [
         for (final np in <NowPlaying>[
           NpPlaying(
