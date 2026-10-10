@@ -129,18 +129,27 @@ class ReaderController extends ChangeNotifier {
   /// Another recording (or the same one, once downloaded or deleted): the verse
   /// stays, the repeat counters start again (features-v3 reciter-catalog). The
   /// previous engine belongs to [library], which has already stopped it.
-  Future<void> setAudio(Recording recording, PlaybackEngine? engine) async {
+  /// The reader gets another recording (or none). The verse stays. With [resume]
+  /// (it was playing), playback goes on at once from the verse's start in the new
+  /// recording, at that recording's own saved speed; the counters start again
+  /// (ADR 0006).
+  Future<void> setAudio(Recording recording, PlaybackEngine? engine, {bool resume = false}) async {
     await _engineSub?.cancel();
     _engineSub = null;
     _recording = recording;
     _engine = engine;
     _engineState = null;
     _detached = false;
+    if (engine == null) _sectionSet = false; // its plan held the section
     _speed = store?.speedFor(recording.id) ?? 1;
     _attachEngine();
     viewer.setActiveVerse(_verse);
     notifyListeners();
+    if (resume && engine != null) await engine.play(_verse);
   }
+
+  /// The section in hand, for the plan of another recording; null when none was started.
+  PlaybackScope? get sectionInHand => _sectionSet ? engine?.plan.scope : null;
 
   // ── what the UI reads ──
   int get verse => _verse;

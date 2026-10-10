@@ -2,9 +2,11 @@
 // device, and their downloads (features-v3 reciter-catalog, audio-downloads).
 //
 // The reader plays whatever this hands it. Choosing a reciter keeps the verse and
-// swaps the engine; one that is not on the device leaves the reader without audio
-// and points the student to «التنزيلات». When a download finishes for the chosen
-// recording, playback becomes available at once.
+// keeps playing (ADR 0006): one on the device takes over at once, from the start
+// of the verse in hand. One that is not on the device starts downloading while the
+// current one plays on; it takes over once verified, at the next verse boundary.
+// When nothing on the device can play, the chosen one is the recording at once,
+// and playback becomes available when its download finishes.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -21,6 +23,10 @@ import '../services/preferences_service.dart';
 import '../ui/reader/reader_controller.dart';
 
 const String kRecordingPref = 'v2.recording';
+
+/// A recording chosen while another keeps playing: it takes over once its file is
+/// on the device and verified, at the next verse boundary (ADR 0006).
+const String kPendingRecordingPref = 'v2.recording.pending';
 const String kWifiOnlyPref = 'v2.downloads.wifi_only';
 
 /// Builds the engine that plays [recording] from [filePath] (replaceable in tests).
@@ -96,6 +102,9 @@ class AudioLibrary extends ChangeNotifier {
         }
       }
     }
+    // A recording picked earlier whose download finished meanwhile (the app was
+    // closed, or in the background) takes over: now, or at the verse's end.
+    await _switchWhenDue();
     notifyListeners();
   }
 
@@ -116,21 +125,83 @@ class AudioLibrary extends ChangeNotifier {
     reader.library = this;
   }
 
-  /// «القارئ»: choose [r]; the reader keeps its verse and gets the new audio (or none).
-  Future<void> choose(Recording r) async {
-    prefs.setString(kRecordingPref, r.id);
-    await _reconnect();
+  /// The recording waiting to take over: chosen while another plays, not yet verified.
+  Recording? get pending {
+    final id = prefs.getString(kPendingRecordingPref);
+    for (final r in recordings) {
+      if (r.id == id) return r;
+    }
+    return null;
   }
 
-  Future<void> _reconnect() async {
+  void _setPending(Recording? r) {
+    _dropBoundaryWatch?.call();
+    _dropBoundaryWatch = null;
+    r == null ? prefs.remove(kPendingRecordingPref) : prefs.setString(kPendingRecordingPref, r.id);
+  }
+
+  VoidCallback? _dropBoundaryWatch;
+
+  /// The recording the listener picked: the one waiting to take over, else the one in use.
+  Recording get chosen => pending ?? current;
+
+  /// «القارئ»: choose [r]; the reader keeps its verse and keeps playing. One that
+  /// is not on the device starts downloading, unless [startDownload] is false (the
+  /// first run asks first).
+  Future<void> choose(Recording r, {bool startDownload = true}) async {
+    if (r.id == current.id) {
+      _setPending(null); // the one playing stays: a switch that was waiting is dropped
+      notifyListeners();
+      return;
+    }
+    if (!isOnDevice(r) && isOnDevice(current) && content.isUsable(current)) {
+      // The current one plays on while this one downloads and is verified.
+      _setPending(r);
+      notifyListeners();
+      if (startDownload) unawaited(download(r));
+      return;
+    }
+    _setPending(null);
+    await _switchTo(r);
+  }
+
+  Future<void> _switchTo(Recording r) async {
+    final wasPlaying = _reader?.playing ?? false; // read before the old engine is closed
+    prefs.setString(kRecordingPref, r.id);
+    await _reconnect(resume: wasPlaying);
+  }
+
+  /// The pending recording is on the device: it takes over now if nothing plays,
+  /// or as soon as the verse being recited ends. Never in the middle of a verse.
+  Future<void> _switchWhenDue() async {
+    final next = pending, reader = _reader;
+    if (next == null || !isOnDevice(next) || !content.isUsable(next)) return;
+    if (reader == null || !reader.playing) {
+      _setPending(null);
+      await _switchTo(next);
+      return;
+    }
+    final verse = reader.verse;
+    void onReader() {
+      if (reader.verse == verse && reader.playing) return;
+      _setPending(null); // drops this watch too
+      _switchTo(next);
+    }
+
+    _dropBoundaryWatch?.call();
+    reader.addListener(onReader);
+    _dropBoundaryWatch = () => reader.removeListener(onReader);
+  }
+
+  Future<void> _reconnect({bool resume = false}) async {
     final reader = _reader;
     if (reader == null) return;
     final chapter = content.matn.chapterOfVerse(reader.verse);
+    // The section in hand goes with the listener to the other recording.
+    final section = reader.sectionInHand ?? PlaybackScope(chapter.fromVerse, chapter.toVerse);
     final windows = await content.windowsOrNull(current);
-    final engine = windows == null
-        ? null
-        : await openCurrent(PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), reader.settings));
-    await reader.setAudio(current, engine);
+    final engine = windows == null ? null : await openCurrent(PlaybackPlan(windows, section, reader.settings));
+    await reader.setAudio(current, engine, resume: resume && engine != null);
     notifyListeners();
   }
 
@@ -148,7 +219,11 @@ class AudioLibrary extends ChangeNotifier {
         notifyListeners();
       });
       _onDevice.add(r.id);
-      if (r.id == current.id) await _reconnect(); // playable now
+      if (r.id == current.id) {
+        await _reconnect(); // playable now
+      } else if (r.id == pending?.id) {
+        await _switchWhenDue();
+      }
     } on DownloadException catch (e) {
       final stopped = e.error == DownloadError.cancelled || e.error == DownloadError.paused;
       if (!stopped) _reader?.rating?.noteError(); // shown in «التنزيلات»
@@ -187,6 +262,7 @@ class AudioLibrary extends ChangeNotifier {
   /// its audio if it was the chosen one.
   Future<void> delete(Recording r) async {
     cancel(r);
+    if (r.id == pending?.id) _setPending(null);
     await _running[r.id]; // a running download writes its sidecar as it stops
     if (r.id == current.id) {
       await _disposeEngine?.call();

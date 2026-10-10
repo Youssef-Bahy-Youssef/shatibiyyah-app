@@ -12,6 +12,7 @@ import 'package:shatibiyyah/app/audio_library.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/recording_repository.dart';
+import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
@@ -36,6 +37,7 @@ class _OfflineTransfer extends Transfer {
 
 class _SilentAudio implements AudioPort {
   bool _playing = false;
+  final seeks = <int>[];
   @override
   Stream<int> get positionMs => const Stream.empty();
   @override
@@ -45,7 +47,7 @@ class _SilentAudio implements AudioPort {
   @override
   bool get playing => _playing;
   @override
-  Future<void> seek(int ms) async {}
+  Future<void> seek(int ms) async => seeks.add(ms);
   @override
   Future<void> play() async => _playing = true;
   @override
@@ -72,6 +74,14 @@ void main() {
     await content.store.close();
     await support.delete(recursive: true);
   });
+
+  /// Waits for [done]: a switch reads the other recording's cues from the database.
+  Future<void> until(bool Function() done) async {
+    for (var i = 0; i < 300 && !done(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(done(), isTrue);
+  }
 
   /// A file of the right size where the downloader keeps [r] (sparse: instant).
   Future<void> sideLoad(DownloadManager dm, Recording r) async {
@@ -111,6 +121,7 @@ void main() {
       content: content,
       recording: library.current,
       viewer: PageViewerController(legacyData(content, windows), prefs),
+      store: SettingsStore(prefs),
       engine: await library.openCurrent(PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings())),
       initialVerse: 229,
     );
@@ -126,24 +137,117 @@ void main() {
     expect(reader.library, library);
   });
 
-  test('choosing a reciter not on the device keeps the verse and drops the audio', () async {
-    final (library, reader, _, _) = await setUpLibrary();
-    final other = library.recordings.firstWhere((r) => !r.isDefault);
-    await library.choose(other);
-    expect(library.current.id, other.id);
-    expect(reader.recording.id, other.id);
-    expect(reader.audioAvailable, isFalse);
-    expect(reader.verse, 229);
+  // ADR 0006: switching reciter keeps the verse and keeps playing.
+  group('switching reciter (ADR 0006)', () {
+    test('while playing: at once from the same verse\'s start, its own speed, the section kept, counters fresh', () async {
+      final (library, reader, dm, opened) = await setUpLibrary();
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await sideLoad(dm, other);
+      await library.refresh();
+      reader.store!.setSpeedFor(other.id, 1.5);
+      reader.setVerseRepeats(3);
+      await reader.playScope(const PlaybackScope(228, 232));
+      await pumpEventQueue();
+      await reader.tapVerse(229);
+      await pumpEventQueue();
+      reader.engine!.plan.advance(); // the second play of verse 229
+      expect((reader.playing, reader.verse, reader.engine!.plan.verseRepetition), (true, 229, 2));
 
-    await library.choose(content.recordings.defaultRecording); // back: audio again
-    expect(reader.audioAvailable, isTrue);
-    expect(reader.verse, 229);
+      await library.choose(other);
+      await until(() => reader.playing);
+      expect((library.current.id, reader.recording.id), (other.id, other.id));
+      expect((reader.playing, reader.verse), (true, 229));
+      final plan = reader.engine!.plan;
+      expect((plan.scope.fromVerse, plan.scope.toVerse, plan.verseRepetition, plan.settings.verseRepeats), (228, 232, 1, 3));
+      expect(reader.speed, 1.5);
+      final windows = await content.windowsFor(other);
+      expect((reader.engine!.audio as _SilentAudio).seeks.last, windows.cue(229) - 50);
+      expect(opened.last, other.slug);
+    });
+
+    test('while paused: the verse stays, nothing starts', () async {
+      final (library, reader, dm, _) = await setUpLibrary();
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await sideLoad(dm, other);
+      await library.refresh();
+      await library.choose(other);
+      expect((reader.recording.id, reader.playing, reader.verse, reader.audioAvailable), (other.id, false, 229, true));
+    });
+
+    test('one not on the device: the current keeps playing; the switch waits for the file, then for the verse\'s end', () async {
+      final (library, reader, dm, _) = await setUpLibrary();
+      final atiq = library.current;
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await reader.playScope(const PlaybackScope(228, 232));
+      await pumpEventQueue();
+      await library.choose(other); // its download starts (offline here: it fails)
+      await until(() => (dm.transfer as _OfflineTransfer).attempts > 0 && !library.isDownloading(other));
+      expect((library.current.id, library.pending?.id), (atiq.id, other.id));
+      expect((reader.recording.id, reader.playing, reader.audioAvailable), (atiq.id, true, true));
+      expect((dm.transfer as _OfflineTransfer).attempts, greaterThan(0));
+
+      // The file arrives and verifies while verse 228 is still being recited: no switch yet.
+      await sideLoad(dm, other);
+      await library.backgroundFinished();
+      expect((library.current.id, reader.recording.id, reader.verse), (atiq.id, atiq.id, 228));
+
+      // The next verse begins: now.
+      await reader.engine!.next();
+      await until(() => reader.recording.id == other.id && reader.playing);
+      expect((library.current.id, library.pending), (other.id, null));
+      expect((reader.recording.id, reader.playing, reader.verse), (other.id, true, 229));
+      final windows = await content.windowsFor(other);
+      expect((reader.engine!.audio as _SilentAudio).seeks.last, windows.cue(229) - 50);
+    });
+
+    test('one not on the device while nothing can play: it becomes the recording at once', () async {
+      final (library, reader, _, _) = await setUpLibrary();
+      await library.delete(library.current); // nothing on the device
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await library.choose(other);
+      expect((library.current.id, library.pending, reader.recording.id, reader.audioAvailable), (other.id, null, other.id, false));
+      expect(reader.verse, 229);
+    });
+
+    test('choosing the playing one again drops a pending switch', () async {
+      final (library, reader, dm, _) = await setUpLibrary();
+      final atiq = library.current;
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await reader.playScope(const PlaybackScope(228, 232));
+      await pumpEventQueue();
+      await library.choose(other);
+      await library.choose(atiq);
+      expect(library.pending, isNull);
+      await until(() => !library.isDownloading(other)); // the attempt it started has ended
+      await sideLoad(dm, other);
+      await library.backgroundFinished();
+      await reader.engine!.next();
+      await pumpEventQueue();
+      expect(reader.recording.id, atiq.id); // downloaded, not switched to
+    });
+
+    test('picked, then downloaded while the app was closed: it is the recording at the next start', () async {
+      final (library, reader, dm, _) = await setUpLibrary();
+      final other = library.recordings.firstWhere((r) => !r.isDefault);
+      await library.choose(other, startDownload: false);
+      expect((library.current.isDefault, library.pending?.id), (true, other.id));
+      await sideLoad(dm, other);
+      await library.refresh(); // what the app does when it starts
+      await until(() => reader.recording.id == other.id);
+      expect((library.current.id, library.pending, reader.verse, reader.playing), (other.id, null, 229, false));
+    });
+
+    test('Atiq is the default and is preselected', () async {
+      final (library, _, _, _) = await setUpLibrary();
+      expect((library.current.isDefault, library.current.slug), (true, 'muhammad-atiq-1'));
+    });
   });
 
   // (A part file that verifies is taken in: download_manager_test.)
   test('a background download that does not verify is discarded, not played', () async {
     final (library, reader, dm, _) = await setUpLibrary();
     final other = library.recordings.firstWhere((r) => !r.isDefault);
+    await library.delete(library.current); // nothing else to play: the chosen one is the recording
     await library.choose(other);
     final part = dm.partFileFor(other);
     await part.parent.create(recursive: true);
@@ -360,11 +464,14 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    expect(find.text('يبقى البيت الحالي عند التبديل'), findsOneWidget);
+    expect(find.text('يبقى البيت الحالي عند التبديل، وتستمر التلاوة'), findsOneWidget);
+    expect(find.text('الافتراضية'), findsOneWidget); // Atiq
     await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
     await settle(tester);
-    expect(reader.recording.slug, 'abdulhamid-alqaryu-1');
+    // The one in use stays until the other is downloaded and verified (ADR 0006).
+    expect((reader.recording.slug, library.pending?.slug), ('muhammad-atiq-1', 'abdulhamid-alqaryu-1'));
     expect(reader.verse, 229);
+    expect(reader.audioAvailable, isTrue);
     expect(find.byType(DownloadsScreen), findsOneWidget);
   });
 
@@ -424,7 +531,9 @@ void main() {
       await tester.tap(find.text('لاحقًا، ابدأ بالقراءة'));
       await tester.pumpAndSettle();
       expect(tourDone(prefs), isTrue);
-      expect(library.current.slug, 'abdulhamid-alqaryu-1');
+      // It is the listener's pick; the one on the device stays in use until it is downloaded.
+      expect((library.chosen.slug, library.current.slug), ('abdulhamid-alqaryu-1', 'muhammad-atiq-1'));
+      expect(library.isDownloading(library.chosen), isFalse); // «لاحقًا»: nothing started
     });
 
     testWidgets('replayed from «حول»: the cards only, ending with «تم»', (tester) async {
