@@ -184,7 +184,7 @@ class _ToolsSheetState extends State<ToolsSheet> {
         ),
         const SizedBox(height: 16),
         Text(c.shortLabel,
-            textAlign: TextAlign.center, style: TzType.verse.copyWith(color: t.text)),
+            textAlign: TextAlign.center, style: TzType.chapter.copyWith(color: t.text)),
         Text('الأبيات ${ar(c.fromVerse)}–${ar(c.toVerse)} · ${r.recording.reciterName}',
             textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
         const SizedBox(height: 12),
