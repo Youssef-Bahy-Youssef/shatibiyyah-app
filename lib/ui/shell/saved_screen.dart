@@ -34,6 +34,9 @@ class SavedScreen extends StatefulWidget {
   final bool notes;
   const SavedScreen({super.key, required this.reader, this.notes = false});
 
+  static const tabsKey = ValueKey('saved-tabs');
+  static const deleteGlyphKey = ValueKey('saved-delete-glyph');
+
   @override
   State<SavedScreen> createState() => _SavedScreenState();
 }
@@ -89,12 +92,13 @@ class _SavedScreenState extends State<SavedScreen> {
         final notes = personal?.notes ?? const [];
         return ShellPage.topLevel(
           title: 'المحفوظ',
-          trailing: ShellIconButton(icon: 'search', label: 'بحث', onPressed: _search),
+          action: ShellIconButton(icon: 'search', label: 'بحث في المحفوظ', onPressed: _search),
           body: Stack(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SizedBox(height: 8),
                   _Tabs(
                     labels: ['المراجع ${ar(bookmarks.length)}', 'الملاحظات ${ar(notes.length)}'],
                     selected: _notes ? 1 : 0,
@@ -160,12 +164,12 @@ class _SavedScreenState extends State<SavedScreen> {
             background: _DeleteBackground(c, AlignmentDirectional.centerStart),
             secondaryBackground: _DeleteBackground(c, AlignmentDirectional.centerEnd),
             onDismissed: (_) => _delete(personal, b),
-            child: _Row(
+            child: SavedRow(
               ribbon: c.bookmarks[b.color.index],
               title: bookmarkLabel(b),
               tag: kBookmarkTagLabels[b.tag]!,
               verse: matn.verse(b.fromVerse).firstHemistich,
-              caption: matn.chapterOfVerse(b.fromVerse).shortLabel,
+              caption: plainName(matn.chapterOfVerse(b.fromVerse).shortLabel),
               onTap: () => _openVerse(b.fromVerse),
               onLongPress: () => _bookmarkActions(c, personal, b),
             ),
@@ -180,7 +184,7 @@ class _SavedScreenState extends State<SavedScreen> {
       padding: EdgeInsets.only(bottom: ShellInset.of(context)),
       children: [
         for (final n in personal.notes)
-          _Row(
+          SavedRow(
             title: 'البيت ${ar(n.verse)}',
             body: n.body,
             caption: matn.verse(n.verse).firstHemistich,
@@ -242,12 +246,12 @@ class _Tabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
+    // The hairline lies under the row's last pixel; the chosen tab's 2 px line is drawn over it.
+    return DecoratedBox(
+      key: SavedScreen.tabsKey,
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.lineSoft))),
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.lineSoft)),
-      ),
       child: Row(
         children: [
           for (var i = 0; i < labels.length; i++) ...[
@@ -261,11 +265,13 @@ class _Tabs extends StatelessWidget {
                   onTap: () => onSelect(i),
                   child: Container(
                     constraints: const BoxConstraints(minHeight: TzSize.touchTarget),
-                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 13),
-                    decoration: BoxDecoration(
+                    foregroundDecoration: BoxDecoration(
                       border: Border(bottom: BorderSide(color: i == selected ? c.lapis : Colors.transparent, width: 2)),
                     ),
-                    child: Text(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text(
                       labels[i],
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -275,6 +281,7 @@ class _Tabs extends StatelessWidget {
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
+                    ),
                   ),
                 ),
               ),
@@ -282,20 +289,28 @@ class _Tabs extends StatelessWidget {
           ],
         ],
       ),
+      ),
     );
   }
 }
 
 /// A saved row (v2.css .bm .inner): 14/20 padding, a 12 px gutter for the
 /// ribbon, the title with its tag, the verse in Naskh, a caption; a hairline under it.
-class _Row extends StatelessWidget {
+class SavedRow extends StatelessWidget {
   final Color? ribbon;
   final String title;
   final String? tag, verse, body;
   final String caption;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  const _Row({
+
+  static const ribbonKey = ValueKey('saved-row-ribbon');
+  static const tagKey = ValueKey('saved-row-tag');
+  static const verseKey = ValueKey('saved-row-verse');
+  static const captionKey = ValueKey('saved-row-caption');
+
+  const SavedRow({
+    super.key,
     this.ribbon,
     required this.title,
     this.tag,
@@ -326,7 +341,10 @@ class _Row extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: SizedBox(
                   width: 12,
-                  child: CustomPaint(size: const Size(9, 22), painter: _Ribbon(color)),
+                  child: Align(
+                    alignment: AlignmentDirectional.topStart,
+                    child: CustomPaint(key: ribbonKey, size: const Size(9, 22), painter: _Ribbon(color)),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -345,13 +363,14 @@ class _Row extends StatelessWidget {
                           style: TzType.head.copyWith(color: c.ink),
                         ),
                       ),
-                      if (tag case final word?) ...[const SizedBox(width: 10), _Tag(word, ribbon ?? c.ink2)],
+                      if (tag case final word?) ...[const SizedBox(width: 10), _Tag(word, ribbon ?? c.ink2, key: tagKey)],
                     ],
                   ),
                   if (verse case final v?) ...[
                     const SizedBox(height: 2),
                     Text(
                       v,
+                      key: verseKey,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TzType.verse.copyWith(color: c.ink),
@@ -368,6 +387,7 @@ class _Row extends StatelessWidget {
                   ],
                   Text(
                     caption,
+                    key: captionKey,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TzType.caption.copyWith(color: c.ink3),
@@ -386,7 +406,7 @@ class _Row extends StatelessWidget {
 class _Tag extends StatelessWidget {
   final String word;
   final Color color;
-  const _Tag(this.word, this.color);
+  const _Tag(this.word, this.color, {super.key});
 
   @override
   Widget build(BuildContext context) => Row(
@@ -417,7 +437,7 @@ class _DeleteBackground extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TzIcon('trash', size: 20, color: c.bg),
+        TzIcon('trash', key: SavedScreen.deleteGlyphKey, size: 22, color: c.bg),
         const SizedBox(width: 6),
         Text(
           'حذف',

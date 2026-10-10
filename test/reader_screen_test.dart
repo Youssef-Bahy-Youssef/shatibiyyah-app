@@ -18,6 +18,7 @@ import 'package:shatibiyyah/models/verse.dart';
 import 'package:shatibiyyah/services/data_service.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
+import 'package:shatibiyyah/ui/design/components/chapter_row.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
@@ -576,11 +577,9 @@ void main() {
       Navigator.of(tester.element(find.byType(ReaderScreen)))
           .push(MaterialPageRoute<void>(builder: (_) => IndexScreen(reader: r)));
       await tester.pumpAndSettle();
-      final chips = find.byWidgetPredicate((w) => w is Scrollable && axisDirectionToAxis(w.axisDirection) == Axis.horizontal);
-      await tester.scrollUntilVisible(find.text('الخاتمة'), 200, scrollable: chips.first);
-      await tester.tap(find.text('الخاتمة').first); // the part chip
+      await tester.enterText(find.byType(TextField), '1160'); // the filter: the chapter holding that verse
       await tester.pumpAndSettle();
-      await tester.tap(find.text('الخاتمة').last); // its one chapter
+      await tester.tap(find.byType(ChapterRow)); // «الخاتمة», the one row left
       await tester.pumpAndSettle();
       expect(find.byType(IndexScreen), findsNothing);
       expect(r.verse, 1160);

@@ -18,16 +18,21 @@ class ShellPage extends StatelessWidget {
   final String title;
   final Widget body;
 
-  /// A control or caption beside a top-level title.
+  /// A caption beside a top-level title.
   final Widget? trailing;
+
+  /// A button beside a top-level title (a [ShellIconButton]: 44 px drawn, in a 48 px target).
+  final Widget? action;
   final bool topLevel;
 
   const ShellPage({super.key, required this.title, required this.body})
       : trailing = null,
+        action = null,
         topLevel = false;
 
   /// A dock tab's screen: the unwan header, no «رجوع».
-  const ShellPage.topLevel({super.key, required this.title, this.trailing, required this.body}) : topLevel = true;
+  const ShellPage.topLevel({super.key, required this.title, this.trailing, this.action, required this.body})
+      : topLevel = true;
 
   @override
   Widget build(BuildContext context) {
@@ -53,22 +58,30 @@ class ShellPage extends StatelessWidget {
 
   Widget _unwan(BuildContext context) {
     final c = TzTheme.of(context).colors;
+    // A button's 48 px target reaches 2 px past its 44 px drawing on each side:
+    // that much comes off the padding around it, so it is drawn where measured.
+    final over = action == null ? 0.0 : 2.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+          padding: EdgeInsetsDirectional.fromSTEB(20, 6 - over, 20 - over, 0),
           child: Row(
             children: [
               Expanded(
                 child: Text(title,
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: TzType.display.copyWith(color: c.ink)),
               ),
-              if (trailing case final w?) ...[const SizedBox(width: 8), Flexible(child: w)],
+              // A caption keeps its own width (up to half the row); the title has the rest.
+              if (trailing case final w?) ...[
+                const SizedBox(width: 8),
+                ConstrainedBox(constraints: const BoxConstraints(maxWidth: 170), child: w),
+              ],
+              if (action case final w?) ...[SizedBox(width: 8 - over), w],
             ],
           ),
         ),
-        const Padding(padding: EdgeInsets.fromLTRB(20, 6, 20, 0), child: GiltRule()),
+        Padding(padding: EdgeInsets.fromLTRB(20, 6 - over, 20, 0), child: const GiltRule()),
       ],
     );
   }

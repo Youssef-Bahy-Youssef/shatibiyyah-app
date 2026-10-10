@@ -144,9 +144,10 @@ void main() {
     final r = await open(tester);
     await tester.tap(find.text('الفهرس'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('فرش الحروف'));
-    await tester.pumpAndSettle();
+    // One flat list (ADR 0012): the first chapter of «فرش الحروف», found by a verse of it.
     final first = content.matn.chapters.firstWhere((c) => c.partId == content.matn.parts[2].id);
+    await tester.enterText(find.byType(TextField), '${first.fromVerse}');
+    await tester.pumpAndSettle();
     await tester.tap(find.text(first.shortLabel));
     await tester.pumpAndSettle();
     expect(find.byType(ReaderScreen), findsOneWidget);
