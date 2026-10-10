@@ -107,10 +107,14 @@ void main() {
     for (final label in ['المتن', 'الفهرس', 'المحفوظ', 'الإعدادات']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
-    expect(tester.getSemantics(find.text('المتن')),
-        matchesSemantics(label: 'المتن', isButton: true, hasSelectedState: true, isSelected: true, hasTapAction: true, hasFocusAction: true, isFocusable: true));
-    expect(tester.getSemantics(find.text('الفهرس')),
-        matchesSemantics(label: 'الفهرس', isButton: true, hasSelectedState: true, isSelected: false, hasTapAction: true, hasFocusAction: true, isFocusable: true));
+    // TalkBack: each tab is a button with its name and its selected state.
+    for (final label in ['المتن', 'الفهرس', 'المحفوظ', 'الإعدادات']) {
+      expect(
+          tester.getSemantics(find.text(label)),
+          matchesSemantics(
+              label: label, isButton: true, hasSelectedState: true, isSelected: label == 'المتن', hasTapAction: true, hasFocusAction: true, isFocusable: true),
+          reason: label);
+    }
     // The dock sits 28 px above the bottom edge under a 34 px home indicator, 10 px from the sides.
     final dock = tester.getRect(find.byKey(Dock.bindingKey));
     expect((dock.left, dock.right, dock.bottom), (10.0, 380.0, 844.0 - 28));
@@ -154,7 +158,7 @@ void main() {
   testWidgets('a tap on the page hides the top bar and the dock; a second tap shows them', (tester) async {
     final r = await open(tester);
     expect(dockOpacity(tester), 1);
-    r.toggleChrome();
+    await tester.tapAt(tester.getRect(find.byType(PageViewer)).topLeft + const Offset(3, 3)); // the page's margin
     await tester.pump(const Duration(milliseconds: 400));
     expect(r.chromeVisible, isFalse);
     expect(dockOpacity(tester), 0);

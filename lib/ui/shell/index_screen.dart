@@ -12,7 +12,6 @@ import '../../data/matn_repository.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
-import '../design/components/dock.dart' show DockTab;
 import '../reader/reader_controller.dart';
 import 'app_shell.dart';
 import 'shell_page.dart';
@@ -37,11 +36,7 @@ class _IndexScreenState extends State<IndexScreen> {
     _part = _matn.parts.indexWhere((p) => p.id == current.partId);
   }
 
-  void _open(MatnChapter c) {
-    widget.reader.tapVerse(c.fromVerse);
-    AppShell.of(context)?.select(DockTab.matn);
-    Navigator.of(context).popUntil((r) => r.isFirst);
-  }
+  void _open(MatnChapter c) => AppShell.openVerse(context, widget.reader, c.fromVerse);
 
   @override
   Widget build(BuildContext context) {

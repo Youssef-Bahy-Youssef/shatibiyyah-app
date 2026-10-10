@@ -2,15 +2,15 @@
 //
 // features-v3: fixed-page-layout, immersive-mode, page-header-info,
 // detach-resume-chip. The page sits in a rectangle computed once (ReaderLayout)
-// between the top bar's zone and the dock's; the top bar fades over its zone
-// (show 180 ms cubic(.2,0,0,1) with −6 px of travel, hide 150 ms cubic(.4,0,1,1),
-// reduced motion: opacity only in 100 ms), so nothing ever moves or covers the
-// page. The dock itself, with now playing and the tabs, is the shell's
+// between the top bar's zone and the dock's; the top bar fades over its zone in
+// 200 ms with 10 px of travel (v2.css .topbar, .chrome-off .topbar; instant
+// under reduced motion), so nothing ever moves or covers the page. The dock itself, with now playing and the tabs, is the shell's
 // (lib/ui/shell/app_shell.dart, item 3.4); the selection bar takes its zone.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../design/components/tz_motion.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../../data/matn_repository.dart';
@@ -29,9 +29,6 @@ import 'split_panel.dart';
 import 'shamsa.dart';
 import 'text_reader.dart';
 import 'tools_sheet.dart';
-
-const _showCurve = Cubic(.2, 0, 0, 1);
-const _hideCurve = Cubic(.4, 0, 1, 1);
 
 class ReaderScreen extends StatefulWidget {
   final ReaderController reader;
@@ -194,7 +191,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _Chrome(
           rect: layout.bar,
           visible: reader.chromeVisible,
-          travel: -6,
+          travel: -10,
           child: reader.selecting
               ? _SelectionHeader(reader: reader)
               : _TopBar(
@@ -555,8 +552,8 @@ class _Chrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.of(context).disableAnimations;
-    final duration = Duration(milliseconds: reduce ? 100 : (visible ? 180 : 150));
-    final curve = visible ? _showCurve : _hideCurve;
+    final duration = tzDuration(context, TzMotion.medium);
+    const curve = TzMotion.standard;
     return Positioned.fromRect(
       rect: rect,
       child: IgnorePointer(

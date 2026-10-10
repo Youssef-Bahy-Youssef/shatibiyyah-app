@@ -147,8 +147,8 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     final navigator = appNavigator.currentState;
     if (reader == null || navigator == null) return;
     navigator.popUntil((r) => r.isFirst);
-    appShell.currentState?.select(DockTab.matn);
     reader.tapVerse(target.verse);
+    appShell.currentState?.select(DockTab.matn);
   }
 
   /// After the splash: the tour on the first run, else the reminder that launched the app.

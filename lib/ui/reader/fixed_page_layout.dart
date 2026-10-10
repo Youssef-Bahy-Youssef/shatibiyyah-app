@@ -28,11 +28,19 @@ class ReaderTokens {
   static const double dockHeight = dockRowHeight + dockTabsHeight;
   static const double dockSide = 10;
   static const double sideMargin = 8;
+
+  /// Text mode's distance from the bar and the dock.
+  static const double textGap = 10;
+
+  /// The dock floats this far up into the home indicator's inset, and never
+  /// nearer the edge than [dockMinBottom].
+  static const double dockLift = 6;
+  static const double dockMinBottom = 12;
   static const double pageAspect = 1130 / 1735;
 
   /// How far the dock floats above the bottom edge: 28 px over a 34 px home
   /// indicator, never under 12.
-  static double dockBottom(double safeBottom) => math.max(12, safeBottom - 6);
+  static double dockBottom(double safeBottom) => math.max(dockMinBottom, safeBottom - dockLift);
 
   /// What a scrolling list keeps clear at its end, so the dock never hides its
   /// last row (v2.css .list padding-bottom): the dock, its offset and 14 px.
@@ -51,7 +59,8 @@ class ReaderLayout {
   const ReaderLayout(this.page, this.bar, this.dock);
 
   /// Text mode's zone: everything between the top bar and the dock.
-  Rect get textZone => Rect.fromLTRB(0, bar.bottom + 10, bar.width, dock.top - 10);
+  Rect get textZone =>
+      Rect.fromLTRB(0, bar.bottom + ReaderTokens.textGap, bar.width, dock.top - ReaderTokens.textGap);
 
   factory ReaderLayout.compute(Size screen, EdgeInsets safe) {
     final dockBottom = ReaderTokens.dockBottom(safe.bottom);

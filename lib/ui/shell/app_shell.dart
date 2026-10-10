@@ -41,19 +41,27 @@ class AppShell extends StatefulWidget {
   /// The shell above [context], or null for a screen shown on its own.
   static AppShellState? of(BuildContext context) => context.findAncestorStateOfType<AppShellState>();
 
+  /// Opens [verse] in the reader from anywhere: a tab (the shell above it) or a
+  /// pushed screen (the shell at the root), then back to the top level.
+  static void openVerse(BuildContext context, ReaderController reader, int verse) {
+    reader.tapVerse(verse);
+    (of(context) ?? appShell.currentState)?.select(DockTab.matn);
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
   @override
   State<AppShell> createState() => AppShellState();
 }
 
 class AppShellState extends State<AppShell> {
   late DockTab _tab = widget.initialTab;
-  final Set<DockTab> _built = {};
+  late final Set<DockTab> _built = {_tab};
 
   DockTab get tab => _tab;
 
   /// Shows [t]. Navigating shows the reader's chrome again, as the prototype does.
   void select(DockTab t) {
-    if (t != _tab) setState(() => _tab = t);
+    if (t != _tab) setState(() => _built.add(_tab = t));
     widget.reader.showChrome();
   }
 
@@ -63,7 +71,6 @@ class AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final reader = widget.reader;
-    _built.add(_tab);
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     return AnimatedBuilder(
       animation: Listenable.merge([reader, ?reader.library]),
@@ -126,9 +133,9 @@ class AppShellState extends State<AppShell> {
     final rec = r.recording;
     final library = r.library;
     if (r.audioAvailable) {
-      final scope = r.engine!.plan.scope;
-      final of = scope.toVerse - scope.fromVerse + 1;
-      final at = (r.verse - scope.fromVerse + 1).clamp(1, of);
+      final section = r.engine!.plan.scope;
+      final of = section.toVerse - section.fromVerse + 1;
+      final at = (r.verse - section.fromVerse + 1).clamp(1, of);
       final repeats = r.settings.verseRepeats;
       final parts = [
         rec.reciterName,

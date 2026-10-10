@@ -51,11 +51,7 @@ class _SavedScreenState extends State<SavedScreen> {
     super.dispose();
   }
 
-  void _openVerse(int verse) {
-    reader.tapVerse(verse);
-    AppShell.of(context)?.select(DockTab.matn);
-    Navigator.of(context).popUntil((r) => r.isFirst);
-  }
+  void _openVerse(int verse) => AppShell.openVerse(context, reader, verse);
 
   /// The app's search; a result that moved the reader shows it.
   Future<void> _search() async {
