@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/anchored_popover.dart';
+import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
 import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
@@ -23,6 +24,29 @@ import 'golden_fonts.dart';
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
   'popover': (390, 150, () => const _Popover()),
+  'dock': (390, 560, () => Column(children: [
+        for (final np in <NowPlaying>[
+          NpPlaying(
+            verse: '٢٢٩',
+            position: '٤ من ٩',
+            subtitle: 'محمد بن عتيق · ١٫٢٥× · تكرار ٢/٣',
+            playing: true,
+            progress: 3.5 / 9,
+            onToggle: () {},
+            onNext: () {},
+          ),
+          NpNone(subtitle: 'محمد بن عتيق · ١٤٥ م.ب · مرة واحدة', onDownload: () {}),
+          NpDownloading(percent: '٤٢٪', progress: 0.42, subtitle: '٦١ من ١٤٥ م.ب · يكمل في الخلفية', onPause: () {}),
+          NpFailed(subtitle: 'انقطع الاتصال · سيُستأنف من ٤٢٪', onRetry: () {}),
+        ])
+          SizedBox(
+            height: 140,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+              child: Align(alignment: Alignment.bottomCenter, child: Dock(nowPlaying: np, current: DockTab.matn, onTab: (_) {})),
+            ),
+          ),
+      ])),
   'sheet': (390, 117, () => const _Picker()),
   'switch': (
     390,
