@@ -15,13 +15,15 @@ import 'package:audio_service/audio_service.dart';
 import 'app/reader_boot.dart';
 import 'app/reminders.dart';
 import 'services/lock_screen.dart';
-import 'theme.dart';
+import 'ui/design/tokens.g.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
+import 'ui/design/tz_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/reader/reader_screen.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
+import 'ui/design/taysir_colors.dart';
 
 /// The lock-screen handler, when the platform service started.
 LockScreenHandler? lockScreen;
@@ -82,22 +84,8 @@ class ShatibiyyahApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: C.ink,
-          fontFamily: kFontNaskh,
-          colorScheme: const ColorScheme.dark(
-            surface: C.ink,
-            primary: C.gold,
-            secondary: C.goldBright,
-            onPrimary: C.onGold,
-            error: C.danger,
-          ),
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          extensions: [colorsFor(theme)],
-        ),
+        // The one theme source: the tokens (item 3.1).
+        theme: tzThemeData(tzThemeFor(theme)),
         // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
@@ -193,11 +181,11 @@ class _ErrorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: C.ink,
+      backgroundColor: TaysirColors.of(context).bg,
       body: Center(
         child: Text(
           'تعذّر تحميل البيانات',
-          style: naskh(size: 20, color: C.parch),
+          style: TzType.title.copyWith(color: TaysirColors.of(context).text),
         ),
       ),
     );

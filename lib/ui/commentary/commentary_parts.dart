@@ -9,7 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/commentary_repository.dart';
 import '../../domain/commentary_text.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
+import '../design/tz_type.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 
@@ -66,7 +67,7 @@ class CommentaryParts {
   Widget headingPill(String heading) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
     decoration: BoxDecoration(color: t.gold.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(999)),
-    child: Text(heading, style: kufi(size: 13.5, weight: 600, color: t.goldText)),
+    child: Text(heading, style: TzType.label.copyWith(color: t.goldText)),
   );
 
   Widget chip(IconData icon, String label, {bool warn = false}) => Container(
@@ -81,14 +82,14 @@ class CommentaryParts {
         Icon(icon, size: 16, color: warn ? t.warn : t.goldText),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(label, style: kufi(size: 13.5, weight: 600, color: warn ? t.warn : t.goldText)),
+          child: Text(label, style: TzType.label.copyWith(color: warn ? t.warn : t.goldText)),
         ),
       ],
     ),
   );
 
   Widget paragraph(CommentaryParagraph paragraph) {
-    final base = naskh(size: 19 * scale, height: 1.95, color: t.text);
+    final base = TzType.commentary.scaled(scale).copyWith(color: t.text);
     return Text.rich(
       TextSpan(
         style: base,
@@ -106,7 +107,7 @@ class CommentaryParts {
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: Text(
                         run.text,
-                        style: naskh(size: 13 * scale, weight: FontWeight.w700, color: t.goldText),
+                        style: TzType.caption.scaled(scale).copyWith(color: t.goldText),
                       ),
                     ),
                   ),
@@ -132,9 +133,9 @@ class CommentaryParts {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('حاشية ${note.marker ?? ''}', style: kufi(size: 15, weight: 600, color: t.goldText)),
+            Text('حاشية ${note.marker ?? ''}', style: TzType.body.copyWith(color: t.goldText)),
             const SizedBox(height: 10),
-            Text(note.text, style: naskh(size: 17, height: 1.8, color: t.text)),
+            Text(note.text, style: TzType.commentary.copyWith(color: t.text)),
           ],
         ),
       ),
@@ -151,13 +152,13 @@ class CommentaryParts {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('الحواشي', style: kufi(size: 13.5, weight: 600, color: t.goldText)),
+        Text('الحواشي', style: TzType.label.copyWith(color: t.goldText)),
         for (final n in notes)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               '${n.marker != null ? '(${n.marker}) ' : ''}${n.text}',
-              style: naskh(size: 16 * scale, height: 1.7, color: t.dim),
+              style: TzType.commentary.scaled(scale).copyWith(color: t.dim),
             ),
           ),
       ],
@@ -201,7 +202,7 @@ class CommentaryParts {
               Icon(LucideIcons.libraryBig, size: 16, color: t.goldText),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('المصدر: ${parts.join(' · ')}', style: kufi(size: 13, weight: 400, color: t.dim)),
+                child: Text('المصدر: ${parts.join(' · ')}', style: TzType.label.copyWith(color: t.dim)),
               ),
               if (url != null) Icon(LucideIcons.externalLink, size: 15, color: t.muted),
             ],

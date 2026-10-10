@@ -2,11 +2,11 @@
 // flutter_local_notifications. Scheduling is inexact (no exact-alarm permission):
 // a reminder may come a few minutes late, which suits it. The plugin keeps what
 // is scheduled across reboots (the boot receiver in AndroidManifest.xml).
-import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import '../ui/design/tokens.g.dart';
 
 /// A notification to show at [when] (local time).
 class PlannedNotification {
@@ -46,13 +46,13 @@ class LocalNotifications implements NotificationPort {
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  static const _details = NotificationDetails(
+  static final _details = NotificationDetails(
     android: AndroidNotificationDetails(
       'app.shatibiyyah.hirz.channel.reminders',
       'التنبيهات',
       channelDescription: 'تذكير الباب',
       icon: 'ic_stat_taysir',
-      color: Color(0xFFFFAB2E),
+      color: TzColors.paper.action,
     ),
   );
 
@@ -107,7 +107,7 @@ class LocalNotifications implements NotificationPort {
             'التنبيهات',
             channelDescription: 'تذكير الباب',
             icon: 'ic_stat_taysir',
-            color: const Color(0xFFFFAB2E),
+            color: TzColors.paper.action,
             styleInformation: BigTextStyleInformation(n.longBody!),
           ),
         );

@@ -55,7 +55,8 @@ flutter:
           weight: 600
         - asset: assets/fonts/ScheherazadeNew-Bold.ttf
           weight: 700
-    # --ff-kufi: "Reem Kufi" — brand h1, tabs, labels, sheet titles (variable weight font)
-    - family: ReemKufi
+    # The interface face the type roles name (tokens.g.dart, TzFont.ui). Item 3.2 bundles
+    # IBM Plex Sans Arabic under this name; until then the roles draw with Reem Kufi.
+    - family: IBMPlexSansArabic
       fonts:
         - asset: assets/fonts/ReemKufi.ttf

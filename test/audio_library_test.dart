@@ -16,12 +16,12 @@ import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/downloads_screen.dart';
 import 'package:shatibiyyah/ui/shell/tour_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 /// No network in unit tests: every mirror fails at once.
 class _OfflineTransfer extends Transfer {
@@ -198,7 +198,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(theme: ThemeData(extensions: const [TaysirColors.dark]), home: home));
+    await tester.pumpWidget(MaterialApp(theme: tzThemeData(TzTheme.dark), home: home));
     await tester.pump();
   }
 

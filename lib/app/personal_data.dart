@@ -1,19 +1,9 @@
 // lib/app/personal_data.dart — the student's bookmarks and notes, in memory for the
 // UI (ribbons on the page, the home screen) and written through to user.sqlite.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/painting.dart' show Color;
 
 import '../data/user_store.dart';
 
-/// The prototype's six bookmark colours.
-const Map<BookmarkColor, Color> kBookmarkColors = {
-  BookmarkColor.gold: Color(0xFFFFAB2E),
-  BookmarkColor.green: Color(0xFF86B07A),
-  BookmarkColor.orange: Color(0xFFE08A5A),
-  BookmarkColor.blue: Color(0xFFAABAFF),
-  BookmarkColor.rose: Color(0xFFD98C9A),
-  BookmarkColor.sand: Color(0xFFD6CCB8),
-};
 
 const Map<BookmarkTag, String> kBookmarkTagLabels = {
   BookmarkTag.hifz: 'حفظ',
@@ -52,8 +42,8 @@ class PersonalData extends ChangeNotifier {
 
   /// Ribbons on the page: the colour of the bookmark starting at each verse
   /// (a run is marked on its first verse).
-  Map<int, Color> get ribbons => {
-        for (final b in _bookmarks.reversed) b.fromVerse: kBookmarkColors[b.color]!,
+  Map<int, BookmarkColor> get ribbons => {
+        for (final b in _bookmarks.reversed) b.fromVerse: b.color,
       };
 
   Note? noteFor(int verse) {

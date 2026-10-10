@@ -100,7 +100,7 @@ Future<ReaderController> bootReader() async {
   await personal.load();
   reader.personal = personal;
   CommentaryScreen.onOpened = () => unawaited(rating.used());
-  void ribbons() => viewer.setRibbons(personal.ribbons);
+  void ribbons() => viewer.setRibbons({for (final e in personal.ribbons.entries) e.key: e.value.index});
   personal.addListener(ribbons);
   ribbons();
   final reminders = Reminders(prefs: prefs, port: LocalNotifications(), content: content, verse: () => reader.verse);

@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../../data/matn_repository.dart';
 import '../../data/settings_store.dart' show kSplitDefault;
@@ -192,7 +192,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             child: IgnorePointer(
               child: Center(
                 child: Text(ar(reader.page),
-                    style: naskh(size: 13, color: t.muted.withValues(alpha: 0.7))),
+                    style: TzType.caption.copyWith(color: t.muted.withValues(alpha: 0.7))),
               ),
             ),
           ),
@@ -312,7 +312,7 @@ class _HeadingCard extends StatelessWidget {
     return Material(
       color: t.panel,
       elevation: 12,
-      shadowColor: Colors.black54,
+      shadowColor: t.float.first.color,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: t.line)),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -321,8 +321,8 @@ class _HeadingCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(intro ? chapter.shortLabel : chapter.title,
-                style: naskh(size: 18, weight: FontWeight.w700, color: t.text, height: 1.7)),
-            Text(meta, style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                style: TzType.chapter.copyWith(color: t.text)),
+            Text(meta, style: TzType.caption.copyWith(color: t.muted)),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -336,7 +336,7 @@ class _HeadingCard extends StatelessWidget {
                         minimumSize: const Size.fromHeight(48),
                         shape: const StadiumBorder(),
                       ),
-                      child: Text('تشغيل الباب', style: kufi(size: 15, weight: 600, color: t.onGold)),
+                      child: Text('تشغيل الباب', style: TzType.body.copyWith(color: t.onGold)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -351,7 +351,7 @@ class _HeadingCard extends StatelessWidget {
                     }
                   },
                   icon: Icon(LucideIcons.bookOpen, size: 17, color: t.goldText),
-                  label: Text('الشرح', style: kufi(size: 14.5, weight: 400, color: t.text)),
+                  label: Text('الشرح', style: TzType.label.copyWith(color: t.text)),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -385,9 +385,9 @@ class _Notice extends StatelessWidget {
           color: t.panel2,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: t.line),
-          boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 30, offset: Offset(0, 10))],
+          boxShadow: t.float,
         ),
-        child: Text(text, textAlign: TextAlign.center, style: kufi(size: 14, weight: 400, color: t.text)),
+        child: Text(text, textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.text)),
       ),
     );
   }
@@ -409,7 +409,7 @@ class _SelectionHeader extends StatelessWidget {
         color: t.panel,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: t.line),
-        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
+        boxShadow: t.float,
       ),
       child: Row(
         children: [
@@ -425,14 +425,14 @@ class _SelectionHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(selectedVersesCount(sel.to - sel.from + 1),
-                    maxLines: 1, style: kufi(size: 16, weight: 600, color: t.goldText)),
+                    maxLines: 1, style: TzType.head.copyWith(color: t.goldText)),
                 Text(
                   sel.from == sel.to
                       ? 'البيت ${ar(sel.from)}'
                       : 'الأبيات ${ar(sel.from)}–${ar(sel.to)} · اضغط بيتًا آخر للتمديد',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: kufi(size: 12, weight: 400, color: t.muted),
+                  style: TzType.caption.copyWith(color: t.muted),
                 ),
               ],
             ),
@@ -447,7 +447,7 @@ class _SelectionHeader extends StatelessWidget {
                 side: BorderSide(color: t.line, width: 1.5),
                 shape: const StadiumBorder(),
               ),
-              child: Text('الباب كاملًا', style: kufi(size: 13, weight: 400, color: t.text)),
+              child: Text('الباب كاملًا', style: TzType.label.copyWith(color: t.text)),
             ),
           ),
         ],
@@ -474,7 +474,7 @@ class _SelectionHint extends StatelessWidget {
         border: Border.all(color: t.line),
       ),
       child: Text('المس البيت الأخير لتحديد نطاق يبدأ من ${ar(reader.selection!.from)}',
-          style: kufi(size: 12.5, weight: 400, color: t.goldBright)),
+          style: TzType.caption.copyWith(color: t.goldBright)),
     );
   }
 }
@@ -495,7 +495,7 @@ class _SelectionActions extends StatelessWidget {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
         content: Text(
           sel.from == sel.to ? 'نُسخ البيت ${ar(sel.from)}' : 'نُسخت الأبيات ${ar(sel.from)}–${ar(sel.to)}',
-          style: kufi(size: 14, weight: 500, color: t.text),
+          style: TzType.label.copyWith(color: t.text),
         ),
         backgroundColor: t.raised,
         duration: const Duration(seconds: 2),
@@ -524,7 +524,7 @@ class _SelectionActions extends StatelessWidget {
                     child: Icon(icon, size: 22, color: primary ? t.onGold : t.goldText),
                   ),
                   const SizedBox(height: 6),
-                  Text(label, style: kufi(size: 12.5, weight: 400, color: t.text)),
+                  Text(label, style: TzType.caption.copyWith(color: t.text)),
                 ],
               ),
             ),
@@ -538,7 +538,7 @@ class _SelectionActions extends StatelessWidget {
         color: t.panel,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: t.line),
-        boxShadow: const [BoxShadow(color: Color(0x52000000), blurRadius: 30, offset: Offset(0, 10))],
+        boxShadow: t.float,
       ),
       child: Row(
         children: [
@@ -618,7 +618,7 @@ class _TopBar extends StatelessWidget {
         color: t.panel,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: t.line),
-        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
+        boxShadow: t.float,
       ),
       child: Row(
         children: [
@@ -632,12 +632,12 @@ class _TopBar extends StatelessWidget {
                   child: Text(chapter.shortLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: naskh(size: 15.5, weight: FontWeight.w700, color: t.text, height: 1.5)),
+                      style: TzType.chapter.copyWith(color: t.text)),
                 ),
                 SizedBox(
                   height: 15,
                   child: Text(reader.textMode ? 'العرض النصي' : '${part.title} · ص ${ar(reader.page)} من ${ar(pages)}',
-                      maxLines: 1, style: kufi(size: 11.5, weight: 400, color: t.muted, height: 1.3)),
+                      maxLines: 1, style: TzType.caption.copyWith(color: t.muted)),
                 ),
               ],
             ),
@@ -690,7 +690,7 @@ class _PlayerBar extends StatelessWidget {
         color: t.panel,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: t.line),
-        boxShadow: const [BoxShadow(color: Color(0x52000000), blurRadius: 30, offset: Offset(0, 10))],
+        boxShadow: t.float,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -739,11 +739,11 @@ class _PlayerBar extends StatelessWidget {
                         Text(line1,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: kufi(size: 14, weight: 600, color: t.text)),
+                            style: TzType.label.copyWith(color: t.text)),
                         Text(line2,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: kufi(size: 12, weight: 400, color: t.muted)),
+                            style: TzType.caption.copyWith(color: t.muted)),
                       ],
                     ),
                     ),
@@ -844,12 +844,12 @@ class _ResumeChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.gold,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: const [BoxShadow(color: Color(0x99000000), blurRadius: 24, offset: Offset(0, 10))],
+          boxShadow: t.float,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Shamsa(size: 32, verse: reader.verse, playing: true),
           const SizedBox(width: 8),
-          Text('عودة إلى البيت ${ar(reader.verse)}', style: kufi(size: 15, weight: 600, color: t.onGold)),
+          Text('عودة إلى البيت ${ar(reader.verse)}', style: TzType.body.copyWith(color: t.onGold)),
         ]),
       ),
     );

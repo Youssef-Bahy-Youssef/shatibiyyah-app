@@ -14,9 +14,9 @@ import 'package:shatibiyyah/app/retired_features.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/services/notifications.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 class FakePort implements NotificationPort {
   bool grant = true;
@@ -179,7 +179,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(extensions: const [TaysirColors.dark]),
+        theme: tzThemeData(TzTheme.dark),
         home: RemindersScreen(reminders: r),
       ),
     );

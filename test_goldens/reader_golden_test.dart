@@ -37,6 +37,7 @@ import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 class _NoNotifications implements NotificationPort {
   @override
@@ -87,7 +88,7 @@ Future<void> _loadFonts() async {
   await family('ScheherazadeNew', [
     for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold']) 'assets/fonts/ScheherazadeNew-$w.ttf',
   ]);
-  await family('ReemKufi', ['assets/fonts/ReemKufi.ttf']);
+  await family('IBMPlexSansArabic', ['assets/fonts/ReemKufi.ttf']);
   await family('packages/lucide_icons_flutter/Lucide', ['packages/lucide_icons_flutter/assets/lucide.ttf']);
 }
 
@@ -162,12 +163,7 @@ void main() {
         r.setTheme(theme);
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-            fontFamily: 'ScheherazadeNew',
-            extensions: [colorsFor(theme)],
-          ),
+          theme: tzThemeData(tzThemeFor(theme)),
           // Reduced motion, as a user can ask for: the playing shamsa stops spinning, so
           // the image does not depend on how far a rotation had got.
           builder: (context, child) =>
@@ -214,12 +210,7 @@ void main() {
         });
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-            fontFamily: 'ScheherazadeNew',
-            extensions: [colorsFor(theme)],
-          ),
+          theme: tzThemeData(tzThemeFor(theme)),
           builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
           home: RumuzScreen(reader: r),
         ));
@@ -255,12 +246,7 @@ void main() {
       });
       await tester.pumpWidget(MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          fontFamily: 'ScheherazadeNew',
-          extensions: [colorsFor(ReaderTheme.dark)],
-        ),
+        theme: tzThemeData(tzThemeFor(ReaderTheme.dark)),
         home: SearchScreen(reader: r),
       ));
       await tester.pump();
@@ -311,12 +297,7 @@ void main() {
         addTearDown(() => tester.runAsync(user.close));
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-            fontFamily: 'ScheherazadeNew',
-            extensions: [colorsFor(theme)],
-          ),
+          theme: tzThemeData(tzThemeFor(theme)),
           builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
           home: screen == 'home' ? HomeScreen(reader: r) : IndexScreen(reader: r),
         ));
@@ -354,12 +335,7 @@ void main() {
         });
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-            fontFamily: 'ScheherazadeNew',
-            extensions: [colorsFor(theme)],
-          ),
+          theme: tzThemeData(tzThemeFor(theme)),
           home: screen == 'settings' ? SettingsScreen(reader: r) : BackupScreen(reader: r),
         ));
         await tester.pumpAndSettle();
@@ -390,12 +366,7 @@ void main() {
       });
       await tester.pumpWidget(MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: theme == ReaderTheme.paper ? Brightness.light : Brightness.dark,
-          fontFamily: 'ScheherazadeNew',
-          extensions: [colorsFor(theme)],
-        ),
+        theme: tzThemeData(tzThemeFor(theme)),
         builder: (context, child) =>
             MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
         home: RemindersScreen(reminders: reminders),
@@ -431,12 +402,7 @@ void main() {
         });
         await tester.pumpWidget(MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: Brightness.dark,
-            fontFamily: 'ScheherazadeNew',
-            extensions: [colorsFor(ReaderTheme.dark)],
-          ),
+          theme: tzThemeData(tzThemeFor(ReaderTheme.dark)),
           builder: (context, child) =>
               MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
           home: state == 'compare' ? CompareScreen(content: content, verse: 226) : ReaderScreen(reader: r),

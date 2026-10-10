@@ -12,11 +12,12 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/app_content.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import '../reader/shamsa.dart';
 import '../widgets/verse_menu.dart' show verseCopyText;
+import '../design/tz_theme.dart';
 
 enum ShareFormat { text, card, manuscript }
 
@@ -98,7 +99,7 @@ class _ShareSheetState extends State<ShareSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('مشاركة البيت ${ar(widget.verse)}', style: kufi(size: 18, weight: 600, color: t.text)),
+            Text('مشاركة البيت ${ar(widget.verse)}', style: TzType.title.copyWith(color: t.text)),
             const SizedBox(height: 12),
             _tabs(t),
             const SizedBox(height: 12),
@@ -114,8 +115,8 @@ class _ShareSheetState extends State<ShareSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('البيت ${ar(widget.verse)} — $chapter\n${v.firstHemistich}\n${v.secondHemistich}',
-                          style: naskh(size: 17, color: t.text, height: 1.8)),
-                      Text('— تيسير الشاطبية', style: kufi(size: 12.5, weight: 400, color: t.muted)),
+                          style: TzType.verse.copyWith(color: t.text)),
+                      Text('— تيسير الشاطبية', style: TzType.caption.copyWith(color: t.muted)),
                     ],
                   ),
                 ),
@@ -137,7 +138,7 @@ class _ShareSheetState extends State<ShareSheet> {
                     ),
                     const SizedBox(height: 8),
                     Text('قصاصة من المخطوط الأصلي، ولا يُطبَّق عليها الوضع الليلي',
-                        style: kufi(size: 12, weight: 400, color: t.muted)),
+                        style: TzType.caption.copyWith(color: t.muted)),
                   ],
                 ),
             },
@@ -150,7 +151,7 @@ class _ShareSheetState extends State<ShareSheet> {
                 minimumSize: const Size.fromHeight(52),
                 shape: const StadiumBorder(),
               ),
-              child: Text('مشاركة', style: kufi(size: 16, weight: 600, color: t.onGold)),
+              child: Text('مشاركة', style: TzType.head.copyWith(color: t.onGold)),
             ),
           ],
         ),
@@ -184,7 +185,7 @@ class _ShareSheetState extends State<ShareSheet> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(label,
-                        style: kufi(size: 14, weight: _format == f ? 600 : 400, color: _format == f ? t.onGold : t.text)),
+                        style: TzType.label.copyWith(color: _format == f ? t.onGold : t.text)),
                   ),
                 ),
               ),
@@ -202,17 +203,17 @@ class VerseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF241A0C);
-    final line = naskh(size: 20, color: ink, height: 1.75);
+    final ink = TzColors.paper.ink;
+    final line = TzType.verse.copyWith(color: ink);
     return Theme(
-      data: Theme.of(context).copyWith(extensions: const [TaysirColors.paper]),
+      data: Theme.of(context).copyWith(extensions: const [TzTheme.paper]),
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 20, 18, 14),
         // The edge keeps the card distinct on the paper theme's sheet, and in the shared image.
         decoration: BoxDecoration(
-          color: const Color(0xFFFBF7EE),
+          color: TzColors.paper.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFD9C49C)),
+          border: Border.all(color: TzColors.paper.line),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -222,7 +223,7 @@ class VerseCard extends StatelessWidget {
             SizedBox(width: double.infinity, child: Text(first, textAlign: TextAlign.right, style: line)),
             SizedBox(width: double.infinity, child: Text(second, textAlign: TextAlign.left, style: line)),
             const SizedBox(height: 6),
-            Text('$chapter · تيسير الشاطبية', style: kufi(size: 11, weight: 400, color: const Color(0xFF735629))),
+            Text('$chapter · تيسير الشاطبية', style: TzType.caption.copyWith(color: TzColors.paper.ink3)),
           ],
         ),
       ),

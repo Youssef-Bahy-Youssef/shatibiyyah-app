@@ -13,12 +13,12 @@ import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/shell/home_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -73,7 +73,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: ReaderScreen(reader: r),
     ));
     await tester.pump(const Duration(milliseconds: 300));
@@ -100,7 +100,7 @@ void main() {
     await settle(tester);
     final b = personal.bookmarkAt(229)!;
     expect((b.color, b.tag), (BookmarkColor.rose, BookmarkTag.ishkal));
-    expect(personal.ribbons[229], kBookmarkColors[BookmarkColor.rose]);
+    expect(personal.ribbons[229], BookmarkColor.rose);
     expect(find.text('حُفظ المرجع على البيت ٢٢٩'), findsOneWidget);
 
     r.openMenu(229);
@@ -150,7 +150,7 @@ void main() {
       await personal.saveNote(230, 'قارن بالوافي');
     });
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
     ));
     await tester.pump();
@@ -217,7 +217,7 @@ void main() {
 
   Future<void> openHome(WidgetTester tester, ReaderController r) async {
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => HomeScreen(reader: r))),
     ));
     await tester.pump();
@@ -320,7 +320,7 @@ void main() {
   testWidgets('home: empty states say how to add', (tester) async {
     final (r, _) = await open(tester);
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: HomeScreen(reader: r),
     ));
     await tester.pump();

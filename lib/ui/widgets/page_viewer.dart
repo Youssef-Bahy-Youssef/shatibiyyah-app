@@ -13,8 +13,8 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import '../../models/playback_settings.dart' show K, clampd;
 import '../../services/data_service.dart';
 import '../../services/preferences_service.dart';
-import '../../theme.dart';
 import '../design/dashed.dart';
+import '../design/tokens.g.dart';
 
 const double _pageW = 1130;
 const double _pageH = 1735;
@@ -40,12 +40,15 @@ class _Col {
   const _Col(this.fill, this.stroke, this.ghost);
 }
 
-const _dayCol = _Col(C.hiliteDayFill, C.hiliteDayStroke, C.hiliteDayGhost);
-const _nightCol = _Col(
-  C.hiliteNightFill,
-  C.hiliteNightStroke,
-  C.hiliteNightGhost,
-);
+/// The page's own marks follow the page, not the app theme: the paper tokens on the
+/// printed page, the night tokens on the night page.
+TzColors _pageTokens(bool night) => night ? TzColors.night : TzColors.paper;
+
+/// The playing verse: the gilt wash, a gilt outline, and the softer wash it fades from.
+_Col _playingCol(bool night) {
+  final k = _pageTokens(night);
+  return _Col(k.giltWash, k.gilt, k.giltWashSoft);
+}
 
 class ViewPrefs {
   final bool night;
@@ -77,8 +80,8 @@ class PageViewerController extends ChangeNotifier {
   /// A run of selected verses (features-v3 multi-verse-selection), drawn dashed.
   ({int from, int to})? selection;
 
-  /// Bookmark ribbons: verse → colour (features-v3 bookmarks).
-  Map<int, Color> ribbons = const {};
+  /// Bookmark ribbons: verse → the bookmark colour's index in the tokens' list.
+  Map<int, int> ribbons = const {};
 
   // chapter-header overlay
   int? chapterSel;
@@ -332,7 +335,7 @@ class PageViewerController extends ChangeNotifier {
     _invalidate();
   }
 
-  void setRibbons(Map<int, Color> marks) {
+  void setRibbons(Map<int, int> marks) {
     ribbons = marks;
     _invalidate();
   }
@@ -759,7 +762,7 @@ class PageViewerController extends ChangeNotifier {
     _momentum?.stop();
   }
 
-  Color get pageBg => night ? const Color(0xFF140D05) : const Color(0xFFFBF7EE);
+  Color get pageBg => _pageTokens(night).pageBg;
 
   @override
   void dispose() {
@@ -823,14 +826,14 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
               // viewer background (style.css .viewer radial + #150e05)
               Positioned.fill(
                 child: DecoratedBox(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: RadialGradient(
-                      center: Alignment(0, -1),
+                      center: const Alignment(0, -1),
                       radius: 1.0,
-                      colors: [Color(0x993A2A12), Color(0x00150E05)],
-                      stops: [0.0, 0.6],
+                      colors: [TzColors.night.raised.withValues(alpha: 0.6), TzColors.night.bg.withValues(alpha: 0)],
+                      stops: const [0.0, 0.6],
                     ),
-                    color: Color(0xFF150E05),
+                    color: TzColors.night.bg,
                   ),
                 ),
               ),
@@ -903,14 +906,7 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: c.pageBg,
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0xCC000000),
-                  blurRadius: 40,
-                  offset: Offset(0, 16),
-                  spreadRadius: -16,
-                ),
-              ],
+              boxShadow: _pageTokens(c.night).float,
             ),
             child: Stack(
               children: [
@@ -1019,7 +1015,7 @@ class _HighlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final now = c._now();
-    final col = c.night ? _nightCol : _dayCol;
+    final col = _playingCol(c.night);
     final s = c.baseScale;
 
     if (c.showBoxes) _drawAllBoxes(canvas, col, s);
@@ -1068,7 +1064,7 @@ class _HighlightPainter extends CustomPainter {
   /// Dashed boxes around the selected verses on this page: accent blue on the page,
   /// gold on the night page (the prototype's `selC`). The playing verse draws over them.
   void _drawSelection(Canvas canvas, ({int from, int to}) sel, double s) {
-    final color = c.night ? const Color(0xFFFFAB2E) : const Color(0xFF4314FF);
+    final color = c.night ? TzColors.night.action : TzColors.paper.lapis;
     final fill = Paint()..color = color.withValues(alpha: c.night ? 0.16 : 0.10);
     final stroke = Paint()
       ..style = PaintingStyle.stroke
@@ -1088,8 +1084,9 @@ class _HighlightPainter extends CustomPainter {
   /// box, clear of the verse number, as in the prototype: 10 × 20 with a notch.
   void _drawRibbons(Canvas canvas, double s) {
     for (final id in c.data.versesOnPage(c.currentPage)) {
-      final color = c.ribbons[id];
-      if (color == null) continue;
+      final mark = c.ribbons[id];
+      if (mark == null) continue;
+      final color = _pageTokens(c.night).bookmarks[mark];
       final b = c.data.getBox(id);
       if (b == null) continue;
       final x = (b.x + b.w) * s - 1, y = b.y * s - 4;
@@ -1126,8 +1123,8 @@ class _HighlightPainter extends CustomPainter {
       _drawChapterBox(
         canvas,
         c.chapterHover!,
-        C.chapterHoverFill,
-        C.chapterHoverStroke,
+        _pageTokens(c.night).lapisWash,
+        _pageTokens(c.night).lapis.withValues(alpha: 0.65),
         1.5,
         true,
         s,
@@ -1137,8 +1134,8 @@ class _HighlightPainter extends CustomPainter {
       _drawChapterBox(
         canvas,
         c.chapterSel!,
-        C.chapterSelFill,
-        C.chapterSelStroke,
+        _pageTokens(c.night).lapisWash,
+        _pageTokens(c.night).lapis,
         3,
         false,
         s,

@@ -11,12 +11,12 @@ import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/domain/commentary_text.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/ui/widgets/verse_menu.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -38,7 +38,7 @@ void main() {
   });
 
   Widget host(Widget child) => MaterialApp(
-        theme: ThemeData(extensions: const [TaysirColors.dark]),
+        theme: tzThemeData(TzTheme.dark),
         home: child,
       );
 

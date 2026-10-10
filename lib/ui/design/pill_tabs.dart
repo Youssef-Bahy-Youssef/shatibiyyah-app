@@ -5,21 +5,19 @@
 // minimum.
 import 'package:flutter/material.dart';
 
-import '../../theme.dart' show kufi;
+import 'tokens.g.dart';
 import 'taysir_colors.dart';
 
 class PillTabs<T> extends StatelessWidget {
   final Map<T, String> options;
   final T? selected;
   final ValueChanged<T> onSelect;
-  final double fontSize;
   final Color? track; // the track's colour (default: the panel)
   const PillTabs({
     super.key,
     required this.options,
     required this.selected,
     required this.onSelect,
-    this.fontSize = 14,
     this.track,
   });
 
@@ -56,11 +54,7 @@ class PillTabs<T> extends StatelessWidget {
                         e.value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: kufi(
-                          size: fontSize,
-                          weight: e.key == selected ? 600 : 400,
-                          color: e.key == selected ? t.onGold : t.text,
-                        ),
+                        style: TzType.label.copyWith(color: e.key == selected ? t.onGold : t.text),
                       ),
                     ),
                   ),

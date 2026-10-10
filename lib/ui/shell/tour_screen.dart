@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import '../../app/audio_library.dart';
 import '../../data/app_content.dart';
 import '../../services/preferences_service.dart';
-import '../../theme.dart' show kufi, naskh;
+import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import '../design/taysir_logo.dart';
@@ -116,11 +116,11 @@ class _TourScreenState extends State<TourScreen> {
             children: [
               const TaysirLogo(size: 34),
               const SizedBox(width: 10),
-              Text('${ar(_card + 1)} من ${ar(_cards.length)}', style: kufi(size: 13, weight: 400, color: t.muted)),
+              Text('${ar(_card + 1)} من ${ar(_cards.length)}', style: TzType.label.copyWith(color: t.muted)),
               const Spacer(),
               TextButton(
                 onPressed: _toPick,
-                child: Text('تخطَّ', style: kufi(size: 14, weight: 500, color: t.goldText)),
+                child: Text('تخطَّ', style: TzType.label.copyWith(color: t.goldText)),
               ),
             ],
           ),
@@ -138,11 +138,11 @@ class _TourScreenState extends State<TourScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(card.title, style: kufi(size: 24, weight: 600, color: t.text, height: 1.35)),
+              Text(card.title, style: TzType.title.copyWith(color: t.text)),
               const SizedBox(height: 10),
               SizedBox(
                 height: 100,
-                child: Text(card.text, style: naskh(size: 19, color: t.dim, height: 1.8)),
+                child: Text(card.text, style: TzType.commentary.copyWith(color: t.dim)),
               ),
             ],
           ),
@@ -172,7 +172,7 @@ class _TourScreenState extends State<TourScreen> {
                   shape: const StadiumBorder(),
                 ),
                 child: Text(last && !widget.replay ? 'اختر القارئ' : (last ? 'تم' : 'التالي'),
-                    style: kufi(size: 16, weight: 600, color: t.onGold)),
+                    style: TzType.head.copyWith(color: t.onGold)),
               ),
             ],
           ),
@@ -197,7 +197,7 @@ class _MiniPage extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [BoxShadow(color: Color(0x59000000), blurRadius: 50, offset: Offset(0, 20))],
+          boxShadow: TaysirColors.of(context).float,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -230,16 +230,16 @@ class _VerseMark extends CustomPainter {
       canvas.drawDRRect(
         RRect.fromRectAndRadius(Offset.zero & size, Radius.zero),
         rr,
-        Paint()..color = const Color(0x80140D05),
+        Paint()..color = TzColors.paper.scrim,
       );
     }
-    canvas.drawRRect(rr, Paint()..color = const Color(0xFFFFAB2E).withValues(alpha: held ? 0.18 : 0.32));
+    canvas.drawRRect(rr, Paint()..color = held ? TzColors.paper.giltWashSoft : TzColors.paper.giltWash);
     canvas.drawRRect(
       rr,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = held ? 2.5 : 2
-        ..color = const Color(0xFFFFAB2E),
+        ..color = TzColors.paper.gilt,
     );
   }
 
@@ -264,10 +264,10 @@ class _PickReciter extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
           children: [
-            Text('اختر القارئ', style: kufi(size: 24, weight: 600, color: t.text)),
+            Text('اختر القارئ', style: TzType.title.copyWith(color: t.text)),
             const SizedBox(height: 6),
             Text('تعمل الصفحات والشروح الآن دون تنزيل. اختر صوتًا تسمعه مع كل بيت.',
-                style: naskh(size: 18, color: t.dim, height: 1.7)),
+                style: TzType.commentary.copyWith(color: t.dim)),
             const SizedBox(height: 16),
             for (final rec in library.recordings) ...[
               ReciterOption(library: library, recording: rec, onPick: () => library.choose(rec)),
@@ -285,13 +285,13 @@ class _PickReciter extends StatelessWidget {
                 shape: const StadiumBorder(),
               ),
               child: Text(onDevice ? 'ابدأ التلاوة' : 'تنزيل ${megabytes(r.localBytes)} والبدء',
-                  style: kufi(size: 16, weight: 600, color: t.onGold)),
+                  style: TzType.head.copyWith(color: t.onGold)),
             ),
             if (!onDevice) ...[
               const SizedBox(height: 8),
               TextButton(
                 onPressed: onDone,
-                child: Text('لاحقًا، ابدأ بالقراءة', style: kufi(size: 14.5, weight: 500, color: t.goldText)),
+                child: Text('لاحقًا، ابدأ بالقراءة', style: TzType.label.copyWith(color: t.goldText)),
               ),
             ],
           ],

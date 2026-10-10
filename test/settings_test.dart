@@ -15,13 +15,13 @@ import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
-import 'package:shatibiyyah/ui/design/taysir_colors.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -71,7 +71,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(extensions: const [TaysirColors.dark]),
+      theme: tzThemeData(TzTheme.dark),
       home: Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => home(r))),
     ));
     await tester.pump();
