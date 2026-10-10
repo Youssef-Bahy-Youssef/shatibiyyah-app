@@ -23,7 +23,18 @@ class AppContent {
   final RumuzRepository rumuz;
   final BenefitsRepository benefits;
 
+  /// Recordings whose cues cannot be played (a verse without a cue, or cues out of
+  /// order): offered as «غير صالحة», never played. Found once at open (F-41).
+  final Set<String> _unusable = {};
+
   AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz, this.benefits);
+
+  /// Whether [recording] can be played: every verse has a cue, in order.
+  bool isUsable(Recording recording) => !_unusable.contains(recording.id);
+
+  /// [windowsFor] for a usable recording; null for one that is not.
+  Future<PlaybackWindows?> windowsOrNull(Recording recording) async =>
+      isUsable(recording) ? windowsFor(recording) : null;
 
   /// Opens the bundled snapshot (installing it on first run) and loads the repositories.
   static Future<AppContent> open({
@@ -36,7 +47,7 @@ class AppContent {
       supportDir: supportDir ?? await getApplicationSupportDirectory(),
       factory: factory,
     );
-    return AppContent._(
+    final content = AppContent._(
       store,
       await MatnRepository.load(store.db),
       await LayoutRepository.load(store.db),
@@ -45,6 +56,14 @@ class AppContent {
       await RumuzRepository.load(store.db),
       await BenefitsRepository.load(store.db),
     );
+    for (final r in content.recordings.recordings) {
+      try {
+        await content.windowsFor(r);
+      } on ArgumentError {
+        content._unusable.add(r.id);
+      }
+    }
+    return content;
   }
 
   /// Verse and chapter windows of [recording] (spoken titles marked disputed are ignored).

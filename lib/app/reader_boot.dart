@@ -66,13 +66,15 @@ Future<ReaderController> bootReader() async {
     }
   }
   final recording = library.current;
-  final windows = await content.windowsFor(recording);
+  final windows = await content.windowsOrNull(recording); // null: no audio for an unusable one (F-41)
 
   final initial = _restoreVerse(prefs, content.matn.lastVerse);
   final chapter = content.matn.chapterOfVerse(initial);
-  final engine = await library.openCurrent(
-    PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
-  );
+  final engine = windows == null
+      ? null
+      : await library.openCurrent(
+          PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
+        );
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
   final reader = ReaderController(
