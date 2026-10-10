@@ -351,6 +351,7 @@ class ReaderController extends ChangeNotifier {
   void _onEngineState(EngineState s) {
     if (s.playing && !(_engineState?.playing ?? false)) rating?.used();
     final changed = s.verse != _verse;
+    final previous = _engineState;
     _engineState = s;
     // Playback itself crossing into a new chapter (a jump sets _verse first, so never here).
     if (changed && s.playing && content.matn.chapterOfVerse(s.verse).id != chapter.id) {
@@ -360,8 +361,21 @@ class ReaderController extends ChangeNotifier {
       _verse = s.verse;
       if (!_detached) viewer.setActiveVerse(s.verse);
     }
-    notifyListeners();
+    // The engine reports on every position tick. Nothing on screen reads the
+    // position from here (the player listens to the audio itself), so only a
+    // state that differs rebuilds the reader (item 3.13, F-60).
+    if (!_sameState(previous, s)) notifyListeners();
   }
+
+  static bool _sameState(EngineState? a, EngineState b) =>
+      a != null &&
+      a.verse == b.verse &&
+      a.inTitle == b.inTitle &&
+      a.playing == b.playing &&
+      a.inGap == b.inGap &&
+      a.verseRepetition == b.verseRepetition &&
+      a.sectionRepetition == b.sectionRepetition &&
+      a.finished == b.finished;
 
   void _onPageSwiped() {
     // Browsing away while audio plays detaches the view (the chip offers the way back).
