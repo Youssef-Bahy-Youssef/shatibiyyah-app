@@ -4,10 +4,9 @@
 // The top bar: the chapter's short name in Naskh, the gilt folio «ص ١٩», the
 // location caption, search and «العرض». The page sits in a rectangle computed
 // once (ReaderLayout) between the top bar's zone and the dock's, a page sheet
-// over a back sheet; the top bar fades over its zone in 200 ms with 10 px of
-// travel (instant under reduced motion), so nothing ever moves or covers the
-// page. The dock itself is the shell's (lib/ui/shell/app_shell.dart); the
-// selection bar takes its zone. The verse and chapter popovers are
+// over a back sheet; the top bar and the dock always show, each in its own
+// zone, so nothing ever moves or covers the page. The dock itself is the
+// shell's (lib/ui/shell/app_shell.dart); the selection bar takes its zone. The verse and chapter popovers are
 // lib/ui/widgets/verse_menu.dart and chapter_popover.dart.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -218,7 +217,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// The reader: the page (or text mode), the bars, the menu and the cards.
   Widget _stack(BuildContext context) {
     final reader = widget.reader;
-    final t = TaysirColors.of(context);
     final mq = MediaQuery.of(context);
     final layout = ReaderLayout.compute(mq.size, mq.padding);
     final tz = TzTheme.of(context);
@@ -286,21 +284,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               bottomInset: explained == null ? layout.textInset : layout.textZone.bottom - sheetTop + 8,
             ),
           ),
-        if (!reader.chromeVisible && !reader.textMode)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: mq.padding.bottom + 12,
-            child: IgnorePointer(
-              child: Center(
-                child: Text(ar(reader.page), style: TzType.caption.copyWith(color: t.muted.withValues(alpha: 0.7))),
-              ),
-            ),
-          ),
-        _Chrome(
+        Positioned.fromRect(
           rect: layout.bar,
-          visible: reader.chromeVisible,
-          travel: -10,
           child: reader.selecting
               ? _SelectionHeader(reader: reader)
               : _TopBar(
@@ -660,7 +645,7 @@ class _SelectionActions extends StatelessWidget {
   }
 }
 
-/// A chrome element over its reserved zone: fades and slides a few pixels, never moves the page.
+/// The selection bar over the dock's zone: fades and slides a few pixels, never moves the page.
 class _Chrome extends StatelessWidget {
   final Rect rect;
   final bool visible;

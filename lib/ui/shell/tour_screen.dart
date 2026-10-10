@@ -28,7 +28,7 @@ bool tourDone(Prefs prefs) => prefs.getString(kTourDonePref) == '1';
 const _cards = [
   (
     title: 'المخطوط أولًا',
-    text: 'صفحات الشاطبية كما كُتبت، والبيت الذي يُتلى مظلَّل. المس الصفحة لإخفاء كل شيء.',
+    text: 'صفحات الشاطبية كما كُتبت، والبيت الذي يُتلى مظلَّل.',
     verse: 226,
     held: false,
   ),
