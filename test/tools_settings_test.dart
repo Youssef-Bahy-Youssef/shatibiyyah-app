@@ -37,10 +37,24 @@ void main() {
       expect(again.themeChoice, ThemeChoice.paper);
     });
 
-    test('values outside the v3 option sets fall back', () async {
-      SharedPreferences.setMockInitialValues({'v2.repeat.verse': '4', 'v2.gap_ms': '5000', 'v2.speed.x': '2'});
+    test('values outside the option sets fall back', () async {
+      SharedPreferences.setMockInitialValues({'v2.repeat.verse': '7', 'v2.gap_ms': '5000', 'v2.speed.x': '3'});
       final s = SettingsStore(await Prefs.create());
       expect((s.verseRepeats, s.gapMs, s.speedFor('x')), (1, 0, 1));
+    });
+
+    test('every offered value is kept (ADRs 0004, 0005: one to five times or ∞; 0.25× to 2×)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsStore(await Prefs.create());
+      for (final n in kVerseRepeatOptions) {
+        s.verseRepeats = n;
+        s.sectionRepeats = n;
+        expect((SettingsStore(s.prefs).verseRepeats, SettingsStore(s.prefs).sectionRepeats), (n, n));
+      }
+      for (final v in kSpeedOptions) {
+        s.setSpeedFor('x', v);
+        expect(SettingsStore(s.prefs).speedFor('x'), v);
+      }
     });
 
     test('cycle wraps', () {
@@ -104,10 +118,7 @@ void main() {
         await tester.pump();
       }
       expect(r.brightness, 40);
-
-      await tester.tap(find.text('الصوت'));
-      await tester.pump();
-      expect(find.text('التلاوة غير منزّلة بعد'), findsOneWidget); // no recording in tests
+      expect(find.text('الصوت'), findsNothing); // the player is its own sheet (item 3.7)
       appTheme.value = ReaderTheme.dark;
     });
   });

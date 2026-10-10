@@ -9,6 +9,10 @@ import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'tz_motion.dart';
 
+/// The status bar's height. A modal sheet's own MediaQuery has it removed, so it
+/// is read from the view.
+double statusBarHeight(BuildContext context) => MediaQueryData.fromView(View.of(context)).padding.top;
+
 class TzSheet extends StatefulWidget {
   final Widget child;
   final bool _picker;
@@ -74,7 +78,11 @@ class _TzSheetState extends State<TzSheet> with SingleTickerProviderStateMixin {
                   ),
                 ),
               ),
-              Align(alignment: AlignmentDirectional.centerStart, child: widget.child),
+              if (picker)
+                Align(alignment: AlignmentDirectional.centerStart, child: widget.child)
+              else
+                // The full sheet fills what it is given; its content scrolls inside.
+                Flexible(child: widget.child),
             ],
           ),
         ),

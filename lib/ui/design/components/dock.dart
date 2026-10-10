@@ -37,6 +37,9 @@ class NpPlaying extends NowPlaying {
   final bool playing;
   final double progress; // through the section, 0…1
   final VoidCallback onToggle, onNext;
+
+  /// A tap on the row itself (the khatam and the text): the player.
+  final VoidCallback? onOpen;
   const NpPlaying(
       {required this.verse,
       required this.position,
@@ -44,14 +47,16 @@ class NpPlaying extends NowPlaying {
       required this.playing,
       required this.progress,
       required this.onToggle,
-      required this.onNext});
+      required this.onNext,
+      this.onOpen});
 }
 
-/// No recitation on the device yet.
+/// No recitation on the device yet: «تنزيل», or «متابعة» for one that was paused.
 class NpNone extends NowPlaying {
   final String subtitle;
+  final String action;
   final VoidCallback onDownload;
-  const NpNone({required this.subtitle, required this.onDownload});
+  const NpNone({required this.subtitle, this.action = 'تنزيل', required this.onDownload});
 }
 
 class NpDownloading extends NowPlaying {
@@ -80,6 +85,7 @@ class Dock extends StatelessWidget {
   static const tabsKey = ValueKey('dock-tabs');
   static const barFillKey = ValueKey('dock-bar-fill');
   static const playDiscKey = ValueKey('dock-play-disc');
+  static const pillKey = ValueKey('dock-pill');
 
   @override
   Widget build(BuildContext context) {
@@ -165,11 +171,11 @@ class _NowPlayingRow extends StatelessWidget {
             _PlayButton(playing: playing, onTap: onToggle),
           ],
         ),
-      NpNone(:final subtitle, :final onDownload) => (
+      NpNone(:final subtitle, :final action, :final onDownload) => (
           const Khatam('', size: 42, onCover: true),
           Text('استمع إلى المتن', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStyle(c.onCover)),
           subtitle,
-          [_PillButton(icon: 'down', label: 'تنزيل', onTap: onDownload)],
+          [_PillButton(icon: 'down', label: action, onTap: onDownload)],
         ),
       NpDownloading(:final percent, :final progress, :final subtitle, :final onPause) => (
           Khatam(percent, size: 42, onCover: true, progress: progress),
@@ -186,6 +192,26 @@ class _NowPlayingRow extends StatelessWidget {
     };
     // Buttons drawn 44 px in 48 px targets: 2 px of target on each side, taken from the gaps.
     final endsInTarget = actions.last is! _PillButton;
+    final onOpen = switch (np) { NpPlaying(:final onOpen) => onOpen, _ => null };
+    final meta = Row(
+      children: [
+        khatam,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title,
+              Text(subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
+            ],
+          ),
+        ),
+      ],
+    );
     return SizedBox(
       key: Dock.rowKey,
       height: 62,
@@ -196,20 +222,17 @@ class _NowPlayingRow extends StatelessWidget {
             padding: EdgeInsetsDirectional.only(start: 10, end: endsInTarget ? 6 : 8),
             child: Row(
               children: [
-                khatam,
-                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      title,
-                      Text(subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TzType.caption.copyWith(fontWeight: FontWeight.w400, color: c.coverMute)),
-                    ],
-                  ),
+                  child: onOpen == null
+                      ? meta
+                      // One target for the whole row but its buttons: it opens the player.
+                      : MergeSemantics(
+                          child: Semantics(
+                            button: true,
+                            label: 'فتح المشغّل',
+                            child: InkWell(onTap: onOpen, child: SizedBox(height: 62, child: meta)),
+                          ),
+                        ),
                 ),
                 SizedBox(width: actions.first is _PillButton ? 10 : 8),
                 ...actions,
@@ -333,6 +356,7 @@ class _PillButton extends StatelessWidget {
             height: TzSize.touchTarget,
             child: Center(
               child: Container(
+                key: Dock.pillKey,
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(color: c.onCover, borderRadius: BorderRadius.circular(TzRadius.pill)),

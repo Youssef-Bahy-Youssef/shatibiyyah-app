@@ -11,6 +11,7 @@ import 'package:shatibiyyah/app/audio_library.dart';
 import 'package:shatibiyyah/app/personal_data.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
+import 'package:shatibiyyah/data/recording_repository.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/domain/playback_engine.dart';
@@ -42,6 +43,26 @@ class SilentAudio implements AudioPort {
   Future<void> setSpeed(double speed) async {}
 }
 
+/// The downloads with the chosen recording fixed in one state: what the dock
+/// shows while it downloads, after it failed, or once paused.
+class FixedLibrary extends AudioLibrary {
+  DownloadProgress? progress;
+  bool downloading = false;
+  int downloadCalls = 0, pauseCalls = 0;
+  FixedLibrary({required super.content, required super.prefs, required super.downloads});
+
+  @override
+  DownloadProgress? progressOf(Recording r) => progress;
+  @override
+  bool isDownloading(Recording r) => downloading;
+  @override
+  bool isPaused(Recording r) => !downloading && progress?.phase == DownloadPhase.paused;
+  @override
+  Future<void> download(Recording r) async => downloadCalls++;
+  @override
+  void pause(Recording r) => pauseCalls++;
+}
+
 class HandoffContent {
   late final Directory _support;
   late final AppContent content;
@@ -63,9 +84,10 @@ class HandoffContent {
 
   /// The reader on verse 226. With [audio], a recording is on the device and the
   /// section is the chapter (226–234). With [bookmarks], the prototype's three.
-  /// With [library], the downloads are there, nothing downloaded yet.
+  /// With [library], the downloads are there, nothing downloaded yet; with
+  /// [download], the chosen recording is in that state (a [FixedLibrary]).
   Future<ReaderController> reader(WidgetTester tester,
-      {bool audio = false, bool bookmarks = true, bool note = false, bool library = false}) async {
+      {bool audio = false, bool bookmarks = true, bool note = false, bool library = false, DownloadProgress? download}) async {
     SharedPreferences.setMockInitialValues({});
     late ReaderController r;
     await tester.runAsync(() async {
@@ -96,12 +118,13 @@ class HandoffContent {
         initialVerse: 226,
       )..personal = personal;
       if (bookmarks) r.viewer.setRibbons({for (final e in personal.ribbons.entries) e.key: e.value.index});
-      if (library) {
-        final lib = AudioLibrary(
-          content: content,
-          prefs: prefs,
-          downloads: DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true),
-        );
+      if (library || download != null) {
+        final manager = DownloadManager(supportDir: dir, freeBytes: () async => null, onUnmeteredNetwork: () async => true);
+        final lib = download == null
+            ? AudioLibrary(content: content, prefs: prefs, downloads: manager)
+            : (FixedLibrary(content: content, prefs: prefs, downloads: manager)
+              ..progress = download
+              ..downloading = download.phase == DownloadPhase.downloading);
         await lib.refresh();
         lib.attach(r);
       }

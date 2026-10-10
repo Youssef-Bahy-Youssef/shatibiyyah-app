@@ -10,8 +10,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
+import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
+import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
@@ -22,21 +24,58 @@ import 'golden_fonts.dart';
 
 /// A state of the handoff: the tab it is on, whether a recording is on the device,
 /// and what to do before the shot.
-typedef _State = ({DockTab tab, bool audio, Future<void> Function(WidgetTester, ReaderController, HandoffContent) setup});
+typedef _State = ({
+  DockTab tab,
+  bool audio,
+  DownloadPhase? download,
+  Future<void> Function(WidgetTester, ReaderController, HandoffContent) setup
+});
+
+/// The player open on the section 226–234, set as the design's sample: 1.25×,
+/// each verse three times, a 2 s gap. Then [tile]'s picker, if any.
+Future<void> _player(WidgetTester tester, ReaderController r, [String? tile]) async {
+  r
+    ..setSpeed(1.25)
+    ..setVerseRepeats(3)
+    ..setGap(2000);
+  await tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)));
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.tap(find.bySemanticsLabel(RegExp('^فتح المشغّل')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+  if (tile == null) return;
+  await tester.tap(find.widgetWithText(StatTile, tile));
+}
 
 Future<void> _nothing(WidgetTester _, ReaderController _, HandoffContent _) async {}
 
 final Map<String, _State> _states = {
-  'reader-playing': (tab: DockTab.matn, audio: true, setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))),
-  'reader-none': (tab: DockTab.matn, audio: false, setup: _nothing),
-  'verse': (tab: DockTab.matn, audio: true, setup: (_, r, _) async => r.openMenu(229)),
+  'reader-playing': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))
+  ),
+  'reader-none': (tab: DockTab.matn, audio: false, download: null, setup: _nothing),
+  'reader-downloading': (tab: DockTab.matn, audio: false, download: DownloadPhase.downloading, setup: _nothing),
+  'reader-failed': (tab: DockTab.matn, audio: false, download: DownloadPhase.failed, setup: _nothing),
+  'verse': (tab: DockTab.matn, audio: true, download: null, setup: (_, r, _) async => r.openMenu(229)),
   'heading': (
     tab: DockTab.matn,
     audio: true,
+    download: null,
     setup: (_, r, d) async => r.openHeading(d.content.matn.chapters.indexWhere((c) => c.fromVerse == 226))
   ),
-  'settings-main': (tab: DockTab.settings, audio: false, setup: _nothing),
-  'settings-picker': (tab: DockTab.settings, audio: false, setup: (tester, _, _) => tester.tap(find.text(TzNightPage.pickerTitle))),
+  'player-main': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r)),
+  'player-repeat': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'تكرار البيت')),
+  'player-speed': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'السرعة')),
+  'settings-main': (tab: DockTab.settings, audio: false, download: null, setup: _nothing),
+  'settings-picker': (
+    tab: DockTab.settings,
+    audio: false,
+    download: null,
+    setup: (tester, _, _) => tester.tap(find.text(TzNightPage.pickerTitle))
+  ),
 };
 
 /// The night states the handoff shows once per ink (screens/inks/): the page in
@@ -63,7 +102,16 @@ void main() {
     // Shadows with their blur, as on a device (flutter_test draws them flat by default).
     debugDisableShadows = false;
     final onSettings = state.tab == DockTab.settings;
-    final r = await data.reader(tester, audio: state.audio, library: onSettings);
+    // A download in progress or failed is 42 % in, as the design's sample.
+    final total = data.content.recordings.defaultRecording.localBytes;
+    final r = await data.reader(tester,
+        audio: state.audio,
+        library: onSettings || state.audio, // «التلاوة» leads to the reciters
+        download: switch (state.download) {
+          null => null,
+          final phase => DownloadProgress(
+              phase, (total * 0.42).ceil(), total, phase == DownloadPhase.failed ? DownloadError.network : null),
+        });
     if (tz.night) r.setNightInk(tz.nightInk); // the settings row and the picker name the chosen ink
     addTearDown(() => appNightInk.value = TzNightPage.jade);
     await tester.pumpWidget(RepaintBoundary(

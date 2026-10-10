@@ -201,7 +201,6 @@ void main() {
   // The sheets over the reader.
   final sheets = <String, Future<void> Function(BuildContext, ReaderController)>{
     'tools sheet (view)': (c, r) => showToolsSheet(c, r),
-    'tools sheet (audio)': (c, r) => showToolsSheet(c, r, tab: ToolsTab.audio),
     'tools sheet (more)': (c, r) => showToolsSheet(c, r, tab: ToolsTab.more),
     'listen sheet': (c, r) => showListenSheet(c, r, 229),
     'verse menu': (c, r) async => r.openMenu(229),

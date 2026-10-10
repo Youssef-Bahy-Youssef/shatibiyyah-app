@@ -33,6 +33,7 @@ class StatTile extends StatelessWidget {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 66),
                   child: Stack(
+                    alignment: Alignment.center, // the value and its caption, centred in a tile taller than them
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -44,7 +45,7 @@ class StatTile extends StatelessWidget {
                                   style: TzType.head.copyWith(
                                       height: 22 / 16, color: c.ink, fontFeatures: const [FontFeature.tabularFigures()])),
                               const SizedBox(height: 2),
-                              Text(label, textAlign: TextAlign.center, style: TzType.caption.copyWith(fontSize: 11.5, color: c.ink3)),
+                              Text(label, textAlign: TextAlign.center, style: TzType.caption.copyWith(fontSize: 11.5, height: 16 / 11.5, color: c.ink3)),
                             ],
                           ),
                         ),

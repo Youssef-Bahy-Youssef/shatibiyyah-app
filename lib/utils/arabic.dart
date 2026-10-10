@@ -137,6 +137,10 @@ String fmtTime(num sec) {
   return '${ar(m)}:${s < 10 ? '٠${ar(s)}' : ar(s)}';
 }
 
+/// «١:٢٢» — minutes and seconds of [ms], kept left to right like a clock inside
+/// Arabic text (LRI … PDI).
+String playTime(num ms) => '\u2066${fmtTime(ms / 1000)}\u2069';
+
 /// ported from app.js: normDigits(str) — fold Arabic-Indic / Persian digits to ASCII.
 String normDigits(String str) {
   const persian = '۰۱۲۳۴۵۶۷۸۹';
