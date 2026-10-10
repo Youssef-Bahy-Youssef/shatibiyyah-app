@@ -270,7 +270,16 @@ void main() {
 
     await show(DownloadProgress(DownloadPhase.failed, 0, total, DownloadError.verification));
     expect(find.text('تعذّر التنزيل'), findsOneWidget);
-    expect(find.text('لم يطابق الملف التحقق'), findsOneWidget); // the reason, as «التنزيلات» words it
+    expect(find.text('تعذّر التحقق من الملف'), findsOneWidget); // the reason, as «التنزيلات» words it
+    await unmount(tester);
+
+    // A download that waits says what for (ADR 0007).
+    await show(DownloadProgress(DownloadPhase.waitingForNetwork, (total / 2).ceil(), total));
+    expect(find.text('جارٍ تنزيل التلاوة'), findsOneWidget);
+    expect(find.text('بانتظار الاتصال بالشبكة · يُستأنف تلقائيًا'), findsOneWidget);
+    await unmount(tester);
+    await show(DownloadProgress(DownloadPhase.waitingForWifi, 0, total));
+    expect(find.text('بانتظار شبكة Wi-Fi'), findsOneWidget);
     await unmount(tester);
 
     await show(DownloadProgress(DownloadPhase.paused, (total / 4).ceil(), total, DownloadError.paused));

@@ -160,7 +160,13 @@ class AppShellState extends State<AppShell> {
       return NpDownloading(
         percent: '${ar((f * 100).floor())}٪',
         progress: f,
-        subtitle: '${ar(((progress?.received ?? 0) / 1e6).round())} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
+        // What it waits for, if it waits; else how far it is.
+        subtitle: switch (progress?.phase) {
+          DownloadPhase.waitingForNetwork => 'بانتظار الاتصال بالشبكة · يُستأنف تلقائيًا',
+          DownloadPhase.waitingForWifi => 'بانتظار شبكة Wi-Fi',
+          DownloadPhase.verifying => 'يُتحقَّق من الملف…',
+          _ => '${ar(((progress?.received ?? 0) / 1e6).round())} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
+        },
         onPause: () => library.pause(rec),
       );
     }
@@ -169,7 +175,7 @@ class AppShellState extends State<AppShell> {
       final why = switch (progress!.error) {
         DownloadError.noUrls => 'التنزيل غير متاح بعد',
         DownloadError.noSpace => 'المساحة غير كافية',
-        DownloadError.verification => 'لم يطابق الملف التحقق',
+        DownloadError.verification => 'تعذّر التحقق من الملف',
         _ => 'انقطع الاتصال',
       };
       final resumes = progress.error == DownloadError.network && progress.received > 0;
@@ -182,6 +188,13 @@ class AppShellState extends State<AppShell> {
       return NpNone(
         subtitle: 'متوقف عند ${ar(((progress?.fraction ?? 0) * 100).floor())}٪ · ${megabytes(rec.localBytes)}',
         action: 'متابعة',
+        onDownload: () => library.download(rec),
+      );
+    }
+    if (library != null && library.needsUpdate(rec)) {
+      // An app update brought a new recording: the old file is not played.
+      return NpNone(
+        subtitle: 'يلزم تحديث التلاوة · ${megabytes(rec.localBytes)}',
         onDownload: () => library.download(rec),
       );
     }
