@@ -28,6 +28,21 @@ void main() {
     expect((await store.db.rawQuery('PRAGMA user_version')).first.values.first, kUserMigrations.length);
   });
 
+  test('a migration is a list of statements: a «;» inside a literal applies (F-58)', () async {
+    final other = await Directory.systemTemp.createTemp('user_store_semicolon');
+    addTearDown(() => other.delete(recursive: true));
+    final s = await UserStore.open(directory: other.path, factory: databaseFactoryFfi, migrations: [
+      ...kUserMigrations,
+      [
+        'CREATE TABLE t (body TEXT NOT NULL)',
+        "INSERT INTO t (body) VALUES ('a; b')",
+      ],
+    ]);
+    addTearDown(s.close);
+    expect((await s.db.rawQuery('SELECT body FROM t')).single['body'], 'a; b');
+    expect((await s.db.rawQuery('PRAGMA user_version')).first.values.first, kUserMigrations.length + 1);
+  });
+
   test('a bookmark colour or tag outside the design is refused', () async {
     Future<void> insert(String color, String tag) => store.db.insert('bookmarks', {
           'uuid': '$color$tag', 'from_verse_id': 'verse:shatibiyyah:1', 'color': color, 'tag': tag,
