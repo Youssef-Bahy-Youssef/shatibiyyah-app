@@ -181,6 +181,34 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a failed save keeps the sheet open, the text intact, and says «تعذّر الحفظ» (F-55)', (tester) async {
+    final (r, personal) = await open(tester);
+    await tester.runAsync(personal.store.close); // every write now throws a DatabaseException
+
+    r.openMenu(230);
+    await tester.pump();
+    await tester.tap(find.text('ملاحظة'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'قارن بالوافي');
+    await tester.tap(find.text('حفظ'));
+    await settle(tester);
+    expect(find.text('ملاحظة على البيت ٢٣٠'), findsOneWidget); // still open
+    expect(find.text('قارن بالوافي'), findsOneWidget);
+    expect(find.text('تعذّر الحفظ'), findsOneWidget);
+    Navigator.of(tester.element(find.text('ملاحظة على البيت ٢٣٠'))).pop();
+    await tester.pumpAndSettle();
+
+    r.openMenu(229);
+    await tester.pump();
+    await tester.tap(find.text('مرجع'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حفظ المرجع'));
+    await settle(tester);
+    expect(find.text('المرجع'), findsOneWidget); // still open
+    expect(find.text('تعذّر الحفظ'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('home: empty states say how to add', (tester) async {
     final (r, _) = await open(tester);
     await tester.pumpWidget(MaterialApp(
