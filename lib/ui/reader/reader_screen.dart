@@ -54,6 +54,10 @@ class ReaderScreen extends StatefulWidget {
 
   static const folioKey = ValueKey('reader-folio');
   static const backSheetKey = ValueKey('reader-back-sheet');
+
+  /// The page's place among the stack's children: the viewer keeps its state when
+  /// those before it come and go (the back sheet leaves in text mode).
+  static const pageKey = ValueKey('reader-page');
   static const explainedRingKey = ValueKey('reader-explained-ring');
   static const commentaryKey = ValueKey('reader-commentary-sheet');
 
@@ -258,6 +262,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
         Positioned.fromRect(
+          key: ReaderScreen.pageKey,
           rect: layout.page,
           // Kept mounted in text mode so the page is where it was when the student returns.
           child: Offstage(

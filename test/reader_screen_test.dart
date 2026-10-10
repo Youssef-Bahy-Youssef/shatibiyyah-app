@@ -221,6 +221,30 @@ void main() {
       expect(find.text('البيت ٢٢٦'), findsOneWidget);
       await unmount(tester);
     });
+
+    testWidgets('back on the page, a tapped verse is the only one marked: its ring ends and the wash reaches it', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      final viewer = tester.state(find.byType(PageViewer));
+      r.setTextMode(true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      r.setTextMode(false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.state(find.byType(PageViewer)), same(viewer), reason: 'the page stayed mounted under the text');
+
+      await tester.tapAt(tester.getTopLeft(find.byType(PageViewer)) + r.viewer.viewRectOfVerse(227)!.center);
+      await tester.pump();
+      expect(r.verse, 227);
+      expect(r.viewer.pulse, isNotNull);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 32));
+      }
+      expect(r.viewer.pulse, isNull, reason: 'the tap ring is over after 460 ms');
+      expect(r.viewer.prevBox, isNull, reason: 'the wash has left verse 226');
+      await unmount(tester);
+    });
   });
 
   testWidgets('Back closes the verse menu and stays in the reader', (tester) async {
