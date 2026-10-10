@@ -29,9 +29,6 @@ const double _swipeMin = 55;
 const int _dblMs = 300;
 const double _dblSlop = 34;
 
-/// Night-mode page brightness range (features-v3 night-mode: 40–100 %).
-const int kMinBrightness = 40;
-const int kMaxBrightness = 100;
 
 /// Hold time before a verse's action menu opens (features-v3: 450 ms).
 const int kLongPressMs = 450;
@@ -54,9 +51,8 @@ _Col _playingCol(bool night) {
 
 class ViewPrefs {
   final bool night;
-  final int brightness;
   final bool showBoxes;
-  const ViewPrefs(this.night, this.brightness, this.showBoxes);
+  const ViewPrefs(this.night, this.showBoxes);
 }
 
 /// PageViewerController — owns all page/transform/highlight state and the gesture engine.
@@ -91,7 +87,6 @@ class PageViewerController extends ChangeNotifier {
 
   // view prefs (persisted)
   late bool night;
-  late int brightnessPct;
 
   /// Whether the playing wash is drawn: only with a recitation loaded, and not
   /// under a popover's spotlight (handoff specs: reader-none has no wash, verse
@@ -132,11 +127,6 @@ class PageViewerController extends ChangeNotifier {
 
   PageViewerController(this.data, this.prefs) {
     night = prefs.getLS(K.night, '0') == '1';
-    brightnessPct = clampd(
-      (int.tryParse(prefs.getLS(K.bright, '85')) ?? 85).toDouble(),
-      kMinBrightness.toDouble(),
-      kMaxBrightness.toDouble(),
-    ).toInt();
     showBoxes = prefs.getLS(K.boxes, '0') == '1';
   }
 
@@ -402,17 +392,10 @@ class PageViewerController extends ChangeNotifier {
     return cross || pulsing;
   }
 
-  // ── night mode / brightness / boxes (ported) ──
+  // ── night mode / boxes (ported) ──
   void setNightMode(bool on, {bool persist = true}) {
     night = on;
     if (persist) prefs.setLS(K.night, night ? '1' : '0');
-    notifyListeners();
-    _emitPref();
-  }
-
-  void setBrightness(int pct, {bool persist = true}) {
-    brightnessPct = clampd(pct.toDouble(), kMinBrightness.toDouble(), kMaxBrightness.toDouble()).toInt();
-    if (persist) prefs.setLS(K.bright, brightnessPct.toString());
     notifyListeners();
     _emitPref();
   }
@@ -424,9 +407,9 @@ class PageViewerController extends ChangeNotifier {
     _emitPref();
   }
 
-  void _emitPref() => _viewPref.add(ViewPrefs(night, brightnessPct, showBoxes));
+  void _emitPref() => _viewPref.add(ViewPrefs(night, showBoxes));
 
-  ViewPrefs getViewPrefs() => ViewPrefs(night, brightnessPct, showBoxes);
+  ViewPrefs getViewPrefs() => ViewPrefs(night, showBoxes);
 
   void emitOpenSearch() => _emit(_openSearch);
 
@@ -469,8 +452,8 @@ class PageViewerController extends ChangeNotifier {
     return Rect.lerp(from, to, TzMotion.emphasized.transform(t))!;
   }
 
-  /// The night page's colour matrix in [ink] at [brightness] (design/night_page.dart).
-  static List<double> nightPageMatrix(TzNightInk ink, double brightness) => nightInkMatrix(ink, brightness: brightness);
+  /// The night page's colour matrix in [ink] (design/night_page.dart).
+  static List<double> nightPageMatrix(TzNightInk ink) => nightInkMatrix(ink);
 
   // ── hit-testing (ported: _imageCoords / _hitVerse / _hitChapter / _handleTap) ──
   ({double ix, double iy}) _imageCoords(Offset local) {
@@ -922,7 +905,7 @@ class _PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     );
     if (c.night) {
       image = ColorFiltered(
-        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk, c.brightnessPct / 100)),
+        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk)),
         child: image,
       );
     }

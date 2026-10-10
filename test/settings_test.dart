@@ -96,13 +96,13 @@ void main() {
     // «حجم نص المتن» opens the size steps; the row then says the chosen one.
     await tester.tap(find.text('حجم نص المتن'));
     await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel('١٥٠٪'));
+    await tester.tap(find.bySemanticsLabel('١٢٥٪'));
     await tester.pump();
-    expect(r.textScale, 1.5);
-    expect(r.store!.textScale, 1.5);
+    expect(r.textScale, 1.25);
+    expect(r.store!.textScale, 1.25);
     await tester.tap(find.text('تم'));
     await tester.pumpAndSettle();
-    expect(find.text('١٥٠٪'), findsOneWidget);
+    expect(find.text('١٢٥٪'), findsOneWidget);
 
     // «عناوين الأبواب» says its state, and «العرض عند الفتح» is the reader's view.
     expect(r.settings.playTitles, isTrue);

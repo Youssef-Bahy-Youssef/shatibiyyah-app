@@ -30,7 +30,6 @@ class ReaderTokens {
   static const double sideMargin = 8;
 
   /// Text mode's distance from the bar and the dock.
-  static const double textGap = 10;
 
   /// The dock floats this far up into the home indicator's inset, and never
   /// nearer the edge than [dockMinBottom].
@@ -55,12 +54,17 @@ class ReaderLayout {
   /// The top bar's rectangle and the dock's.
   final Rect bar;
   final Rect dock;
+  final Size screen;
 
-  const ReaderLayout(this.page, this.bar, this.dock);
+  const ReaderLayout(this.page, this.bar, this.dock, this.screen);
 
-  /// Text mode's zone: everything between the top bar and the dock.
-  Rect get textZone =>
-      Rect.fromLTRB(0, bar.bottom + ReaderTokens.textGap, bar.width, dock.top - ReaderTokens.textGap);
+  /// Text mode's zone: from the top bar to the screen's end. The column scrolls
+  /// under the dock (v2.css .scr, .tm).
+  Rect get textZone => Rect.fromLTRB(0, bar.bottom, screen.width, screen.height);
+
+  /// What the dock covers at the end of text mode's column, and the gap above
+  /// it: the column's last verse scrolls clear of both (v2.css .tm padding-bottom).
+  double get textInset => screen.height - dock.top + ReaderTokens.zoneGap;
 
   factory ReaderLayout.compute(Size screen, EdgeInsets safe) {
     final dockBottom = ReaderTokens.dockBottom(safe.bottom);
@@ -77,6 +81,7 @@ class ReaderLayout {
       Rect.fromLTWH(0, safe.top, screen.width, ReaderTokens.barHeight),
       Rect.fromLTWH(ReaderTokens.dockSide, screen.height - dockBottom - ReaderTokens.dockHeight,
           screen.width - 2 * ReaderTokens.dockSide, ReaderTokens.dockHeight),
+      screen,
     );
   }
 }

@@ -94,7 +94,7 @@ class VerseUnit extends StatelessWidget {
   final List<Rubric> rubrics;
   final bool playing, chosen;
   final double fontSize;
-  final VoidCallback? onTap, onLongPress;
+  final VoidCallback? onTap, onDoubleTap, onLongPress;
 
   const VerseUnit({
     super.key,
@@ -106,6 +106,7 @@ class VerseUnit extends StatelessWidget {
     this.chosen = false,
     this.fontSize = kVerseSize,
     this.onTap,
+    this.onDoubleTap,
     this.onLongPress,
   });
 
@@ -128,6 +129,7 @@ class VerseUnit extends StatelessWidget {
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
+        onDoubleTap: onDoubleTap,
         onLongPress: onLongPress,
         behavior: HitTestBehavior.opaque,
         child: Stack(

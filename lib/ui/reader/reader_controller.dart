@@ -191,8 +191,10 @@ class ReaderController extends ChangeNotifier {
   ReaderTheme get theme => appTheme.value;
   bool get textMode => _textMode;
   double get textScale => _textScale;
+
+  /// The matn's size in text mode, in px (ADR 0021).
+  double get verseSize => kDefaultVerseSize * _textScale;
   bool get night => viewer.night;
-  int get brightness => viewer.brightnessPct;
 
   void _apply(PlaybackSettings s) {
     _settings = s;
@@ -257,7 +259,7 @@ class ReaderController extends ChangeNotifier {
   }
 
   void setTextScale(double v) {
-    _textScale = v.clamp(0.75, 2).toDouble();
+    _textScale = nearestTextScale(v);
     store?.textScale = _textScale;
     notifyListeners();
   }
@@ -265,11 +267,6 @@ class ReaderController extends ChangeNotifier {
   /// The night page follows the theme (ReaderScreen); kept for the viewer's own tests.
   void setNight(bool on) {
     viewer.setNightMode(on);
-    notifyListeners();
-  }
-
-  void setBrightness(int pct) {
-    viewer.setBrightness(pct);
     notifyListeners();
   }
 

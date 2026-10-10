@@ -22,12 +22,12 @@ import '../design/components/tz_switch.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
+import '../reader/display_sheet.dart';
 import '../reader/reader_controller.dart';
 import 'backup_screen.dart';
 import 'downloads_screen.dart';
 import 'night_ink_sheet.dart';
 import 'shell_page.dart';
-import 'text_size_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   final ReaderController reader;
@@ -77,7 +77,7 @@ class SettingsScreen extends StatelessWidget {
                   icon: 'textsize',
                   label: 'حجم نص المتن',
                   value: '${ar((reader.textScale * 100).round())}٪',
-                  onTap: () => showTextSizeSheet(context, reader),
+                  onTap: () => showDisplaySheet(context, reader),
                 ),
               ]),
               SettingsGroup(title: 'الوضع الليلي', rows: [

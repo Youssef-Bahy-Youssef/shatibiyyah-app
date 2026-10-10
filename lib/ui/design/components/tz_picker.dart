@@ -22,8 +22,11 @@ Future<void> showTzPicker(BuildContext context, WidgetBuilder builder) => showMo
 class TzPicker extends StatelessWidget {
   final String title;
   final String? help;
+
+  /// A control at the end of the title's line (a [MinSegmented]: 44 px drawn in a 48 px target).
+  final Widget? titleTrailing;
   final Widget child;
-  const TzPicker({super.key, required this.title, this.help, required this.child});
+  const TzPicker({super.key, required this.title, this.help, this.titleTrailing, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +39,20 @@ class TzPicker extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 10),
-            Text(title, style: TzType.title.copyWith(color: c.ink)),
+            // The trailing control's target reaches 2 px past its drawing, above and below.
+            SizedBox(height: titleTrailing == null ? 10 : 8),
+            if (titleTrailing case final trailing?)
+              Row(
+                children: [
+                  Expanded(child: Text(title, style: TzType.title.copyWith(color: c.ink))),
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
+              )
+            else
+              Text(title, style: TzType.title.copyWith(color: c.ink)),
             if (help != null) Text(help!, style: TzType.label.copyWith(color: c.ink3)),
-            const SizedBox(height: 14),
+            SizedBox(height: titleTrailing == null ? 14 : 12),
             Flexible(child: SingleChildScrollView(child: child)),
             const SizedBox(height: 12),
             TzButton.primary(label: 'تم', onPressed: () => Navigator.of(context).pop()),

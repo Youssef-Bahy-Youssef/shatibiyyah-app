@@ -2,8 +2,7 @@
 //
 // Option sets are the v3 ones (features-v3: advanced-control-cards, playback-speed):
 // verse repeat 1/3/5/∞, section repeat 1/2/3/5/∞ (∞ kept from the old app, plan Q9),
-// gap off/1/2/3 s, speed 0.75–1.5 remembered per reciter. Page night mode and
-// brightness stay with the page viewer.
+// gap off/1/2/3 s, speed remembered per reciter.
 import '../services/preferences_service.dart';
 
 /// The palette on screen: night (`dark`) or paper.
@@ -19,7 +18,15 @@ const List<int?> kVerseRepeatOptions = [1, 2, 3, 4, 5, null]; // null = ∞
 const List<int?> kSectionRepeatOptions = [1, 2, 3, 4, 5, null];
 const List<int> kGapOptionsMs = [0, 1000, 2000, 3000];
 const List<double> kSpeedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const List<double> kTextScaleOptions = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
+/// The matn's text in text mode (ADR 0021): 20 px by default, and six sizes from
+/// 17 to 28 px, kept as a scale of the default (v2.text.scale).
+const double kDefaultVerseSize = 20;
+const List<double> kTextScaleOptions = [0.85, 0.925, 1, 1.1, 1.25, 1.4];
+
+/// The offered size nearest to [scale] (an older app kept 0.75× to 2×).
+double nearestTextScale(double scale) =>
+    kTextScaleOptions.reduce((a, b) => (b - scale).abs() < (a - scale).abs() ? b : a);
 
 class SettingsStore {
   final Prefs prefs;
@@ -52,10 +59,10 @@ class SettingsStore {
 
   double get textScale {
     final v = double.tryParse(prefs.getString('v2.text.scale') ?? '');
-    return v != null && v >= 0.75 && v <= 2 ? v : 1;
+    return v == null || !v.isFinite ? 1 : nearestTextScale(v);
   }
 
-  set textScale(double v) => prefs.setString('v2.text.scale', '${v.clamp(0.75, 2)}');
+  set textScale(double v) => prefs.setString('v2.text.scale', '${nearestTextScale(v)}');
 
   int? get verseRepeats => _repeat(prefs.getString('v2.repeat.verse'), kVerseRepeatOptions, 1);
   set verseRepeats(int? n) => prefs.setString('v2.repeat.verse', _repeatString(n));

@@ -15,11 +15,13 @@ import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/design/components/dock.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
+import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
 import 'package:shatibiyyah/ui/shell/saved_screen.dart';
+import 'package:shatibiyyah/utils/arabic.dart';
 
 import '../test/handoff/fixtures.dart';
 import 'golden_fonts.dart';
@@ -87,6 +89,27 @@ final Map<String, _State> _states = {
   'player-main': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r)),
   'player-repeat': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'تكرار البيت')),
   'player-speed': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'السرعة')),
+  'textmode-reading': (tab: DockTab.matn, audio: true, download: null, setup: (_, r, _) async => r.setTextMode(true)),
+  'textmode-playing': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, _) async {
+      r.setTextMode(true);
+      await tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)));
+      await tester.runAsync(() => r.tapVerse(227));
+    }
+  ),
+  'textmode-display': (
+    tab: DockTab.matn,
+    audio: true,
+    download: null,
+    setup: (tester, r, _) async {
+      r.setTextMode(true);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip('العرض'));
+    }
+  ),
   'index': (
     tab: DockTab.contents,
     audio: true,
@@ -181,6 +204,46 @@ void main() {
   for (final MapEntry(key: name, value: state) in _states.entries) {
     testWidgets('$name-paper', (tester) => shoot(tester, '$name-paper', state, TzTheme.paper));
     testWidgets('$name-night', (tester) => shoot(tester, '$name-night', state, TzTheme.dark));
+  }
+
+  // «أطول الأبيات وأكثرها حركاتٍ متراكبة، بأكبر حجم»: verses 496, 336 and 1056 at 28 px,
+  // the column alone (the handoff's image frames it with the reader's bars).
+  for (final (theme, tz) in [('paper', TzTheme.paper), ('night', TzTheme.dark)]) {
+    testWidgets('textmode-large-$theme', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final matn = data.content.matn;
+      await tester.pumpWidget(RepaintBoundary(
+        key: boundary,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: tzThemeData(tz),
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 104, 12, 0),
+                child: Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 18, 0, 4),
+                    child: Text('أطول الأبيات وأكثرها حركاتٍ متراكبة، بأكبر حجم',
+                        textAlign: TextAlign.center, style: TzType.caption.copyWith(color: tz.colors.ink3)),
+                  ),
+                  for (final n in [496, 336, 1056])
+                    VerseUnit(
+                        number: ar(n), first: matn.verse(n).firstHemistich, second: matn.verse(n).secondHemistich, fontSize: 28),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+      final ui.Image image = (await tester.runAsync(
+          () => (boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio: 2)))!;
+      await expectLater(image, matchesGoldenFile('goldens/handoff/textmode-large-$theme.png'));
+    });
   }
 
   for (final name in _inkStates) {

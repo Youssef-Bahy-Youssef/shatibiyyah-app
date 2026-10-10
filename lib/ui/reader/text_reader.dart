@@ -1,28 +1,63 @@
-// lib/ui/reader/text_reader.dart — «العرض النصي»: the verses as typeset text.
+// lib/ui/reader/text_reader.dart — text mode (item 3.8, ADR 0021; handoff
+// textmode-*): the matn as a poem, in one column.
 //
-// features-v3 text-mode-reader: the chapter's verses, first hemistich right and
-// second left, stacked on phones, the current verse highlighted, font 0.75×–2×.
-// It fills the same zone as the page, between the top bar and the player. It
-// follows the reader's verse like the page does; the chapter buttons at the end
-// browse other chapters until the verse moves again. A tap moves the reader to a
-// verse; a double tap (or a long press, as on the page) opens the verse menu.
+// The chapters follow one another, each under its head (khatam, ordinal and
+// range, the full title, a centred gilt rule); each verse is a unit with a small
+// khatam in the margin and its two hemistichs staggered. The column opens on the
+// reader's verse and follows it; the recited verse lies on the soft gilt wash,
+// the chosen one (its menu open, or a selected run) is ringed. A tap moves the
+// reader to a verse; a long press (or a double tap, as on the page) opens its
+// menu. The size is the reader's choice of six (17–28 px).
+//
+// The poem has 1173 verses and no fixed heights, so the column is built around
+// an anchor: the verse it opens on stands at the top of a list that grows down
+// from it, over another that grows up from it. A verse out of reach makes a new
+// anchor.
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/matn_repository.dart';
-import '../design/tokens.g.dart';
-import '../design/tz_type.dart';
 import '../../utils/arabic.dart';
-import '../../data/settings_store.dart';
-import '../design/dashed.dart';
-import '../design/taysir_colors.dart';
+import '../design/components/chapter_head.dart';
+import '../design/components/verse_unit.dart';
+import '../shell/shell_page.dart' show readingPadding;
 import 'reader_controller.dart';
 
-const double _kScaleStep = 0.25;
+/// The poem as a row of items: each chapter's head, then its verses.
+class PoemItems {
+  final MatnRepository matn;
+  const PoemItems(this.matn);
+
+  int get length => matn.lastVerse + matn.chapters.length;
+
+  /// The head of the chapter at [chapterIndex] in the list of chapters.
+  int headIndex(int chapterIndex) => matn.chapters[chapterIndex].fromVerse - 1 + chapterIndex;
+
+  int verseIndex(int verse) => verse + matn.chapters.indexOf(matn.chapterOfVerse(verse));
+
+  /// The item at [index]: a chapter (its head) or a verse number.
+  ({MatnChapter chapter, int? verse}) at(int index) {
+    // The last chapter whose head is at or before [index].
+    var lo = 0, hi = matn.chapters.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (headIndex(mid) <= index) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    final chapter = matn.chapters[lo], offset = index - headIndex(lo);
+    return (chapter: chapter, verse: offset == 0 ? null : chapter.fromVerse + offset - 1);
+  }
+}
 
 class TextReader extends StatefulWidget {
   final ReaderController reader;
-  const TextReader({super.key, required this.reader});
+
+  /// What floats over the column's end (the dock and the gap above it): the last
+  /// verse scrolls clear of it.
+  final double bottomInset;
+  const TextReader({super.key, required this.reader, this.bottomInset = 0});
 
   @override
   State<TextReader> createState() => TextReaderState();
@@ -30,10 +65,13 @@ class TextReader extends StatefulWidget {
 
 class TextReaderState extends State<TextReader> {
   final Map<int, GlobalKey> _rows = {};
-  final _scroll = ScrollController();
+  late final PoemItems _items = PoemItems(_reader.content.matn);
 
-  /// The chapter the student browsed to, or null while following the reader's verse.
-  int? _browsed;
+  /// The item at the column's top when it was last laid out afresh, and how far
+  /// above it the view starts (the item before it shows).
+  late int _anchor;
+  late double _lead;
+  int _generation = 0;
   late int _followedVerse;
 
   ReaderController get _reader => widget.reader;
@@ -42,284 +80,170 @@ class TextReaderState extends State<TextReader> {
   void initState() {
     super.initState();
     _followedVerse = _reader.verse;
+    _anchorOn(_reader.verse);
     _reader.addListener(_onReader);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_reader.verse, animate: false));
   }
 
   @override
   void dispose() {
     _reader.removeListener(_onReader);
-    _scroll.dispose();
     super.dispose();
+  }
+
+  /// A chapter's first verse stands under its head; any other with the verse before it in view.
+  void _anchorOn(int verse) {
+    final chapter = _reader.content.matn.chapterOfVerse(verse);
+    if (verse == chapter.fromVerse) {
+      _anchor = _items.verseIndex(verse) - 1;
+      _lead = 4; // v2.css .tm: 4 px above the first head
+    } else {
+      _anchor = _items.verseIndex(verse);
+      _lead = 120;
+    }
+    _generation++;
   }
 
   void _onReader() {
     if (_reader.verse == _followedVerse) return;
     _followedVerse = _reader.verse;
-    setState(() => _browsed = null);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_reader.verse, animate: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_followedVerse));
   }
 
-  /// Scrolls [verse]'s row into view, unless it is already fully on screen.
-  void _reveal(int verse, {required bool animate}) {
-    final context = _rows[verse]?.currentContext;
-    if (context == null || !mounted) return;
-    final row = rowRect(verse);
-    final viewport = this.context.findRenderObject() as RenderBox?;
-    if (row != null && viewport != null && viewport.hasSize) {
+  /// Brings [verse] into view: nothing if it is all on screen, a glide if its
+  /// unit is built, a fresh anchor if it is out of reach.
+  void _reveal(int verse) {
+    if (!mounted) return;
+    final row = _rows[verse]?.currentContext;
+    if (row == null) {
+      setState(() => _anchorOn(verse));
+      return;
+    }
+    final box = rowRect(verse), viewport = context.findRenderObject() as RenderBox?;
+    if (box != null && viewport != null && viewport.hasSize) {
       final view = viewport.localToGlobal(Offset.zero) & viewport.size;
-      if (row.top >= view.top && row.bottom <= view.bottom) return;
+      if (box.top >= view.top && box.bottom <= view.bottom - widget.bottomInset) return;
     }
     Scrollable.ensureVisible(
-      context,
+      row,
       alignment: 0.3,
-      // Reduced motion (a system setting): the row jumps into view instead of gliding.
-      duration: animate && !MediaQuery.of(context).disableAnimations ? const Duration(milliseconds: 250) : Duration.zero,
+      // Reduced motion (a system setting): the unit jumps into view instead of gliding.
+      duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 250),
       curve: Curves.easeOutCubic,
     );
   }
 
-  /// Where [verse]'s row is on screen, for anchoring the verse menu.
+  /// Where [verse]'s unit is on screen, for anchoring the verse menu.
   Rect? rowRect(int verse) {
     final box = _rows[verse]?.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  int get _chapterIndex {
-    final matn = _reader.content.matn;
-    return _browsed ?? matn.chapters.indexOf(matn.chapterOfVerse(_reader.verse));
-  }
-
-  void _browse(int index) {
-    setState(() => _browsed = index);
-    if (_scroll.hasClients) _scroll.jumpTo(0);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final t = TaysirColors.of(context);
-    final matn = _reader.content.matn;
-    final index = _chapterIndex;
-    final chapter = matn.chapters[index];
-    final scale = _reader.textScale;
-    // A chapter has at most ~100 verses: build every row, so any of them can be scrolled to.
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _header(t, matn, chapter, scale),
-          for (var n = chapter.fromVerse; n <= chapter.toVerse; n++) _row(t, matn.verse(n), scale),
-          _footer(t, matn, index),
-        ],
-      ),
-    );
-  }
-
-  Widget _header(TaysirColors t, MatnRepository matn, MatnChapter chapter, double scale) {
-    // The introduction is not a numbered chapter, and its title «مقدمة» would repeat the part's name.
-    final intro = chapter.orderIndex == 0;
-    final where = intro ? matn.partOf(chapter).title : 'الباب ${ar(chapter.orderIndex)}';
-    final title = intro ? chapter.shortLabel : chapter.title;
-    Widget step(String label, String tip, double to) {
-      final enabled = to >= 0.75 && to <= 2;
-      return Semantics(
-        button: true,
-        label: tip,
-        child: InkWell(
-          onTap: enabled ? () => _reader.setTextScale(to) : null,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: t.line),
-            ),
-            child: Text(label, style: TzType.chapter.copyWith(color: enabled ? t.text : t.muted)),
-          ),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) => _Column(
+          key: ValueKey(_generation),
+          length: _items.length,
+          anchor: _anchor,
+          lead: _lead,
+          // On a tablet the column keeps a reading width.
+          padding: readingPadding(box.maxWidth, side: 12),
+          bottomInset: widget.bottomInset,
+          itemBuilder: _item,
         ),
       );
+
+  Widget _item(BuildContext context, int index) {
+    final item = _items.at(index), chapter = item.chapter, matn = _reader.content.matn;
+    final size = _reader.verseSize;
+    final n = item.verse;
+    if (n == null) {
+      // The introduction is not a numbered chapter: its part's name stands for the ordinal.
+      final numbered = chapter.orderIndex > 0;
+      return ChapterHead(
+        order: numbered ? ar(chapter.orderIndex) : '',
+        caption: '${numbered ? chapterOrdinal(chapter.orderIndex) : matn.partOf(chapter).title} · '
+            'الأبيات ${isolatedRange(chapter.fromVerse, chapter.toVerse)} · ${versesCount(chapter.verseCount)}',
+        title: chapter.title,
+        verseSize: size,
+      );
     }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 10, 0, 8),
-      child: Column(
-        children: [
-          Text('$where، ${versesCount(chapter.verseCount)}', style: TzType.caption.copyWith(color: t.muted)),
-          Text(title,
-              textAlign: TextAlign.center,
-              style: TzType.title.copyWith(color: t.goldText)),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              step('أ−', 'تصغير الخط', scale - _kScaleStep),
-              SizedBox(
-                width: 52,
-                child: Text('${ar(scale)}×',
-                    textAlign: TextAlign.center, style: TzType.label.copyWith(color: t.dim)),
-              ),
-              step('أ+', 'تكبير الخط', scale + _kScaleStep),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(TaysirColors t, MatnVerse v, double scale) {
-    final on = v.number == _reader.verse;
-    final mark = _reader.personal?.ribbons[v.number];
-    final ribbon = mark == null ? null : t.bookmark(mark.index);
+    final v = matn.verse(n);
     final sel = _reader.selection;
-    final selected = sel != null && sel.from <= v.number && v.number <= sel.to;
-    // The page's selection colours: accent blue on paper, gold on espresso.
-    final selColor = _reader.theme == ReaderTheme.paper ? t.accent : t.gold;
-    final badge = 36 * scale.clamp(0.75, 1.5);
-    final line = TzType.verse.scaled(scale).copyWith(color: t.text);
-    final key = _rows.putIfAbsent(v.number, GlobalKey.new);
-    // One item for a screen reader: the number, both hemistichs and the actions.
-    return MergeSemantics(
-      key: key,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _reader.tapVerse(v.number),
-        onDoubleTap: () => _reader.openMenu(v.number),
-        onLongPress: () => _reader.openMenu(v.number),
-        child: Semantics(
-          label: 'البيت ${ar(v.number)}',
-          selected: on || selected,
-          child: _maybeDashed(
-            selected ? selColor : null,
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: on ? t.gold.withValues(alpha: 0.16) : (selected ? selColor.withValues(alpha: 0.10) : null),
-                borderRadius: BorderRadius.circular(16),
-                // The start-side bar of the prototype's `inset -3px 0 0` (the right edge in RTL).
-                border: on ? Border(right: BorderSide(color: t.gold, width: 3)) : null,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: badge,
-                    height: badge,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: on ? t.gold : t.line, width: 1.5),
-                    ),
-                    child: Text(ar(v.number),
-                        style: TzType.head.scaled(scale.clamp(0.75, 1.5)).copyWith(color: t.goldText)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(v.firstHemistich, textAlign: TextAlign.right, style: line),
-                        Padding(
-                          padding: EdgeInsets.only(right: scale > 1.4 ? 24 : 0),
-                          child: Text(v.secondHemistich, textAlign: TextAlign.left, style: line),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (ribbon != null) ...[
-                    const SizedBox(width: 8),
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Semantics(
-                        label: 'مرجع',
-                        child: CustomPaint(size: const Size(10, 20), painter: _Ribbon(ribbon)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _maybeDashed(Color? color, Widget child) =>
-      color == null ? child : DashedBorder(color: color, child: child);
-
-  Widget _footer(TaysirColors t, MatnRepository matn, int index) {
-    Widget go(String label, IconData icon, int to, {required bool iconFirst}) {
-      final enabled = to >= 0 && to < matn.chapters.length;
-      final children = [
-        Icon(icon, size: 18, color: enabled ? t.text : t.muted),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TzType.label.copyWith(color: enabled ? t.text : t.muted)),
-        ),
-      ];
-      return Expanded(
-        child: OutlinedButton(
-          onPressed: enabled ? () => _browse(to) : null,
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-            side: BorderSide(color: t.line),
-            shape: const StadiumBorder(),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: iconFirst ? children : children.reversed.toList(),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 8, 2, 16),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              go('الباب السابق', LucideIcons.chevronRight, index - 1, iconFirst: true),
-              const SizedBox(width: 10),
-              go('الباب التالي', LucideIcons.chevronLeft, index + 1, iconFirst: false),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text('نقرتان على بيت تفتحان قائمته',
-              textAlign: TextAlign.center, style: TzType.caption.copyWith(color: t.muted)),
-        ],
+    return KeyedSubtree(
+      key: _rows.putIfAbsent(n, GlobalKey.new),
+      child: VerseUnit(
+        number: ar(n),
+        first: v.firstHemistich,
+        second: v.secondHemistich,
+        fontSize: size,
+        playing: _reader.playing && n == _reader.verse,
+        chosen: n == _reader.menuVerse || (sel != null && sel.from <= n && n <= sel.to),
+        onTap: () => _reader.tapVerse(n),
+        onDoubleTap: () => _reader.openMenu(n),
+        onLongPress: () => _reader.openMenu(n),
       ),
     );
   }
 }
 
-/// The bookmark ribbon of a row (the prototype's 10 × 20 notched tab).
-class _Ribbon extends CustomPainter {
-  final Color color;
-  const _Ribbon(this.color);
+/// The column around its anchor: [anchor] at the top (less [lead]), the items
+/// after it below, the items before it above. A new key lays it out afresh.
+class _Column extends StatefulWidget {
+  final int length, anchor;
+  final double lead, bottomInset;
+  final EdgeInsets padding;
+  final IndexedWidgetBuilder itemBuilder;
+  const _Column(
+      {super.key,
+      required this.length,
+      required this.anchor,
+      required this.lead,
+      required this.padding,
+      required this.bottomInset,
+      required this.itemBuilder});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    canvas.drawPath(
-      Path()
-        ..moveTo(0, 0)
-        ..lineTo(w, 0)
-        ..lineTo(w, h)
-        ..lineTo(w / 2, h * 0.75)
-        ..lineTo(0, h)
-        ..close(),
-      Paint()..color = color,
-    );
+  State<_Column> createState() => _ColumnState();
+}
+
+class _ColumnState extends State<_Column> {
+  static const _centre = ValueKey('text-reader-anchor');
+  late final _scroll = ScrollController(initialScrollOffset: -widget.lead);
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   @override
-  bool shouldRepaint(_Ribbon old) => old.color != color;
+  Widget build(BuildContext context) {
+    final side = EdgeInsets.only(left: widget.padding.left, right: widget.padding.right);
+    return CustomScrollView(
+      controller: _scroll,
+      center: _centre,
+      slivers: [
+        SliverPadding(
+          padding: side.copyWith(top: 4),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => widget.itemBuilder(context, widget.anchor - 1 - i),
+              childCount: widget.anchor,
+            ),
+          ),
+        ),
+        SliverPadding(
+          key: _centre,
+          padding: side.copyWith(bottom: widget.bottomInset),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => widget.itemBuilder(context, widget.anchor + i),
+              childCount: widget.length - widget.anchor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

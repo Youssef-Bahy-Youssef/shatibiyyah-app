@@ -25,7 +25,7 @@ import 'package:shatibiyyah/ui/design/app_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/listen_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
-import 'package:shatibiyyah/ui/reader/tools_sheet.dart';
+import 'package:shatibiyyah/ui/reader/display_sheet.dart';
 import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/shell/about_screen.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
@@ -38,7 +38,6 @@ import 'package:shatibiyyah/ui/shell/reminders_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
 import 'package:shatibiyyah/ui/shell/night_ink_sheet.dart';
 import 'package:shatibiyyah/ui/shell/settings_screen.dart';
-import 'package:shatibiyyah/ui/shell/text_size_sheet.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -200,12 +199,10 @@ void main() {
 
   // The sheets over the reader.
   final sheets = <String, Future<void> Function(BuildContext, ReaderController)>{
-    'tools sheet (view)': (c, r) => showToolsSheet(c, r),
-    'tools sheet (more)': (c, r) => showToolsSheet(c, r, tab: ToolsTab.more),
+    'display sheet': (c, r) => showDisplaySheet(c, r),
     'listen sheet': (c, r) => showListenSheet(c, r, 229),
     'verse menu': (c, r) async => r.openMenu(229),
     'night-ink picker': (c, r) => showNightInkSheet(c, r),
-    'text-size sheet': (c, r) => showTextSizeSheet(c, r),
   };
   for (final MapEntry(key: name, value: open) in sheets.entries) {
     testWidgets('$name: labelled tap targets of 48 × 48 or more; 200 % text fits', (tester) async {
