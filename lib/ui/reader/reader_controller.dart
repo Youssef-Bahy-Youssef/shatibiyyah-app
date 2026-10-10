@@ -187,6 +187,9 @@ class ReaderController extends ChangeNotifier {
   int get sectionRepetition => _engineState?.sectionRepetition ?? 1;
   bool get inTitle => _engineState?.inTitle ?? false;
 
+  /// In the silence between two plays: the listener's «playing», with the player stopped.
+  bool get inGap => _engineState?.inGap ?? false;
+
   /// The chapter shown in the top bar: the playing verse's, or the page's when browsing.
   MatnChapter get headerChapter {
     // Following (or browsing back to the verse's own page): the current verse's chapter.
