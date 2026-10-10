@@ -194,6 +194,21 @@ void main() {
       expect((await store.bookmarks()).single.toVerse, isNull);
     });
 
+    test('delete by uuid, then restore: the same row; refused when its verses were taken', () async {
+      await store.saveBookmark(226, to: 234, color: BookmarkColor.blue, tag: BookmarkTag.muraja);
+      final b = (await store.bookmarks()).single;
+      await store.deleteBookmarkById(b.uuid);
+      expect(await store.bookmarks(), isEmpty);
+      expect(await store.restoreBookmark(b.uuid), isTrue);
+      final back = (await store.bookmarks()).single;
+      expect((back.uuid, back.fromVerse, back.toVerse, back.color, back.tag), (b.uuid, 226, 234, b.color, b.tag));
+
+      await store.deleteBookmarkById(b.uuid);
+      await store.saveBookmark(226, to: 234, color: BookmarkColor.gold, tag: BookmarkTag.hifz); // a new one
+      expect(await store.restoreBookmark(b.uuid), isFalse); // one live bookmark per range
+      expect((await store.bookmarks()).single.color, BookmarkColor.gold);
+    });
+
     test('uuids are random version-4', () {
       final a = newUuid(), b = newUuid();
       expect(a, isNot(b));

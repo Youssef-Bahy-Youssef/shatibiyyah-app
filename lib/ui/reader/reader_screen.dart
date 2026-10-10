@@ -282,7 +282,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ? null
               : (v) => showNoteSheet(context,
                   personal: reader.personal!, content: reader.content, verse: v, onDone: reader.showNotice),
-          bookmarked: (v) => reader.personal?.bookmarkAt(v) != null,
+          // Any bookmark covering the verse, a run included (F-51).
+          bookmarked: (v) => reader.personal?.bookmarksCovering(v).isNotEmpty ?? false,
           hasNote: (v) => reader.personal?.noteFor(v) != null,
           onExplain: _wide ? reader.openSplit : null,
         ),

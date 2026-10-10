@@ -197,6 +197,34 @@ class UserStore {
     );
   }
 
+  /// Changes the colour and tag of the bookmark [uuid] (its verses stay).
+  Future<void> updateBookmark(String uuid, {required BookmarkColor color, required BookmarkTag tag, DateTime? at}) =>
+      db.rawUpdate(
+        'UPDATE bookmarks SET color = ?, tag = ?, updated_at = ? WHERE uuid = ? AND deleted_at IS NULL',
+        [color.name, tag.name, (at ?? DateTime.now()).millisecondsSinceEpoch, uuid],
+      );
+
+  /// Deletes the bookmark [uuid]: a tombstone, so «تراجع» can bring it back.
+  Future<void> deleteBookmarkById(String uuid, {DateTime? at}) {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    return db.rawUpdate(
+      'UPDATE bookmarks SET deleted_at = ?, updated_at = ? WHERE uuid = ? AND deleted_at IS NULL',
+      [now, now, uuid],
+    );
+  }
+
+  /// «تراجع»: the deleted bookmark [uuid] is live again, with its uuid, verses,
+  /// colour and tag. False when another live bookmark has taken its verses since.
+  Future<bool> restoreBookmark(String uuid, {DateTime? at}) async =>
+      await db.rawUpdate(
+        'UPDATE bookmarks SET deleted_at = NULL, updated_at = ? '
+        'WHERE uuid = ? AND deleted_at IS NOT NULL AND NOT EXISTS ('
+        "SELECT 1 FROM bookmarks live WHERE live.deleted_at IS NULL AND live.from_verse_id = bookmarks.from_verse_id "
+        "AND ifnull(live.to_verse_id, '') = ifnull(bookmarks.to_verse_id, ''))",
+        [(at ?? DateTime.now()).millisecondsSinceEpoch, uuid],
+      ) ==
+      1;
+
   // ── notes (features-v3 verse-notes): one per verse; saving an empty one deletes it ──
 
   /// Live notes, the most recently changed first.
