@@ -29,7 +29,7 @@ void main() {
   test('plays straight through, with the spoken title before verse 4', () {
     final plan = PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings());
     expect(run(plan), [
-      'PlayRange(v1, 750→2000)', // pre-roll on the initial jump
+      'PlayRange(v1, 950→2000)', // pre-roll on the initial jump
       'PlayRange(v2, 2000→3000, cont)',
       'PlayRange(v3, 3000→3800, cont)', // verse 3 ends where the title begins
       'PlayRange(v4, 3800→5000, title→4000, cont)',
@@ -40,16 +40,16 @@ void main() {
 
   test('titles off: the title is skipped by a jump', () {
     final plan = PlaybackPlan(windows, const PlaybackScope(3, 4), const PlaybackSettings(playTitles: false));
-    expect(run(plan), ['PlayRange(v3, 2750→3800)', 'PlayRange(v4, 4000→5000)', 'Finished']);
+    expect(run(plan), ['PlayRange(v3, 2950→3800)', 'PlayRange(v4, 4000→5000)', 'Finished']);
   });
 
   test('verse repeat restarts the verse at once; counters count up', () {
     final plan = PlaybackPlan(windows, const PlaybackScope(1, 2), const PlaybackSettings(verseRepeats: 3));
-    expect(describe(plan.start()), 'PlayRange(v1, 750→2000)');
+    expect(describe(plan.start()), 'PlayRange(v1, 950→2000)');
     expect(plan.verseRepetition, 1);
-    expect(describe(plan.advance()), 'PlayRange(v1, 750→2000)');
+    expect(describe(plan.advance()), 'PlayRange(v1, 950→2000)');
     expect(plan.verseRepetition, 2);
-    expect(describe(plan.advance()), 'PlayRange(v1, 750→2000)');
+    expect(describe(plan.advance()), 'PlayRange(v1, 950→2000)');
     expect(plan.verseRepetition, 3);
     expect(describe(plan.advance()), 'PlayRange(v2, 2000→3000, cont)'); // the third play ended at 2000
     expect(plan.verseRepetition, 1);
@@ -58,7 +58,7 @@ void main() {
   test('the gap goes between verses, and playback resumes where it paused', () {
     final plan = PlaybackPlan(windows, const PlaybackScope(1, 3), const PlaybackSettings(gapMs: 500));
     expect(run(plan), [
-      'PlayRange(v1, 750→2000)',
+      'PlayRange(v1, 950→2000)',
       'Silence(500)',
       'PlayRange(v2, 2000→3000, cont)',
       'Silence(500)',
@@ -70,9 +70,9 @@ void main() {
   test('section repeat: the scope twice, then finished', () {
     final plan = PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(sectionRepeats: 2));
     expect(run(plan), [
-      'PlayRange(v2, 1750→3000)',
+      'PlayRange(v2, 1950→3000)',
       'PlayRange(v3, 3000→3800, cont)',
-      'PlayRange(v2, 1750→3000)',
+      'PlayRange(v2, 1950→3000)',
       'PlayRange(v3, 3000→3800, cont)',
       'Finished',
     ]);
@@ -87,7 +87,7 @@ void main() {
     final plan = PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings(verseRepeats: null));
     plan.start();
     for (var i = 0; i < 10; i++) {
-      expect(describe(plan.advance()), 'PlayRange(v1, 750→2000)');
+      expect(describe(plan.advance()), 'PlayRange(v1, 950→2000)');
     }
   });
 
@@ -95,8 +95,32 @@ void main() {
     final plan = PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings(verseRepeats: 3));
     plan.start();
     plan.advance(); // second play of verse 1
-    expect(describe(plan.jumpTo(3)), 'PlayRange(v3, 2750→3800)');
+    expect(describe(plan.jumpTo(3)), 'PlayRange(v3, 2950→3800)');
     expect(plan.verseRepetition, 1);
     expect(describe(plan.jumpTo(4)), 'PlayRange(v4, 4000→5000)'); // no pre-roll into the title
+  });
+
+  // ADR 0005: every jump starts 50 ms before the verse's cue, and never before
+  // the previous verse's own cue. Continuous playback adds none.
+  test('the pre-roll is 50 ms: a tapped verse, a section start, a repeat', () {
+    expect(const PlaybackSettings().preRollMs, 50);
+    final plan = PlaybackPlan(windows, const PlaybackScope(2, 3), const PlaybackSettings(verseRepeats: 2));
+    expect((plan.start() as PlayRange).fromMs, windows.cue(2) - 50); // a section start
+    expect((plan.advance() as PlayRange).fromMs, windows.cue(2) - 50); // the verse again
+    final next = plan.advance() as PlayRange; // on to verse 3, with no seek
+    expect((next.fromMs, next.continuous), (windows.cue(3), true));
+    expect((plan.jumpTo(2) as PlayRange).fromMs, windows.cue(2) - 50); // a tap
+  });
+
+  test('the pre-roll stops at the previous verse\'s cue', () {
+    final close = PlaybackWindows(
+      cues: Int32List.fromList([-1, 1000, 1030, 2000]),
+      durationMs: 3000,
+      titleAtFirstVerse: const {},
+    );
+    final plan = PlaybackPlan(close, const PlaybackScope(1, 3), const PlaybackSettings());
+    expect((plan.jumpTo(2) as PlayRange).fromMs, 1000); // 30 ms after verse 1's cue: not before it
+    expect((plan.jumpTo(3) as PlayRange).fromMs, 1950);
+    expect((plan.jumpTo(1) as PlayRange).fromMs, 950);
   });
 }

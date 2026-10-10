@@ -122,7 +122,7 @@ class ReaderController extends ChangeNotifier {
     final e = _engine;
     if (e == null) return;
     e.plan.settings = _settings;
-    e.audio.setSpeed(_speed);
+    e.setSpeed(_speed);
     _engineSub = e.states.listen(_onEngineState);
   }
 
@@ -226,7 +226,7 @@ class ReaderController extends ChangeNotifier {
   void setSpeed(double v) {
     _speed = v;
     store?.setSpeedFor(recording.id, v);
-    engine?.audio.setSpeed(v);
+    engine?.setSpeed(v);
     notifyListeners();
   }
 

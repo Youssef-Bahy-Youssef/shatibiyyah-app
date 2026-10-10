@@ -10,6 +10,11 @@
 // generation — a seek completing late, a silence timer, a boundary reached just
 // as the user pressed «next» — is dropped, so quick taps never jump back (AUD-20).
 //
+// A range ends on time at any speed (ADR 0005): its end is scheduled from the
+// player's position and the speed, and set again on every position update. The
+// position stream alone is too coarse: about 200 ms apart, so at 2× it would let
+// 0.3 s of the next verse through before a repeat or a gap.
+//
 // «Playing» is the student's intent, not the player's state: it stays true through
 // the silent gap between verses. When the player stops or starts without the engine
 // asking (the lock-screen buttons, a call, headphones unplugged), the engine takes
@@ -65,6 +70,10 @@ class PlaybackEngine {
   /// How close to an action's end counts as reaching it (position updates are periodic).
   final int boundaryLeadMs;
 
+  /// How long before a range's end, in real time, the engine acts: a stop or a
+  /// seek takes about this long to reach the player.
+  final int commandLeadMs;
+
   /// The file's length as the player decoded it, when it reports one. The last
   /// verse ends there if that is before the recording's declared duration (F-40).
   int? decodedDurationMs;
@@ -74,10 +83,12 @@ class PlaybackEngine {
   StreamSubscription<bool>? _playingSub;
   bool _active = false; // the student wants playback (true through gaps)
   Timer? _gapTimer;
+  Timer? _endTimer;
+  double _speed = 1;
   PlanAction? _current;
   int _generation = 0;
 
-  PlaybackEngine(this.audio, this.plan, {this.boundaryLeadMs = 40}) {
+  PlaybackEngine(this.audio, this.plan, {this.boundaryLeadMs = 40, this.commandLeadMs = 15}) {
     _positionSub = audio.positionMs.listen(_onPosition);
     _playingSub = audio.playingChanges.listen((_) => _onPlayerChanged());
   }
@@ -94,10 +105,18 @@ class PlaybackEngine {
 
   Future<void> previous() => jumpTo((plan.verse - 1).clamp(plan.scope.fromVerse, plan.scope.toVerse));
 
+  /// The speed the player runs at. The end of the range in hand moves with it.
+  Future<void> setSpeed(double speed) async {
+    _speed = speed;
+    await audio.setSpeed(speed);
+    _armEnd();
+  }
+
   Future<void> pause() async {
     _generation++;
     _active = false;
     _gapTimer?.cancel();
+    _endTimer?.cancel();
     await audio.pause();
     _emit();
   }
@@ -110,6 +129,7 @@ class PlaybackEngine {
       _generation++;
       _active = true;
       await audio.play();
+      _armEnd();
       _emit();
     } else if (current is Finished) {
       await _run(plan.start());
@@ -134,25 +154,31 @@ class PlaybackEngine {
     }
   }
 
-  Future<void> _run(PlanAction action) async {
+  /// [ended] is the range that just reached its end, when that is why [action] runs.
+  Future<void> _run(PlanAction action, {PlayRange? ended}) async {
     final generation = ++_generation;
     _gapTimer?.cancel();
+    _endTimer?.cancel();
     _current = action;
     _active = action is! Finished;
     switch (action) {
       case PlayRange():
         if (!action.continuous) {
+          _logEnd(ended, 'seek');
           await audio.seek(action.fromMs);
           if (generation != _generation) return; // superseded while seeking
         }
         if (!audio.playing) await audio.play();
+        if (generation == _generation) _armEnd();
       case Silence():
         await audio.pause();
+        _logEnd(ended, 'gap');
         _gapTimer = Timer(Duration(milliseconds: action.ms), () {
           if (generation == _generation) _run(plan.advance());
         });
       case Finished():
         await audio.pause();
+        _logEnd(ended, 'end');
     }
     if (generation == _generation) _emit();
   }
@@ -161,10 +187,53 @@ class PlaybackEngine {
     final current = _current;
     if (current is! PlayRange || !audio.playing) return;
     if (ms >= _endOf(current) - boundaryLeadMs) {
-      _run(plan.advance());
+      _run(plan.advance(), ended: current);
     } else {
+      _armEnd(ms);
       _emit();
     }
+  }
+
+  /// The end is scheduled once it is this near, in real time: a few position updates away.
+  static const int _armWithinMs = 1000;
+
+  /// Schedules the end of the range in hand from where the player stands
+  /// ([positionMs], or what it reports now) and the speed.
+  void _armEnd([int? positionMs]) {
+    _endTimer?.cancel();
+    _endTimer = null;
+    final current = _current;
+    if (current is! PlayRange || !_active || !audio.playing) return;
+    final generation = _generation;
+    final leftMs = _endOf(current) - (positionMs ?? audio.currentPositionMs);
+    final wait = leftMs / _speed - commandLeadMs; // real time until the command should leave
+    // Far from the end nothing is scheduled: the next position update, about
+    // 200 ms on, sets it. So no timer outlives a pause, a jump or the player.
+    if (wait > _armWithinMs) return;
+    _endTimer = Timer(Duration(microseconds: wait <= 0 ? 0 : (wait * 1000).round()), () {
+      if (generation != _generation || !_active) return;
+      // Near the end the player is asked again: if it is not as far as reckoned
+      // (it stalled, or its last report was old), the end is set again from there.
+      final stillMs = (_endOf(current) - audio.currentPositionMs) / _speed;
+      if (stillMs > commandLeadMs + 5 && stillMs < wait + commandLeadMs) {
+        _armEnd();
+      } else {
+        _run(plan.advance(), ended: current);
+      }
+    });
+  }
+
+  /// In a debug build, says how far from its window's end a range was stopped or
+  /// left: the figure the device check of ADR 0005 reads (it must stay within 40 ms).
+  void _logEnd(PlayRange? ended, String how) {
+    assert(() {
+      if (ended != null) {
+        final off = audio.currentPositionMs - _endOf(ended);
+        // ignore: avoid_print
+        print('[playback] verse ${ended.verse} $how at ${off >= 0 ? '+' : ''}$off ms of its end · $_speed×');
+      }
+      return true;
+    }());
   }
 
   /// Where [range] really ends: at the decoded end of the file when that comes
@@ -201,6 +270,7 @@ class PlaybackEngine {
   Future<void> dispose() async {
     _generation++;
     _gapTimer?.cancel();
+    _endTimer?.cancel();
     await _positionSub?.cancel();
     await _playingSub?.cancel();
     await _state.close();
