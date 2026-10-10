@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widgets, as the launcher's picker names them. -->
+    <string name="widget_resume_name">تابع</string>
+    <string name="widget_resume_description">البيت الذي توقفت عنده، مع تشغيل تلاوته</string>
+</resources>

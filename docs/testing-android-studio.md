@@ -49,6 +49,21 @@ To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
 - [ ] Long press a verse: menu with الشرح / تشغيل من هنا / مرجع and the chips.
       Back closes the menu first.
 
+## 2b. The home-screen widget «تابع» (plan 6.1)
+
+`tool/widget_check.sh` checks its drawing for every verse on the connected device, and pairs
+its states with the design's renders in `build/widgets/`. By hand:
+
+- [ ] Add «تابع» from the launcher's widgets **before opening the app**: it shows verse 1 and
+      «تنزيل». «تنزيل» opens «التنزيلات».
+- [ ] With a recording on the device: ▶ plays without opening the app, ❚❚ pauses. The widget
+      follows the verse, a few seconds behind at most.
+- [ ] Swipe the app away, then ▶: «جارٍ تشغيل التلاوة…» shows for a moment and the recitation
+      starts. The app does not open.
+- [ ] A tap on the verse opens «المتن» on it.
+- [ ] «المظهر ← تلقائي», then the system's dark theme on and off: the widget follows, with
+      the app closed. «ورقي» and «ليلي» hold whatever the system is in.
+
 ## 3. Study and navigation (P6)
 
 - [ ] «مرجع» on a verse: colour and tag, then a ribbon on the page.

@@ -4,4 +4,11 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <application>
+        <!-- Checks the home-screen widget's drawing on a device (tool/widget_check.sh). Debug builds only. -->
+        <receiver android:name=".widgets.WidgetProbe" android:exported="true"/>
+        <!-- Asks the launcher to add the widget, for the same check. -->
+        <activity android:name=".widgets.WidgetPinActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+    </application>
 </manifest>

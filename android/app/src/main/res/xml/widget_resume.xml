@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «تابع»: 4×2 (ADR 0017). 250×110 dp is what four cells by two come to on a launcher that
+     counts in sizes; from Android 12 the cells are named outright. No update period: the app
+     redraws it when something changes. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_resume"
+    android:previewImage="@drawable/widget_resume_preview"
+    android:description="@string/widget_resume_description"
+    android:widgetCategory="home_screen" />
