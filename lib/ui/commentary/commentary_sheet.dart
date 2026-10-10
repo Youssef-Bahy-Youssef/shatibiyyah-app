@@ -245,7 +245,8 @@ class _CommentarySheetState extends State<CommentarySheet> {
                       PinnedHeaderSliver(
                         child: ColoredBox(
                           color: c.surface,
-                          child: Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 0), child: _strip()),
+                          // The 6 px under it are its own: scrolled text is cut clear of the strip.
+                          child: Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 6), child: _strip()),
                         ),
                       ),
                     SliverToBoxAdapter(child: _body(context, c)),
@@ -405,7 +406,7 @@ class _CommentarySheetState extends State<CommentarySheet> {
       children: [
         if (widget.legend && !_full) const CommentaryLegend(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+          padding: EdgeInsets.fromLTRB(20, _full || !widget.verseVisible ? 0 : 6, 20, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -415,7 +416,6 @@ class _CommentarySheetState extends State<CommentarySheet> {
                   child: Text('هذا الموضع قيد المراجعة', style: TzType.caption.copyWith(color: c.carmine)),
                 ),
               ...parts.text(view.reading, view.footnotes),
-              if (view.sources.isNotEmpty) parts.sourceLine(view.sources, boxed: false),
             ],
           ),
         ),

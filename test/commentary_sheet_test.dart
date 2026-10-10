@@ -4,6 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
+import 'package:shatibiyyah/domain/search.dart';
+import 'package:shatibiyyah/ui/commentary/commentary_screen.dart';
+import 'package:shatibiyyah/ui/search/search_screen.dart';
 import 'package:shatibiyyah/ui/commentary/commentary_sheet.dart';
 import 'package:shatibiyyah/ui/design/components/binding_stepper.dart';
 import 'package:shatibiyyah/ui/design/components/commentary_inline.dart';
@@ -284,6 +287,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(r.commentaryVerse, isNull);
     expect(sheet, findsNothing);
+    await unmount(tester);
+  });
+  testWidgets('a search hit in a book opens the sheet on its verse, in that book', (tester) async {
+    final r = await shell(tester);
+    final hit = (await tester.runAsync(() => Searcher(data.content).search('مسهلا')))!
+        .results
+        .commentary
+        .firstWhere((h) => !data.content.books.books.firstWhere((b) => b.id == h.bookId).isDefault);
+    await tester.tap(find.byTooltip('بحث'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.enterText(find.byType(TextField), 'مسهلا');
+    await tester.pump(const Duration(milliseconds: 250));
+    await loaded(tester);
+    final card = find.text(hit.snippet);
+    await tester.scrollUntilVisible(card, 500, scrollable: find.byType(Scrollable).last);
+    await tester.tap(card);
+    await loaded(tester);
+    await tester.pump(const Duration(milliseconds: 500)); // the search screen's way out
+
+    // Back on the reader, the passage in a sheet over it; no pushed screen.
+    expect(find.byType(SearchScreen), findsNothing);
+    expect(find.byType(CommentaryScreen), findsNothing);
+    expect(sheet, findsOneWidget);
+    expect((r.commentaryVerse, r.commentaryBook), (hit.fromVerse, hit.bookId));
+    final book = data.content.books.books.firstWhere((b) => b.id == hit.bookId);
+    expect(find.bySemanticsLabel('الشرح: ${book.shortTitle}'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('the sheet ends with the passage and its notes: no source line', (tester) async {
+    final r = await shell(tester);
+    r.openCommentary(226);
+    await loaded(tester);
+    expect(inSheet(find.textContaining('المصدر', findRichText: true)), findsNothing);
+    expect(inSheet(find.byType(FootnoteList)), findsOneWidget);
     await unmount(tester);
   });
 }
