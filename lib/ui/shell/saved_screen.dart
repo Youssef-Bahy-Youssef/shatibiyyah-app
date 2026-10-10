@@ -6,7 +6,8 @@
 // counts. A bookmark is a row: its ribbon, the verse with the tag as a dot and a
 // word in the ribbon's colour, the first hemistich in Naskh and the chapter.
 // Swiping reveals «حذف» in carmine, and «تراجع» undoes it for five seconds; a
-// long press offers «تعديل» and «حذف»; a tap opens the verse. The empty states
+// long press offers «تعديل» and «حذف»; a tap opens the verse. A delete that
+// fails puts the row back and says «تعذّر الحفظ». The empty states
 // say the exact gesture and offer the way back to the matn. Notes edit, delete
 // and undo arrive with item 5.1.
 import 'dart:async';
@@ -45,6 +46,9 @@ class _SavedScreenState extends State<SavedScreen> {
   late bool _notes = widget.notes;
   Bookmark? _undo;
   Timer? _undoTimer;
+  // Failed deletes so far, part of each row's key: a swiped row that comes back
+  // must be a new Dismissible, the old one is spent.
+  int _revived = 0;
 
   ReaderController get reader => widget.reader;
 
@@ -64,7 +68,15 @@ class _SavedScreenState extends State<SavedScreen> {
   }
 
   Future<void> _delete(PersonalData personal, Bookmark b) async {
-    await personal.removeBookmark(b);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await personal.removeBookmark(b);
+    } catch (_) {
+      // Not deleted: the row is back in the list, and there is nothing to undo (F-55).
+      if (mounted) setState(() => _revived++);
+      messenger?.showSnackBar(const SnackBar(content: Text('تعذّر الحفظ'), duration: Duration(seconds: 2)));
+      return;
+    }
     if (!mounted) return;
     _undoTimer?.cancel();
     setState(() => _undo = b);
@@ -159,7 +171,7 @@ class _SavedScreenState extends State<SavedScreen> {
       children: [
         for (final b in personal.bookmarks)
           Dismissible(
-            key: ValueKey(b.uuid),
+            key: ValueKey('${b.uuid}/$_revived'),
             direction: DismissDirection.horizontal,
             background: _DeleteBackground(c, AlignmentDirectional.centerStart),
             secondaryBackground: _DeleteBackground(c, AlignmentDirectional.centerEnd),
