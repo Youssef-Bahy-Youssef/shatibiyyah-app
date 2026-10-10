@@ -10,6 +10,7 @@ import 'package:shatibiyyah/ui/design/components/min_segmented.dart';
 import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shatibiyyah/ui/design/components/stat_tile.dart';
 import 'package:shatibiyyah/ui/design/components/tz_button.dart';
+import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
 import 'golden_fonts.dart';
@@ -18,6 +19,15 @@ import 'golden_fonts.dart';
 /// pixels) and the component as the prototype shows it.
 final Map<String, (double, double, Widget Function())> components = {
   'khatam': (390, 90, () => const _Khatams()),
+  'switch': (390, 60, () => Padding(
+        // The prototype's 26 px row centred 25 px down; the 48 px target is centred on it.
+        padding: const EdgeInsets.fromLTRB(12, 1, 12, 11),
+        child: Row(children: [
+          TzSwitch(value: true, onWord: 'تُتلى', offWord: 'لا تُتلى', onChanged: (_) {}),
+          const SizedBox(width: 24),
+          TzSwitch(value: false, onWord: 'ظاهر', offWord: 'مخفي', onChanged: (_) {}),
+        ]),
+      )),
   'min_segmented': (390, 68, () => Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10), // 12 around the 44 px pill: its 48 px target adds 2 each side
         child: Align(
