@@ -96,4 +96,28 @@ class PersonalData extends ChangeNotifier {
     await store.saveNote(verse, body);
     await load();
   }
+
+  /// Deletes [n]; [restoreNote] brings it back as it was.
+  Future<void> removeNote(Note n) async {
+    // Out of the list at once (a swiped row must leave the tree now).
+    final before = _notes;
+    _notes = [for (final x in _notes) if (x.uuid != n.uuid) x];
+    notifyListeners();
+    try {
+      await store.deleteNoteById(n.uuid);
+    } catch (_) {
+      // Not deleted: back in the list, and the caller says so (F-55).
+      _notes = before;
+      notifyListeners();
+      rethrow;
+    }
+    await load();
+  }
+
+  /// «تراجع» after a delete: the same uuid and text. A note written on the verse
+  /// since then stays instead.
+  Future<void> restoreNote(Note n) async {
+    await store.restoreNote(n.uuid);
+    await load();
+  }
 }
