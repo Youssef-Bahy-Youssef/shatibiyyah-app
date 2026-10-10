@@ -39,6 +39,8 @@ import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 
+import 'golden_fonts.dart';
+
 class _NoNotifications implements NotificationPort {
   @override
   Future<void> init(void Function(String payload) onTap) async {}
@@ -76,22 +78,6 @@ class _SilentAudio implements AudioPort {
   Future<void> setSpeed(double speed) async {}
 }
 
-Future<void> _loadFonts() async {
-  Future<void> family(String name, List<String> assets) async {
-    final loader = FontLoader(name);
-    for (final a in assets) {
-      loader.addFont(rootBundle.load(a));
-    }
-    await loader.load();
-  }
-
-  await family('ScheherazadeNew', [
-    for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold']) 'assets/fonts/ScheherazadeNew-$w.ttf',
-  ]);
-  await family('IBMPlexSansArabic', ['assets/fonts/ReemKufi.ttf']);
-  await family('packages/lucide_icons_flutter/Lucide', ['packages/lucide_icons_flutter/assets/lucide.ttf']);
-}
-
 /// A reader state: what to do to a fresh reader (on verse 226, page 19) before the shot.
 typedef _Setup = void Function(ReaderController r, AppContent content);
 
@@ -115,7 +101,7 @@ void main() {
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await _loadFonts();
+    await loadGoldenFonts();
     support = await Directory.systemTemp.createTemp('reader_goldens');
     content = await AppContent.open(
       loadAsset: (key) async => ByteData.sublistView(await File(key).readAsBytes()),
