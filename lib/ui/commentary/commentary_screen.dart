@@ -331,9 +331,9 @@ class _CommentaryPaneState extends State<CommentaryPane> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(matn.verse(n).firstHemistich,
-                        textAlign: TextAlign.right, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
+                        textAlign: TextAlign.start, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
                     Text(matn.verse(n).secondHemistich,
-                        textAlign: TextAlign.left, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
+                        textAlign: TextAlign.end, style: TzType.verse.scaled(widget.textScale).copyWith(color: t.text)),
                   ],
                 ),
               ),

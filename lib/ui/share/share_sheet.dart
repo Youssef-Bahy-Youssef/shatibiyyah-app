@@ -232,9 +232,12 @@ class _ShareSheetState extends State<ShareSheet> {
                 container: true,
                 explicitChildNodes: true,
                 label: 'المقاس',
-                child: Row(
+                // The three stay one height when larger text makes one of them grow.
+                child: IntrinsicHeight(
                   key: ShareSheet.formatsKey,
-                  children: [
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                     for (final (i, f) in CardFormat.values.indexed) ...[
                       if (i > 0) const SizedBox(width: 8),
                       Expanded(
@@ -247,6 +250,7 @@ class _ShareSheetState extends State<ShareSheet> {
                       ),
                     ],
                   ],
+                  ),
                 ),
               ),
               if (_count > CardFormat.square.maxVerses)
