@@ -62,6 +62,20 @@ class FakeAudio implements AudioPort {
   void dispose() => _ticker?.cancel();
 }
 
+/// A player whose file ends at [endMs]: there it stops by itself, as a decoder does
+/// when the file is a little shorter than the recording's declared duration.
+class EndingAudio extends FakeAudio {
+  final int endMs;
+  EndingAudio(this.endMs);
+  @override
+  Future<void> play() async {
+    await super.play();
+    _positions.stream.listen((ms) {
+      if (ms >= endMs && _playing) _set(false);
+    });
+  }
+}
+
 final windows = PlaybackWindows(
   cues: Int32List.fromList([-1, 1000, 2000, 3000, 4000, 5000]),
   durationMs: 6000,
@@ -78,6 +92,44 @@ void main() {
       expect(audio.seeks, [750]); // everything after the first jump is continuous
       expect(engine.state.finished, isTrue);
       audio.dispose();
+    });
+  });
+
+  group('the end of the file (F-40)', () {
+    test('a player that stops 150 ms before the declared end still finishes', () {
+      fakeAsync((async) {
+        final audio = EndingAudio(windows.durationMs - 150);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(seconds: 3));
+        expect(engine.state.finished, isTrue);
+        expect(engine.state.playing, isFalse);
+        audio.dispose();
+      });
+    });
+
+    test('a stop well before the end is still a pause, not the end', () {
+      fakeAsync((async) {
+        final audio = EndingAudio(windows.durationMs - 400);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(seconds: 3));
+        expect(engine.state.finished, isFalse);
+        audio.dispose();
+      });
+    });
+
+    test('the last verse ends at the decoded duration when the player reports one', () {
+      fakeAsync((async) {
+        final audio = FakeAudio(); // plays on past the decoded end: only the engine can stop
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()))
+          ..decodedDurationMs = windows.durationMs - 300;
+        engine.play();
+        async.elapse(const Duration(milliseconds: 1500));
+        expect(engine.state.finished, isTrue);
+        expect(audio.currentPositionMs, lessThan(windows.durationMs - 200));
+        audio.dispose();
+      });
     });
   });
 

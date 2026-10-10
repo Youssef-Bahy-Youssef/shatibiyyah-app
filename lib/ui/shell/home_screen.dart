@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_update.dart';
 import '../../app/personal_data.dart';
+import '../../data/user_store.dart' show Bookmark;
 import '../../theme.dart' show kufi, naskh;
 import '../../utils/arabic.dart';
 import '../design/pill_tabs.dart';
@@ -17,6 +18,7 @@ import '../design/taysir_colors.dart';
 import '../reader/reader_controller.dart';
 import '../reader/shamsa.dart';
 import '../search/search_screen.dart';
+import '../study/study_sheets.dart';
 import 'shell_page.dart' show readingPadding;
 
 class HomeScreen extends StatefulWidget {
@@ -188,9 +190,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _entry(TaysirColors t, {Widget? leading, required String title, String? chip, String? body, required String meta, required VoidCallback onTap}) =>
+  Widget _entry(TaysirColors t,
+          {Widget? leading,
+          required String title,
+          String? chip,
+          String? body,
+          required String meta,
+          required VoidCallback onTap,
+          VoidCallback? onLongPress}) =>
       InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.line))),
@@ -241,20 +251,71 @@ class _HomeScreenState extends State<HomeScreen> {
     final matn = reader.content.matn;
     return Column(children: [
       for (final b in personal.bookmarks)
-        _entry(
-          t,
-          leading: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: CustomPaint(size: const Size(12, 24), painter: _RibbonMark(kBookmarkColors[b.color]!)),
+        // A swipe deletes; a long press offers «تعديل» / «حذف»; a tap opens the verse (ADR 0009).
+        Dismissible(
+          key: ValueKey(b.uuid),
+          onDismissed: (_) => _deleteBookmark(personal, b),
+          background: Container(color: t.warn.withValues(alpha: 0.18)),
+          child: _entry(
+            t,
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: CustomPaint(size: const Size(12, 24), painter: _RibbonMark(kBookmarkColors[b.color]!)),
+            ),
+            title: _what(b.fromVerse, b.lastVerse),
+            chip: kBookmarkTagLabels[b.tag],
+            body: matn.verse(b.fromVerse).firstHemistich,
+            meta: matn.chapterOfVerse(b.fromVerse).shortLabel,
+            onTap: () => _openVerse(b.fromVerse),
+            onLongPress: () => _bookmarkActions(t, personal, b),
           ),
-          title: _what(b.fromVerse, b.lastVerse),
-          chip: kBookmarkTagLabels[b.tag],
-          body: matn.verse(b.fromVerse).firstHemistich,
-          meta: matn.chapterOfVerse(b.fromVerse).shortLabel,
-          onTap: () => _openVerse(b.fromVerse),
         ),
     ]);
   }
+
+  Future<void> _deleteBookmark(PersonalData personal, Bookmark b) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final t = TaysirColors.of(context);
+    await personal.removeBookmark(b);
+    showBookmarkUndo(messenger, personal, b, t);
+  }
+
+  Future<void> _bookmarkActions(TaysirColors t, PersonalData personal, Bookmark b) => showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: t.panel,
+        builder: (sheet) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(LucideIcons.pencil, color: t.goldText),
+                  title: Text('تعديل', style: kufi(size: 15, weight: 500, color: t.text)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    showBookmarkSheet(context,
+                        personal: personal,
+                        content: reader.content,
+                        from: b.fromVerse,
+                        to: b.toVerse,
+                        onDone: (notice) => ScaffoldMessenger.maybeOf(context)
+                            ?.showSnackBar(SnackBar(content: Text(notice), duration: const Duration(seconds: 2))));
+                  },
+                ),
+                ListTile(
+                  leading: Icon(LucideIcons.trash2, color: t.warn),
+                  title: Text('حذف', style: kufi(size: 15, weight: 500, color: t.warn)),
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    _deleteBookmark(personal, b);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 
   Widget _notes(TaysirColors t, PersonalData personal) {
     if (personal.notes.isEmpty) {

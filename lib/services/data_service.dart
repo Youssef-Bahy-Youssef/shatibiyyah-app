@@ -74,10 +74,11 @@ class ShatibiyyahData {
       if (first != null && last != null) chapterPageRange[i] = [first, last];
     }
 
-    // chaptersByPage: header lives on pageOfVerse(start_verse)
+    // chaptersByPage: a heading lives on the page its region names (ADR 0011). A
+    // chapter with no heading (الخاتمة) has nothing on any page to draw or tap.
     for (int i = 0; i < chapters.length; i++) {
-      final p = pageOfVerse(chapters[i].startVerse);
-      if (p == null) continue;
+      final p = chapters[i].page;
+      if (p == null || chapterBox(i) == null) continue;
       (chaptersByPage[p] ??= []).add(i);
     }
   }
@@ -121,10 +122,10 @@ class ShatibiyyahData {
     return Rect.fromLTWH(c.x!, c.y!, c.width!, c.height!);
   }
 
-  /// ported from data.js: pageOfChapter(i)
+  /// The page of chapter [i]'s heading, or of its first verse when it has none.
   int? pageOfChapter(int i) {
     if (i < 0 || i >= chapters.length) return null;
-    return pageOfVerse(chapters[i].startVerse);
+    return chapters[i].page ?? pageOfVerse(chapters[i].startVerse);
   }
 
   /// ported from data.js: chaptersOnPage(page)

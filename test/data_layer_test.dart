@@ -163,6 +163,21 @@ void main() {
       }
     });
 
+    test('the audio-v2 release first, then archive.org; Alqaryu is the CBR re-encode (F-01)', () {
+      for (final r in recordings.recordings) {
+        expect(r.delivery!.urls, [
+          'https://github.com/Youssef-Bahy-Youssef/taysir-audio/releases/download/audio-v2/${r.slug}-v1.mp3',
+          'https://archive.org/download/taysir-shatibiyyah-audio-v1/${r.slug}-v1.mp3',
+        ], reason: r.slug);
+      }
+      final alqaryu = recordings.recordings.singleWhere((r) => r.slug == 'abdulhamid-alqaryu-1');
+      final d = alqaryu.delivery!;
+      expect(d.sha256, '95db96bfb49e63331b902953d684872e835be0c35060af6f52a849f1a1bc764b');
+      expect(d.bytes, 125120817);
+      expect((alqaryu.durationMs, d.durationMs), (10426723, 10426723));
+      expect((alqaryu.timebaseStatus, alqaryu.timebaseOffsetMs), ('verified', 27));
+    });
+
     test('cues are complete and strictly increasing', () async {
       for (final r in recordings.recordings) {
         final cues = await recordings.cues(r.id, matn.lastVerse);

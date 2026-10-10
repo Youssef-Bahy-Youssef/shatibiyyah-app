@@ -64,6 +64,9 @@ class _BackupScreenState extends State<BackupScreen> {
       (message, failed) = (e.message, true);
     } on device.DocumentError catch (e) {
       (message, failed) = (_deviceError(e), true);
+    } catch (_) {
+      // Anything else (a database or file error): never leave the spinner on (F-54).
+      (message, failed) = ('تعذّر إكمال العملية؛ أعد المحاولة', true);
     }
     if (failed) _reader.rating?.noteError();
     if (!mounted) return;

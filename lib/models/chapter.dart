@@ -8,6 +8,9 @@ class Chapter {
   final int verseCount;
   final double? startTime;
   final String? headerText;
+
+  /// The page its heading is printed on (null when it has none, like الخاتمة).
+  final int? page;
   final double? x;
   final double? y;
   final double? width;
@@ -20,6 +23,7 @@ class Chapter {
     required this.verseCount,
     required this.startTime,
     this.headerText,
+    this.page,
     this.x,
     this.y,
     this.width,
@@ -36,6 +40,7 @@ class Chapter {
                 1),
         startTime: (j['start_time'] as num?)?.toDouble(),
         headerText: j['header_text'] as String?,
+        page: (j['page'] as num?)?.toInt(),
         x: (j['x'] as num?)?.toDouble(),
         y: (j['y'] as num?)?.toDouble(),
         width: (j['width'] as num?)?.toDouble(),
