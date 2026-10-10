@@ -137,6 +137,9 @@ class PageViewerController extends ChangeNotifier {
   }
 
   void attach(TickerProvider vsync) {
+    // A viewer built at another place in the tree attaches before the one it
+    // replaces is disposed: that one's tickers go now, and its detach is ignored.
+    if (_vsync != null) _release();
     _vsync = vsync;
     _xform = AnimationController(vsync: vsync)..addListener(_onXformTick);
     // A frame of the highlight's glide is a repaint of its layer, not a rebuild.
@@ -152,10 +155,24 @@ class PageViewerController extends ChangeNotifier {
     });
   }
 
-  /// Releases the tickers created from the widget's TickerProvider. The controller
-  /// outlives the widget (the app owns it); while detached, view changes apply at
-  /// once instead of animating (see _setView).
-  void detach() {
+  /// Releases the tickers created from [vsync], the widget's TickerProvider. The
+  /// controller outlives the widget (the app owns it); while detached, view changes
+  /// apply at once instead of animating (see _setView). A viewer that another one
+  /// has replaced since has nothing left to release.
+  void detach(TickerProvider vsync) {
+    if (vsync == _vsync) _release();
+  }
+
+  void _release() {
+    // What was moving ends where it was going: nothing drives it from here on,
+    // and a ring or a wash left half-way would stay drawn on the wrong verse.
+    if (_xform?.isAnimating ?? false) {
+      zoom = _zoomT;
+      tx = _txT;
+      ty = _tyT;
+    }
+    prevBox = null;
+    pulse = null;
     _xform?.dispose();
     _overlay?.dispose();
     _momentum?.dispose();
@@ -896,7 +913,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
   void dispose() {
     _stream?.removeListener(_onImage);
     _arrived.dispose();
-    c.detach(); // before super.dispose(): the mixin asserts its tickers are gone
+    c.detach(this); // before super.dispose(): the mixin asserts its tickers are gone
     super.dispose();
   }
 

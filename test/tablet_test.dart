@@ -115,6 +115,27 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('tablet: beside the panel a tapped verse is the only one marked: its ring ends and the wash reaches it', (tester) async {
+    final r = await reader(tester);
+    await show(tester, ReaderScreen(reader: r), landscape);
+    final viewer = tester.state(find.byType(PageViewer));
+    r.openSplit(226);
+    await settle(tester);
+    // The page is built again in its half: the highlight must still move there.
+    expect(tester.state(find.byType(PageViewer)), isNot(same(viewer)));
+
+    await tester.tapAt(tester.getTopLeft(find.byType(PageViewer)) + r.viewer.viewRectOfVerse(227)!.center);
+    await tester.pump();
+    expect(r.verse, 227);
+    expect(r.viewer.pulse, isNotNull);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 32));
+    }
+    expect(r.viewer.pulse, isNull, reason: 'the tap ring is over after 460 ms');
+    expect(r.viewer.prevBox, isNull, reason: 'the wash has left verse 226');
+    await unmount(tester);
+  });
+
   testWidgets('phone: «الشرح» opens the commentary sheet, never the split', (tester) async {
     final r = await reader(tester);
     await show(tester, ReaderScreen(reader: r), const Size(390, 844));
