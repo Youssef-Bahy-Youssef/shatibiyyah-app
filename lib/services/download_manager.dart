@@ -123,10 +123,21 @@ class DownloadManager {
     }
   }
 
+  final Map<String, Future<bool>> _recovering = {};
+
   /// A part file that reached its full size while the app was closed (a
   /// background transfer finished): verified and moved into place. True when [r]
-  /// is now on the device; a corrupted part file is discarded.
-  Future<bool> recover(Recording r) async {
+  /// is now on the device; a corrupted part file is discarded. One check runs at a
+  /// time per recording: a second caller (refresh at launch and a background
+  /// download's completion can meet here) awaits the first (F-34).
+  Future<bool> recover(Recording r) =>
+      // A block body: `=> remove(...)` would return this very future, and
+      // whenComplete would wait for it forever.
+      _recovering[r.id] ??= _recover(r).whenComplete(() {
+        _recovering.remove(r.id);
+      });
+
+  Future<bool> _recover(Recording r) async {
     final delivery = r.delivery;
     final part = _partFor(r);
     if (delivery == null || !await part.exists() || await part.length() != delivery.bytes) return false;

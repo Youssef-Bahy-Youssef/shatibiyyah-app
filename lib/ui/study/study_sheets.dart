@@ -40,6 +40,12 @@ Widget _sheetFrame(BuildContext context, List<Widget> children) {
   );
 }
 
+/// «تعذّر الحفظ»: a save or delete failed; the sheet stays open with its input (F-55).
+Widget _saveFailed(TaysirColors t) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text('تعذّر الحفظ', style: kufi(size: 14, weight: 500, color: t.warn)),
+    );
+
 /// «البيت ٢٢٩، باب …» or «الأبيات ٢٢٦–٢٣٤، باب …» («،» after the number: a «·» there
 /// reads as «٠»).
 String studyTarget(AppContent content, int from, int? to) {
@@ -79,6 +85,18 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
   late final Bookmark? _existing = widget.personal.bookmarkAt(widget.from, to: widget.to);
   late BookmarkColor _color = _existing?.color ?? BookmarkColor.gold;
   late BookmarkTag _tag = _existing?.tag ?? BookmarkTag.hifz;
+  bool _failed = false;
+
+  /// Runs [write]; on failure the sheet stays open and says «تعذّر الحفظ».
+  Future<bool> _try(Future<void> Function() write) async {
+    try {
+      await write();
+      return true;
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+      return false;
+    }
+  }
 
   String get _what => widget.to == null || widget.to == widget.from
       ? 'البيت ${ar(widget.from)}'
@@ -86,14 +104,14 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
 
   Future<void> _save() async {
     final navigator = Navigator.of(context);
-    await widget.personal.saveBookmark(widget.from, to: widget.to, color: _color, tag: _tag);
+    if (!await _try(() => widget.personal.saveBookmark(widget.from, to: widget.to, color: _color, tag: _tag))) return;
     navigator.pop();
     widget.onDone('حُفظ المرجع على $_what');
   }
 
   Future<void> _delete() async {
     final navigator = Navigator.of(context);
-    await widget.personal.deleteBookmark(widget.from, to: widget.to);
+    if (!await _try(() => widget.personal.deleteBookmark(widget.from, to: widget.to))) return;
     navigator.pop();
     widget.onDone('أُزيل المرجع');
   }
@@ -155,6 +173,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
         ],
       ),
       const SizedBox(height: 18),
+      if (_failed) _saveFailed(t),
       Row(
         children: [
           Expanded(
@@ -215,6 +234,7 @@ class _NoteSheet extends StatefulWidget {
 
 class _NoteSheetState extends State<_NoteSheet> {
   late final _field = TextEditingController(text: widget.personal.noteFor(widget.verse)?.body ?? '');
+  bool _failed = false;
 
   @override
   void dispose() {
@@ -225,7 +245,12 @@ class _NoteSheetState extends State<_NoteSheet> {
   Future<void> _save() async {
     final navigator = Navigator.of(context);
     final had = widget.personal.noteFor(widget.verse) != null;
-    await widget.personal.saveNote(widget.verse, _field.text);
+    try {
+      await widget.personal.saveNote(widget.verse, _field.text);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true); // the text stays in the field
+      return;
+    }
     navigator.pop();
     final empty = _field.text.trim().isEmpty;
     if (!empty || had) widget.onDone(empty ? 'حُذفت الملاحظة' : 'حُفظت الملاحظة');
@@ -259,6 +284,7 @@ class _NoteSheetState extends State<_NoteSheet> {
         ),
       ),
       const SizedBox(height: 14),
+      if (_failed) _saveFailed(t),
       FilledButton(
         onPressed: _save,
         style: FilledButton.styleFrom(

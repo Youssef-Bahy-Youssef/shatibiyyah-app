@@ -102,7 +102,13 @@ class _RecordingCard extends StatelessWidget {
     Color stateColor = t.muted;
     String? action;
     VoidCallback? onAction;
-    if (onDevice) {
+    if (!library.content.isUsable(r)) {
+      // A recording whose cues are incomplete is not played (F-41).
+      state = 'غير صالحة: ينقصها توقيت بعض الأبيات';
+      stateColor = t.warn;
+      action = onDevice ? 'حذف' : 'غير متاحة';
+      onAction = onDevice ? () => _confirmDelete(context, t) : null;
+    } else if (onDevice) {
       state = 'على الجهاز · مُتحقَّق منه';
       stateColor = t.teal;
       action = 'حذف';

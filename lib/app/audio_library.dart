@@ -89,7 +89,7 @@ class AudioLibrary extends ChangeNotifier {
     await _disposeEngine?.call();
     _disposeEngine = null;
     final r = current;
-    if (!isOnDevice(r)) return null;
+    if (!isOnDevice(r) || !content.isUsable(r)) return null;
     final built = await engineFactory(r, downloads.fileFor(r).path, plan);
     _disposeEngine = built.dispose;
     return built.engine;
@@ -111,8 +111,10 @@ class AudioLibrary extends ChangeNotifier {
     final reader = _reader;
     if (reader == null) return;
     final chapter = content.matn.chapterOfVerse(reader.verse);
-    final windows = await content.windowsFor(current);
-    final engine = await openCurrent(PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), reader.settings));
+    final windows = await content.windowsOrNull(current);
+    final engine = windows == null
+        ? null
+        : await openCurrent(PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), reader.settings));
     await reader.setAudio(current, engine);
     notifyListeners();
   }
@@ -174,8 +176,8 @@ Future<({PlaybackEngine engine, Future<void> Function() dispose})> justAudioEngi
     Recording recording, String filePath, PlaybackPlan plan) async {
   // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
   final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
-  await port.load(filePath);
-  final engine = PlaybackEngine(port, plan);
+  final decoded = await port.load(filePath);
+  final engine = PlaybackEngine(port, plan)..decodedDurationMs = decoded?.inMilliseconds;
   AudioFocus? focus;
   try {
     focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);
