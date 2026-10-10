@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
+import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
@@ -18,6 +19,7 @@ import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/app_shell.dart';
+import 'package:shatibiyyah/ui/shell/saved_screen.dart';
 
 import '../test/handoff/fixtures.dart';
 import 'golden_fonts.dart';
@@ -49,6 +51,22 @@ Future<void> _player(WidgetTester tester, ReaderController r, [String? tile]) as
 
 Future<void> _nothing(WidgetTester _, ReaderController _, HandoffContent _) async {}
 
+/// «المحفوظ» as the design draws it: a bookmark on verse 1001 just swiped away
+/// (its undo notice showing), and the first row held 100 px aside over «حذف».
+Future<void> _savedSwiped(WidgetTester tester, ReaderController r, HandoffContent _) async {
+  await tester.runAsync(() => r.personal!.saveBookmark(1001, color: BookmarkColor.values[1], tag: BookmarkTag.muraja));
+  await tester.pump();
+  await tester.drag(find.text('البيت ١٠٠١'), const Offset(-390, 0));
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  final gesture = await tester.startGesture(tester.getCenter(find.byType(SavedRow).first));
+  addTearDown(gesture.removePointer);
+  await gesture.moveBy(const Offset(-30, 0)); // taken as the start of a drag
+  await gesture.moveBy(const Offset(-100, 0));
+}
+
 final Map<String, _State> _states = {
   'reader-playing': (
     tab: DockTab.matn,
@@ -69,6 +87,14 @@ final Map<String, _State> _states = {
   'player-main': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r)),
   'player-repeat': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'تكرار البيت')),
   'player-speed': (tab: DockTab.matn, audio: true, download: null, setup: (tester, r, _) => _player(tester, r, 'السرعة')),
+  'index': (
+    tab: DockTab.contents,
+    audio: true,
+    download: null,
+    setup: (tester, r, _) => tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)))
+  ),
+  'saved-bookmarks': (tab: DockTab.saved, audio: false, download: null, setup: _savedSwiped),
+  'saved-notes': (tab: DockTab.saved, audio: false, download: null, setup: (tester, _, _) => tester.tap(find.text('الملاحظات ٠'))),
   'settings-main': (tab: DockTab.settings, audio: false, download: null, setup: _nothing),
   'settings-picker': (
     tab: DockTab.settings,
