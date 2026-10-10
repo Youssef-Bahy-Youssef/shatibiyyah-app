@@ -1,6 +1,6 @@
 // «البحث»: vowel- and hamza-blind search over verses, chapters and the books; the
 // mapped normalizer behind the snippets; book passages a page at a time, numbers,
-// notes and recent queries (search v2); the search and quick-jump screens.
+// notes and recent queries (search v2); the search screen.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -194,7 +194,8 @@ void main() {
     final r = await reader(tester);
     await host(tester, Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => SearchScreen(reader: r))));
     await tester.pump();
-    expect(find.text('الانتقال السريع إلى صفحة أو بيت'), findsOneWidget); // the empty state
+    expect(find.text('جرّب: ${kSearchSuggestions.join(' · ')}'), findsOneWidget); // the empty state
+    expect(find.text('الانتقال السريع إلى صفحة أو بيت'), findsNothing); // a number in the field does that job
 
     await tester.enterText(find.byType(TextField), 'بدات ببسم');
     await tester.pump(const Duration(milliseconds: 250));
@@ -242,25 +243,5 @@ void main() {
     expect(more, findsNothing);
     await tester.scrollUntilVisible(find.text('عرض المزيد (بقي ${ar(total - 2 * kCommentaryPageSize)})'), 600,
         scrollable: find.byType(Scrollable).last);
-  });
-
-  testWidgets('quick jump: 2 2 9 on the keypad, then ← opens verse 229', (tester) async {
-    final r = await reader(tester);
-    await host(tester, Navigator(onGenerateRoute: (_) => MaterialPageRoute(builder: (_) => JumpScreen(reader: r))));
-    await tester.pump();
-    expect(find.text('٢٢٦ من ١١٧٣'), findsOneWidget); // starts on the current verse
-    for (var i = 0; i < 3; i++) {
-      await tester.tap(find.bySemanticsLabel('حذف'));
-      await tester.pump();
-    }
-    for (final k in ['٢', '٢', '٩']) {
-      await tester.tap(find.text(k));
-      await tester.pump();
-    }
-    expect(find.text('٢٢٩ من ١١٧٣'), findsOneWidget);
-    expect(find.text(content.matn.verse(229).firstHemistich), findsOneWidget); // live preview
-    await tester.tap(find.bySemanticsLabel('انتقال'));
-    await tester.pump();
-    expect(r.verse, 229);
   });
 }
