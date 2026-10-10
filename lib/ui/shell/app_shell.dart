@@ -20,6 +20,7 @@ import '../design/components/tz_motion.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_theme.dart';
 import '../reader/fixed_page_layout.dart';
+import '../reader/player_sheet.dart';
 import '../reader/reader_controller.dart';
 import '../reader/reader_screen.dart';
 import 'index_screen.dart';
@@ -126,8 +127,8 @@ class AppShellState extends State<AppShell> {
       };
 
   /// The now-playing row from the reader and the library (v2.js npRow): the
-  /// recited verse and its place in the section, else what the download is doing.
-  /// The paused state is 3.7's; until then it reads as not downloaded, resumable.
+  /// recited verse and its place in the section (a tap opens the player), else
+  /// what the download is doing: on its way, failed, paused, or not started.
   NowPlaying _nowPlaying() {
     final r = widget.reader;
     final rec = r.recording;
@@ -150,6 +151,7 @@ class AppShellState extends State<AppShell> {
         progress: (at - 1 + 0.4) / of,
         onToggle: r.playPause,
         onNext: r.next,
+        onOpen: () => showPlayerSheet(context, r),
       );
     }
     final progress = library?.progressOf(rec);
@@ -158,20 +160,33 @@ class AppShellState extends State<AppShell> {
       return NpDownloading(
         percent: '${ar((f * 100).floor())}٪',
         progress: f,
-        subtitle: '${megabytes(progress?.received ?? 0)} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
+        subtitle: '${ar(((progress?.received ?? 0) / 1e6).round())} من ${megabytes(rec.localBytes)} · يكمل في الخلفية',
         onPause: () => library.pause(rec),
       );
     }
     if (library != null && progress?.phase == DownloadPhase.failed) {
-      final why = progress!.error == DownloadError.network ? 'انقطع الاتصال' : 'تعذّر التنزيل';
-      final from = progress.received > 0 ? ' · سيُستأنف من ${ar((progress.fraction * 100).floor())}٪' : '';
-      return NpFailed(subtitle: '$why$from', onRetry: () => library.download(rec));
+      // The reason, worded as «التنزيلات» words it.
+      final why = switch (progress!.error) {
+        DownloadError.noUrls => 'التنزيل غير متاح بعد',
+        DownloadError.noSpace => 'المساحة غير كافية',
+        DownloadError.verification => 'لم يطابق الملف التحقق',
+        _ => 'انقطع الاتصال',
+      };
+      final resumes = progress.error == DownloadError.network && progress.received > 0;
+      return NpFailed(
+        subtitle: resumes ? '$why · سيُستأنف من ${ar((progress.fraction * 100).floor())}٪' : why,
+        onRetry: () => library.download(rec),
+      );
     }
-    final paused = library?.isPaused(rec) ?? false;
+    if (library != null && library.isPaused(rec)) {
+      return NpNone(
+        subtitle: 'متوقف عند ${ar(((progress?.fraction ?? 0) * 100).floor())}٪ · ${megabytes(rec.localBytes)}',
+        action: 'متابعة',
+        onDownload: () => library.download(rec),
+      );
+    }
     return NpNone(
-      subtitle: paused
-          ? 'متوقف عند ${ar(((progress?.fraction ?? 0) * 100).floor())}٪ · ${megabytes(rec.localBytes)}'
-          : '${rec.reciterName} · ${megabytes(rec.localBytes)} · مرة واحدة',
+      subtitle: '${rec.reciterName} · ${megabytes(rec.localBytes)} · مرة واحدة',
       onDownload: () => library?.download(rec),
     );
   }

@@ -15,10 +15,10 @@ enum ThemeChoice { paper, night, auto }
 /// The night ink's preference (ADR 0020; the same name as tokens.json's `preference`).
 const String kNightInkPref = 'v2.night.page_accent';
 
-const List<int?> kVerseRepeatOptions = [1, 3, 5, null]; // null = ∞
-const List<int?> kSectionRepeatOptions = [1, 2, 3, 5, null];
+const List<int?> kVerseRepeatOptions = [1, 2, 3, 4, 5, null]; // null = ∞
+const List<int?> kSectionRepeatOptions = [1, 2, 3, 4, 5, null];
 const List<int> kGapOptionsMs = [0, 1000, 2000, 3000];
-const List<double> kSpeedOptions = [0.75, 1, 1.25, 1.5];
+const List<double> kSpeedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const List<double> kTextScaleOptions = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
 class SettingsStore {

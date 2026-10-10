@@ -4,30 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../../data/settings_store.dart';
 import '../design/components/text_size_grid.dart';
-import '../design/components/tz_button.dart';
-import '../design/components/tz_sheet.dart';
-import '../design/tokens.g.dart';
-import '../design/tz_theme.dart';
+import '../design/components/tz_picker.dart';
 import '../reader/reader_controller.dart';
-import 'night_ink_sheet.dart' show showPickerSheet;
 
-Future<void> showTextSizeSheet(BuildContext context, ReaderController reader) => showPickerSheet(
+Future<void> showTextSizeSheet(BuildContext context, ReaderController reader) => showTzPicker(
       context,
-      (context) => TzSheet.picker(
+      (context) => TzPicker(
+        title: 'حجم نص المتن',
         child: ListenableBuilder(
           listenable: reader,
-          builder: (context, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 10),
-              Text('حجم نص المتن', style: TzType.title.copyWith(color: TzTheme.of(context).colors.ink)),
-              const SizedBox(height: 10),
+          builder: (context, _) =>
               TextSizeGrid(scales: kTextScaleOptions, selected: reader.textScale, onSelect: reader.setTextScale),
-              const SizedBox(height: 12),
-              TzButton.primary(label: 'تم', onPressed: () => Navigator.of(context).pop()),
-            ],
-          ),
         ),
       ),
     );
