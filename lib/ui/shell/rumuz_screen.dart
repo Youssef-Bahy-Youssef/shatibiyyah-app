@@ -1,7 +1,6 @@
 // lib/ui/shell/rumuz_screen.dart — «رموز القراء» (features-v3 rumuz-legend).
 //
-// Three tabs, every symbol in the rubric ink and in its frame, as the matn text
-// shows it (ADR 0024):
+// Three tabs, every symbol in the rubric ink and in its frame (ADR 0024):
 //   - the letters (أبجد هوز حطي كلمن صعفض قرست, verse 45): one row per reader,
 //     numbered in a khatam, his letter and then his two transmitters';
 //   - the group letters (ث خ ذ ظ غ ش, verses 49–52) and the code words

@@ -2,12 +2,11 @@
 // a unit, its 26 px khatam in the margin. The first hemistich starts at the
 // start, the second ends at the end, each 93 % wide and justified only when it
 // fills ≥ 84 % of its column on one line. At 600 px or wider they sit side by
-// side. Reader names and symbols are rubric, a symbol in its frame; playing is a soft gilt wash with a
+// side. Reader names and symbols are rubric; playing is a soft gilt wash with a
 // gilt bar; chosen is a 2 px ring and tint (lapis on paper, the night ink at night).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/components/khatam.dart';
-import 'package:shatibiyyah/ui/design/components/phrase_wash.dart';
 import 'package:shatibiyyah/ui/design/components/rubric.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
@@ -57,7 +56,7 @@ void main() {
     expect(justifyGap(natural: 290, column: 300, spaces: 0), 0);
   });
 
-  testWidgets('reader names in the rubric; a letter symbol coloured and framed, its word not', (tester) async {
+  testWidgets('reader names in the rubric; a letter symbol coloured and underlined, its word not', (tester) async {
     await pumpTz(
       tester,
       SizedBox(
@@ -73,11 +72,8 @@ void main() {
     );
     final spans = (hemistich(tester, 1).text as TextSpan).children!.cast<TextSpan>();
     final k = spans.firstWhere((s) => s.text == 'كَ');
-    expect((k.style!.color, k.style!.decoration), (TzNightPage.jade.accent, null));
+    expect((k.style!.color, k.style!.decoration, k.style!.decorationStyle), (TzNightPage.jade.accent, TextDecoration.underline, TextDecorationStyle.dotted));
     expect(spans.any((s) => s.text!.startsWith('اسِيهِ') && s.style == null), isTrue);
-    // A mark found by its word is framed like one from the span data (symbol_frame_test.dart).
-    final frames = tester.renderObjectList<RenderPhraseWash>(find.byType(PhraseWash)).expand((w) => w.frames).toList();
-    expect([for (final f in frames) f.fill], List.filled(2, TzNightPage.jade.accent.withValues(alpha: TzSymbolFrame.fill)));
   });
 
   testWidgets('playing: the soft gilt wash and a 3 px gilt bar outside the start edge', (tester) async {

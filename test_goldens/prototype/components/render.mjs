@@ -15,7 +15,6 @@ const SPECS = {
   dock: [390, 4 * 140, `['playing','none','downloading','failed'].map((a, i) => '<div style="position:absolute;left:0;right:0;top:' + (i * 140) + 'px;height:140px">' + dock({ audio: a, verse: 229, playing: true }, 'المتن').replace('class="dock"', 'class="dock" style="bottom:12px"') + '</div>').join('')`, '.shot'],
   stepper: [390, 80, `'<div class="stepper" style="bottom:10px"><button type="button">' + ic('back') + 'البيت ٢٢٥</button><span class="mid">' + khatam(30, '١', { stroke: 'var(--gilt-on-cover)', text: 'var(--on-cover)' }) + 'من ٩ في الباب</span><button type="button">البيت ٢٢٧' + ic('fwd') + '</button></div>'`, '.stepper'],
   verse_unit: [390, 330, `'<div class="tm" style="padding:4px 12px">' + verseUnit(226) + verseUnit(229, { playing: true }) + verseUnit(230, { chosen: true }) + '</div>'`, '.tm'],
-  symbol_frames: [390, 220, `'<div class="tm" style="padding:4px 12px">' + verseUnit(1027) + verseUnit(230, { playing: true }) + '</div>'`, '.tm'],
   chapter_head: [390, 170, `'<div class="tm" style="padding:0 12px">' + chapterHead(11, 'الباب الحادي عشر', 'بَابُ نَقْلِ حَرَكَةِ الْهَمْزَةِ إِلَى السَّاكِنِ قَبْلَهَا', 226, 234) + '</div>'`, '.tm'],
   matn_strip: [390, 290, `'<div style="padding:0 0 10px">' + matnStrip([226], 226) + matnStrip([230, 231, 232, 233], 231) + '</div>'`, '.shot > div'],
   snackbar: [390, 80, `'<div class="snack" role="status" style="bottom:14px;animation:none"><span>أُزيل المرجع: البيت ١٠٠١</span><button type="button">تراجع</button></div>'`, '.snack'],
