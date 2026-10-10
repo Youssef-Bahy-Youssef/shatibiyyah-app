@@ -1,6 +1,5 @@
 // PlaybackEngine over a fake audio player driven by fake time: seeks happen only
-// for non-continuous actions, gaps are real silences, played-through verses are
-// reported, seeking past a verse does not count, and quick jumps never land back.
+// for non-continuous actions, gaps are real silences, and quick jumps never land back.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -63,6 +62,20 @@ class FakeAudio implements AudioPort {
   void dispose() => _ticker?.cancel();
 }
 
+/// A player whose file ends at [endMs]: there it stops by itself, as a decoder does
+/// when the file is a little shorter than the recording's declared duration.
+class EndingAudio extends FakeAudio {
+  final int endMs;
+  EndingAudio(this.endMs);
+  @override
+  Future<void> play() async {
+    await super.play();
+    _positions.stream.listen((ms) {
+      if (ms >= endMs && _playing) _set(false);
+    });
+  }
+}
+
 final windows = PlaybackWindows(
   cues: Int32List.fromList([-1, 1000, 2000, 3000, 4000, 5000]),
   durationMs: 6000,
@@ -70,18 +83,53 @@ final windows = PlaybackWindows(
 );
 
 void main() {
-  test('plays a scope through with one seek, reporting each verse once', () {
+  test('plays a scope through with one seek', () {
     fakeAsync((async) {
       final audio = FakeAudio();
-      final completed = <int>[];
-      final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()),
-          onVerseCompleted: completed.add);
+      final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()));
       engine.play();
       async.elapse(const Duration(seconds: 6));
       expect(audio.seeks, [750]); // everything after the first jump is continuous
-      expect(completed, [1, 2, 3, 4, 5]);
       expect(engine.state.finished, isTrue);
       audio.dispose();
+    });
+  });
+
+  group('the end of the file (F-40)', () {
+    test('a player that stops 150 ms before the declared end still finishes', () {
+      fakeAsync((async) {
+        final audio = EndingAudio(windows.durationMs - 150);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(seconds: 3));
+        expect(engine.state.finished, isTrue);
+        expect(engine.state.playing, isFalse);
+        audio.dispose();
+      });
+    });
+
+    test('a stop well before the end is still a pause, not the end', () {
+      fakeAsync((async) {
+        final audio = EndingAudio(windows.durationMs - 400);
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()));
+        engine.play();
+        async.elapse(const Duration(seconds: 3));
+        expect(engine.state.finished, isFalse);
+        audio.dispose();
+      });
+    });
+
+    test('the last verse ends at the decoded duration when the player reports one', () {
+      fakeAsync((async) {
+        final audio = FakeAudio(); // plays on past the decoded end: only the engine can stop
+        final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(5, 5), const PlaybackSettings()))
+          ..decodedDurationMs = windows.durationMs - 300;
+        engine.play();
+        async.elapse(const Duration(milliseconds: 1500));
+        expect(engine.state.finished, isTrue);
+        expect(audio.currentPositionMs, lessThan(windows.durationMs - 200));
+        audio.dispose();
+      });
     });
   });
 
@@ -102,21 +150,6 @@ void main() {
       expect(audio.playing, isTrue);
       expect(audio.seeks, [750]); // resumed where it paused, no seek
       expect(audio.currentPositionMs, greaterThanOrEqualTo(pausedAt));
-      audio.dispose();
-    });
-  });
-
-  test('a verse sought into near its end is not counted as listened', () {
-    fakeAsync((async) {
-      final audio = FakeAudio();
-      final completed = <int>[];
-      final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 3), const PlaybackSettings()),
-          onVerseCompleted: completed.add);
-      engine.play();
-      async.elapse(const Duration(milliseconds: 100));
-      audio.seek(1950); // the user scrubs to the last 50 ms of verse 1
-      async.elapse(const Duration(milliseconds: 1200)); // through verse 2
-      expect(completed, [2]);
       audio.dispose();
     });
   });
@@ -181,10 +214,8 @@ void main() {
     test('an outside play resumes where it stood and plays on', () {
       fakeAsync((async) {
         final audio = FakeAudio();
-        final completed = <int>[];
         final engine = PlaybackEngine(
-            audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()),
-            onVerseCompleted: completed.add);
+            audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()));
         engine.play();
         async.elapse(const Duration(milliseconds: 600));
         audio.outsidePause();
@@ -193,8 +224,7 @@ void main() {
         async.elapse(const Duration(seconds: 6));
         expect(engine.state.playing, isFalse);
         expect(engine.state.finished, isTrue);
-        expect(completed, [1, 2, 3, 4, 5]);
-        expect(audio.seeks, [750]); // no jump back
+          expect(audio.seeks, [750]); // no jump back
         audio.dispose();
       });
     });

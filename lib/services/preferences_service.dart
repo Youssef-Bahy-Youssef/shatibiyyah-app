@@ -23,4 +23,5 @@ class Prefs {
   Set<String> get keys => _sp.getKeys();
   bool has(String k) => _sp.containsKey(k);
   void setString(String k, String v) => _sp.setString(k, v);
+  void remove(String k) => _sp.remove(k);
 }

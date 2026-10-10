@@ -1,10 +1,10 @@
 // lib/ui/shell/index_screen.dart — «الفهرس» (features-v3 structured-index).
 //
 // The four parts as chips, a card for the chosen part, then every chapter of the
-// part as its own card: number badge (a tick once every verse has been listened
-// to), short label, «الحالي» on the reader's chapter, the verse range and a
-// listening bar. The prototype's memorisation bar is left out (dropped from v2).
-// A card opens the reader at the chapter's first verse.
+// part as its own card: number badge, short label, «الحالي» on the reader's
+// chapter and the verse range. The prototype's memorisation and listening bars are
+// left out (dropped from v2; ADR 0008). A card opens the reader at the chapter's
+// first verse.
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -25,7 +25,6 @@ class IndexScreen extends StatefulWidget {
 
 class _IndexScreenState extends State<IndexScreen> {
   late int _part;
-  Set<int> _listened = const {};
 
   MatnRepository get _matn => widget.reader.content.matn;
 
@@ -34,9 +33,6 @@ class _IndexScreenState extends State<IndexScreen> {
     super.initState();
     final current = _matn.chapterOfVerse(widget.reader.verse);
     _part = _matn.parts.indexWhere((p) => p.id == current.partId);
-    widget.reader.user?.listenedVerses().then((v) {
-      if (mounted) setState(() => _listened = v);
-    });
   }
 
   void _open(MatnChapter c) {
@@ -93,18 +89,6 @@ class _IndexScreenState extends State<IndexScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      width: 18,
-                      height: 6,
-                      decoration: BoxDecoration(color: t.gold, borderRadius: BorderRadius.circular(999)),
-                    ),
-                    const SizedBox(width: 6),
-                    Text('سماع', style: kufi(size: 12, weight: 400, color: t.dim)),
-                  ],
-                ),
               ],
             ),
           ),
@@ -133,14 +117,9 @@ class _IndexScreenState extends State<IndexScreen> {
   );
 
   Widget _card(TaysirColors t, MatnChapter c, bool current) {
-    final heard = [for (var v = c.fromVerse; v <= c.toVerse; v++) v].where(_listened.contains).length;
-    final fraction = heard / c.verseCount;
-    final done = heard == c.verseCount;
-    final pct = (fraction * 100).round();
-    final Color badgeBg = done ? t.teal : (current ? t.gold : t.panel2);
     return Semantics(
       button: true,
-      label: '${c.shortLabel}، ${current ? 'الباب الحالي، ' : ''}سماع ${ar(pct)} بالمئة',
+      label: current ? '${c.shortLabel}، الباب الحالي' : c.shortLabel,
       excludeSemantics: true,
       child: InkWell(
         onTap: () => _open(c),
@@ -160,12 +139,10 @@ class _IndexScreenState extends State<IndexScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: badgeBg,
-                  border: done || current ? null : Border.all(color: t.line),
+                  color: current ? t.gold : t.panel2,
+                  border: current ? null : Border.all(color: t.line),
                 ),
-                child: done
-                    ? Icon(LucideIcons.check, size: 18, color: t.bg)
-                    : c.orderIndex ==
+                child: c.orderIndex ==
                           0 // the introduction has no chapter number
                     ? Icon(LucideIcons.bookOpen, size: 18, color: current ? t.onGold : t.goldBright)
                     : Text(
@@ -209,40 +186,6 @@ class _IndexScreenState extends State<IndexScreen> {
                     Text(
                       '${isolatedRange(c.fromVerse, c.toVerse)}، ${versesCount(c.verseCount)}',
                       style: kufi(size: 12, weight: 400, color: t.muted),
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 30,
-                          child: Text('سماع', style: kufi(size: 11, weight: 400, color: t.muted)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          // The prototype fills its bars left to right (`direction: ltr`).
-                          child: Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: LinearProgressIndicator(
-                                value: fraction,
-                                minHeight: 6,
-                                color: t.gold,
-                                backgroundColor: t.line,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 36,
-                          child: Text(
-                            '${ar(pct)}٪',
-                            textAlign: TextAlign.left,
-                            style: kufi(size: 11, weight: 400, color: t.dim),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),

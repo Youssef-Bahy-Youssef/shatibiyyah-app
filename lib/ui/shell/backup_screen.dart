@@ -64,6 +64,9 @@ class _BackupScreenState extends State<BackupScreen> {
       (message, failed) = (e.message, true);
     } on device.DocumentError catch (e) {
       (message, failed) = (_deviceError(e), true);
+    } catch (_) {
+      // Anything else (a database or file error): never leave the spinner on (F-54).
+      (message, failed) = ('تعذّر إكمال العملية؛ أعد المحاولة', true);
     }
     if (failed) _reader.rating?.noteError();
     if (!mounted) return;
@@ -152,7 +155,7 @@ class _BackupScreenState extends State<BackupScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            'يشمل: المراجع والملاحظات والسجل والأبيات المسموعة وإعدادات القراءة. '
+            'يشمل: المراجع والملاحظات وإعدادات القراءة. '
             'لا يشمل الصوت ولا الشروح.',
             style: kufi(size: 13, weight: 400, color: t.muted, height: 1.7),
           ),

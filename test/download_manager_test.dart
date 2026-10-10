@@ -13,7 +13,7 @@ import 'package:shatibiyyah/data/recording_repository.dart';
 import 'package:shatibiyyah/services/download_manager.dart';
 
 /// A transfer that writes the whole file at once, or waits until cancelled.
-class _InstantTransfer implements Transfer {
+class _InstantTransfer extends Transfer {
   final Uint8List body;
   final bool hang;
   _InstantTransfer(this.body, {this.hang = false});
@@ -63,6 +63,11 @@ class _Server {
     if (path == '/norange') from = 0;
     res.statusCode = from > 0 ? HttpStatus.partialContent : HttpStatus.ok;
     res.contentLength = body.length - from;
+    if (from > 0) {
+      // /othersize serves another file under the same name: its total is not the delivery size.
+      final total = path == '/othersize' ? body.length + 1 : body.length;
+      res.headers.set(HttpHeaders.contentRangeHeader, 'bytes $from-${body.length - 1}/$total');
+    }
     var bytes = Uint8List.sublistView(body, from);
     if (path == '/corrupt' && corruptLeft > 0) {
       corruptLeft--;
@@ -165,6 +170,14 @@ void main() {
     expect(server.ranges.last, '/slow $kept');
   });
 
+  test('a 206 whose total is not the delivery size is discarded; the download starts over', () async {
+    server.dropAfter['/a'] = 100 * 1024;
+    final r = _recording(body, [server.url('/a'), server.url('/othersize')]);
+    final file = await manager().download(r);
+    expect(await file.readAsBytes(), body);
+    expect(server.ranges, ['/a 0', '/othersize ${100 * 1024}', '/a 0']);
+  });
+
   test('a server that ignores Range sends the whole file again: started over, still right', () async {
     await File('${manager().fileFor(_recording(body, [])).path}.part')
         .create(recursive: true)
@@ -238,6 +251,17 @@ void main() {
       expect(await m.recover(r), isFalse);
       expect(m.partFileFor(r).lengthSync(), 1000);
       expect(await m.isDownloaded(r), isFalse);
+    });
+
+    test('two recover() calls at once rename once and neither throws (F-34)', () async {
+      final r = _recording(body, [server.url('/ok')]);
+      final m = manager();
+      await (m.partFileFor(r)..parent.createSync(recursive: true)).writeAsBytes(body);
+      // refresh() at launch and backgroundFinished() can both get here.
+      final results = await Future.wait([m.recover(r), m.recover(r)]);
+      expect(results, [isTrue, isTrue]);
+      expect(await m.isDownloaded(r), isTrue);
+      expect(m.partFileFor(r).existsSync(), isFalse);
     });
 
     test('any Transfer plugs in: its bytes are verified like the HTTP ones', () async {

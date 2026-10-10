@@ -1,22 +1,23 @@
 // lib/app/rating.dart — asking for a rating (features-v3 app-update-and-review,
-// plan P7 step 5).
+// plan P7 step 5; re-based by ADR 0008).
 //
-// Only after an achievement: when a chapter becomes finished (its last unheard
-// verse is played through, lib/data/user_store.dart verse_listens), the native
-// in-app review is requested — if the last request was 90 days ago or more
-// (v2.review.last_prompt_at) and no error was shown in this session or in the
-// last few minutes (v2.last_error_at). The platform decides whether the sheet
-// actually appears; the request counts either way.
+// The native in-app review is requested once the app has been used on 5 separate
+// days, a day of use being one on which audio played or a commentary was opened.
+// It is requested at most once every 90 days (v2.review.last_prompt_at) and not
+// within 24 hours of an error shown to the user (v2.last_error_at). Only a count
+// of days and the last day counted are stored (v2.review.days_used), never what
+// was done. The platform decides whether the sheet actually appears; the request
+// counts either way.
 import 'package:in_app_review/in_app_review.dart';
 
-import '../data/matn_repository.dart';
-import '../data/user_store.dart';
 import '../services/preferences_service.dart';
 
+const String kReviewDaysUsedPref = 'v2.review.days_used'; // "<count> <yyyy-mm-dd>"
 const String kReviewLastPromptPref = 'v2.review.last_prompt_at';
 const String kLastErrorPref = 'v2.last_error_at';
+const int kReviewAfterDays = 5;
 const Duration kReviewInterval = Duration(days: 90);
-const Duration kErrorQuiet = Duration(minutes: 5);
+const Duration kErrorQuiet = Duration(hours: 24);
 
 /// The platform's review request; faked in tests.
 abstract class ReviewPort {
@@ -38,7 +39,6 @@ class RatingPrompt {
   final Prefs prefs;
   final ReviewPort port;
   final DateTime Function() clock;
-  bool _errorThisSession = false;
 
   RatingPrompt({required this.prefs, required this.port, DateTime Function()? clock}) : clock = clock ?? DateTime.now;
 
@@ -48,45 +48,33 @@ class RatingPrompt {
   }
 
   /// An error was shown to the user (a failed download, a refused backup file…).
-  void noteError() {
-    _errorThisSession = true;
-    prefs.setString(kLastErrorPref, '${clock().millisecondsSinceEpoch}');
-  }
+  void noteError() => prefs.setString(kLastErrorPref, '${clock().millisecondsSinceEpoch}');
+
+  static String _day(DateTime d) => '${d.year}-${'${d.month}'.padLeft(2, '0')}-${'${d.day}'.padLeft(2, '0')}';
+
+  /// Distinct days the app has been used on.
+  int get daysUsed => int.tryParse((prefs.getString(kReviewDaysUsedPref) ?? '').split(' ').first) ?? 0;
 
   bool get mayAsk {
     final now = clock();
     final last = _at(kReviewLastPromptPref);
     final error = _at(kLastErrorPref);
-    return !_errorThisSession &&
+    return daysUsed >= kReviewAfterDays &&
         (last == null || now.difference(last) >= kReviewInterval) &&
         (error == null || now.difference(error) >= kErrorQuiet);
   }
 
-  /// A chapter has just become finished: ask, if the rules allow. True when asked.
-  Future<bool> chapterFinished() async {
+  /// Audio played or a commentary was opened: counts the day, then asks if the
+  /// rules allow. True when asked.
+  Future<bool> used() async {
+    final stored = (prefs.getString(kReviewDaysUsedPref) ?? '').split(' ');
+    final today = _day(clock());
+    if (stored.length != 2 || stored[1] != today) {
+      prefs.setString(kReviewDaysUsedPref, '${daysUsed + 1} $today');
+    }
     if (!mayAsk) return false;
     if (!await port.request()) return false;
     prefs.setString(kReviewLastPromptPref, '${clock().millisecondsSinceEpoch}');
     return true;
   }
-}
-
-/// Records that [verse] was played through and calls [onFinished] when it was the
-/// last unheard verse of its chapter (so a chapter finishes once, and seeking to
-/// its end, which records nothing, finishes nothing).
-Future<void> recordListened(
-  UserStore user,
-  MatnRepository matn,
-  String recordingId,
-  int verse,
-  void Function(MatnChapter chapter) onFinished,
-) async {
-  final before = await user.listenedVerses();
-  await user.recordVerseListened(recordingId, verse);
-  if (before.contains(verse)) return;
-  final chapter = matn.chapterOfVerse(verse);
-  for (var v = chapter.fromVerse; v <= chapter.toVerse; v++) {
-    if (v != verse && !before.contains(v)) return;
-  }
-  onFinished(chapter);
 }

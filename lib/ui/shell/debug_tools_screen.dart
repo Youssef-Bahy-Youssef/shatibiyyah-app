@@ -1,6 +1,6 @@
 // lib/ui/shell/debug_tools_screen.dart — «أدوات التجربة»: only in debug and
 // profile builds (run from Android Studio), never in release; reached from «حول». What cannot be
-// waited for or needs Google Play, tried at once: each reminder now, a reminder
+// waited for or needs Google Play, tried at once: the reminder now, the reminder
 // through the real scheduler in two minutes, the update banner, the review call.
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -55,18 +55,13 @@ class _DebugToolsScreenState extends State<DebugToolsScreen> {
             ),
           ),
           action(
-            LucideIcons.lightbulb,
-            'أرسل «فائدة اليوم» الآن',
-            reminders == null ? null : () => _run('أُرسلت «فائدة اليوم»', () => reminders.sendNow(chapter: false)),
-          ),
-          action(
             LucideIcons.bellRing,
             'أرسل «تذكير الباب» الآن',
-            reminders == null ? null : () => _run('أُرسل «تذكير الباب»', () => reminders.sendNow(chapter: true)),
+            reminders == null ? null : () => _run('أُرسل «تذكير الباب»', () => reminders.sendNow()),
           ),
           action(
             LucideIcons.alarmClock,
-            'جدولة «فائدة اليوم» بعد دقيقتين',
+            'جدولة «تذكير الباب» بعد دقيقتين',
             reminders == null
                 ? null
                 : () => _run(

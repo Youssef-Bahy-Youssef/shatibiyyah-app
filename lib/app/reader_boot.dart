@@ -47,7 +47,6 @@ Future<ReaderController> bootReader() async {
   final library = AudioLibrary(
     content: content,
     prefs: prefs,
-    user: user,
     downloads: DownloadManager(
       supportDir: support,
       freeBytes: deviceFreeBytes,
@@ -60,19 +59,24 @@ Future<ReaderController> bootReader() async {
     background.onUnattendedComplete = library.backgroundFinished;
     // A download still running since before the app was closed: show it again.
     for (final r in library.recordings) {
-      if (!library.isOnDevice(r) && await background.isActive(library.downloads.partFileFor(r))) {
+      // A paused one stays paused until «متابعة».
+      if (!library.isOnDevice(r) &&
+          !library.isPaused(r) &&
+          await background.isActive(library.downloads.partFileFor(r))) {
         unawaited(library.download(r));
       }
     }
   }
   final recording = library.current;
-  final windows = await content.windowsFor(recording);
+  final windows = await content.windowsOrNull(recording); // null: no audio for an unusable one (F-41)
 
   final initial = _restoreVerse(prefs, content.matn.lastVerse);
   final chapter = content.matn.chapterOfVerse(initial);
-  final engine = await library.openCurrent(
-    PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
-  );
+  final engine = windows == null
+      ? null
+      : await library.openCurrent(
+          PlaybackPlan(windows, PlaybackScope(chapter.fromVerse, chapter.toVerse), const PlaybackSettings()),
+        );
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
   final reader = ReaderController(
@@ -85,7 +89,8 @@ Future<ReaderController> bootReader() async {
     initialVerse: initial,
   );
   library.attach(reader);
-  reader.rating = RatingPrompt(prefs: prefs, port: InAppReviewPort());
+  final rating = RatingPrompt(prefs: prefs, port: InAppReviewPort());
+  reader.rating = rating;
   if (Platform.isAndroid) {
     final update = AppUpdate(PlayUpdatePort());
     reader.update = update;
@@ -94,7 +99,7 @@ Future<ReaderController> bootReader() async {
   final personal = PersonalData(user);
   await personal.load();
   reader.personal = personal;
-  CommentaryScreen.onRead = personal.logCommentary;
+  CommentaryScreen.onOpened = () => unawaited(rating.used());
   void ribbons() => viewer.setRibbons(personal.ribbons);
   personal.addListener(ribbons);
   ribbons();
