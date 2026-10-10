@@ -108,6 +108,41 @@ final Map<String, (double, double, Widget Function())> components = {
       ),
     ),
   ),
+  // Reader symbols in their frames (ADR 0024): two word symbols side by side and two letters, then
+  // the playing verse's two letters on its gilt wash.
+  'symbol_frames': (
+    390,
+    220,
+    () => Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Column(
+        children: [
+          _symbols('١٠٢٧', _v1027, [(1, 'حَقُّ', 'حَقُّ'), (1, 'صُحْبَةٍ', 'صُحْبَةٍ'), (2, 'شَايَعَ', 'شَ'), (2, 'دُخْلُلَا', 'دُ')]),
+          _symbols('٢٣٠', _v230, [(2, 'كَاسِيهِ', 'كَ'), (2, 'ظَلَّلَا', 'ظَ')], playing: true),
+        ],
+      ),
+    ),
+  ),
+  // No prototype render pairs with this one: its verses are not in the prototype's sample. The verse
+  // with the most symbols (284, nine letters) at the smallest and the largest size, where it wraps,
+  // and word and letter symbols side by side (398) with one symbol's tip open.
+  'symbol_frames_stress': (
+    390,
+    620,
+    () => Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Column(
+        children: [
+          _symbols('٢٨٤', _v284, _s284, size: 17),
+          _symbols('٣٩٨', _v398, [
+            (1, 'سَمَا مَوْلىً', 'سَمَا'), (1, 'مَوْلىً', 'مَ'), (1, 'سَمَا لِوىً', 'سَمَا'), (1, 'لِوىً', 'لِ'),
+            (2, 'سَمَا', 'سَمَا'), (2, 'كُفْؤًا', 'كُ'), (2, 'نَفْرُ', 'نَفْرُ'),
+          ], playing: true, active: 5),
+          _symbols('٢٨٤', _v284, _s284, size: 28),
+        ],
+      ),
+    ),
+  ),
   'stepper': (
     370,
     60,
@@ -327,6 +362,34 @@ Future<void> settleSvgs(WidgetTester tester) async {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
   }
+}
+
+const _v230 = ('وَقُلْ عَادًا الأُوْلَى بِإِسْكَانِ لامِهِ', 'وَتَنْوِينُهُ بِالْكَسْرِ كَاسِيهِ ظَلَّلَا');
+const _v284 = ('وَفِي ارْكَبْ هُدَى بَرٍّ قَرِيبٍ بِخُلْفِهِمْ', 'كَمَا ضاَعَ جاَ يَلْهَثْ لَهُ دَارِ جُهَّلَا');
+const _v398 = ('أَرَهْطِي سَمَا مَوْلىً وَمَالِي سَمَا لِوىً', 'لَعَلِّي سَمَا كُفْؤًا مَعِي نَفْرُ الْعُلَا');
+const _v1027 = ('وَفِي تَشْتَهِيهِ تَشْتَهِيْ حَقُّ صُحْبَةٍ', 'وَفِي تُرْجَعُونَ الْغَيْبُ شَايَعَ دُخْلُلَا');
+const _s284 = [
+  (1, 'هُدَى', 'هُ'), (1, 'بَرٍّ', 'بَ'), (1, 'قَرِيبٍ', 'قَ'),
+  (2, 'كَمَا', 'كَ'), (2, 'ضاَعَ', 'ض'), (2, 'جاَ', 'ج'), (2, 'لَهُ', 'لَ'), (2, 'دَارِ', 'دَ'), (2, 'جُهَّلَا', 'جُ'),
+];
+
+/// A verse with its symbols as the span data gives them: (hemistich, where it starts, its letters).
+VerseUnit _symbols(String number, (String, String) verse, List<(int, String, String)> symbols,
+    {double size = kVerseSize, bool playing = false, int? active}) {
+  final marks = [
+    for (final (half, from, letters) in symbols)
+      Rubric.at((half == 1 ? verse.$1 : verse.$2).indexOf(from), (half == 1 ? verse.$1 : verse.$2).indexOf(from) + letters.length,
+          hemistich: half, isSymbol: true),
+  ];
+  return VerseUnit(
+    number: number,
+    first: verse.$1,
+    second: verse.$2,
+    rubrics: marks,
+    fontSize: size,
+    playing: playing,
+    activeSymbol: active == null ? null : marks[active],
+  );
 }
 
 void main() {

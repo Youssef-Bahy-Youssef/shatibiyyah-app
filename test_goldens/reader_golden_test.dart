@@ -172,10 +172,10 @@ void main() {
     }
   }
 
-  // «رموز القراء»: the letters tab as it opens, and the words tab.
+  // «رموز القراء»: the letters tab as it opens, the groups and the words.
   for (final theme in [ReaderTheme.dark, ReaderTheme.paper]) {
-    for (final tab in [null, 'الكلمات']) {
-      final name = 'rumuz_${tab == null ? 'letters' : 'words'}_${theme.name}_390x844';
+    for (final tab in [null, 'الجماعات', 'الكلمات']) {
+      final name = 'rumuz_${switch (tab) { null => 'letters', 'الجماعات' => 'groups', _ => 'words' }}_${theme.name}_390x844';
       testWidgets(name, (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;

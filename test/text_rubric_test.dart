@@ -5,10 +5,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
+import 'package:shatibiyyah/ui/design/components/phrase_wash.dart';
+import 'package:shatibiyyah/ui/design/components/rubric.dart';
 import 'package:shatibiyyah/ui/design/components/share_card.dart';
+import 'package:shatibiyyah/ui/design/components/symbol_chip.dart';
 import 'package:shatibiyyah/ui/design/components/symbol_tip.dart';
 import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/reader/display_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/verse_rubrics.dart';
@@ -119,7 +123,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(RumuzScreen), findsOneWidget);
     expect(r.symbol, isNull);
+    // The list opens on this symbol: the groups' tab, «ظ» marked.
+    expect([for (final c in tester.widgetList<SymbolChip>(find.byType(SymbolChip))) (c.code, c.active)],
+        [('ث', false), ('خ', false), ('ذ', false), ('ظ', true), ('غ', false), ('ش', false)]);
     await unmount(tester);
+  });
+
+  testWidgets('every symbol of a verse is framed (ADR 0024), a name is not; the switch takes the frames away too', (tester) async {
+    final r = await textMode(tester, verse: 229);
+    await tester.pumpAndSettle();
+    List<SymbolFrame> framesOf(int verse) => [
+          for (final w in tester.renderObjectList<RenderPhraseWash>(find.descendant(of: unit(verse), matching: find.byType(PhraseWash))))
+            ...w.frames,
+        ];
+    expect(framesOf(229), isEmpty); // «لِنَافِعٍ» is a name
+    expect(marked(tester, 229), ['لِنَافِعٍ']);
+    final frames = framesOf(230);
+    expect(frames, hasLength(2));
+    expect(frames.first.box.height, closeTo((TzSymbolFrame.above + TzSymbolFrame.below) * r.verseSize, 0.01));
+    r.setShowRubric(false);
+    await tester.pump();
+    expect(framesOf(230), isEmpty);
+    await unmount(tester);
+  });
+
+  test('the verses with the most symbols: each span of the data is one mark to frame', () {
+    // 284 has nine letters; 398 has four words and three letters, some side by side.
+    for (final (verse, symbols) in [(284, 9), (398, 7), (1027, 4)]) {
+      final marks = verseRubrics(data.content, verse);
+      expect(marks.where((m) => m.isSymbol), hasLength(symbols), reason: 'verse $verse');
+      for (final half in [1, 2]) {
+        final v = data.content.matn.verse(verse);
+        final text = half == 1 ? v.firstHemistich : v.secondHemistich;
+        final ranges = rubricRanges(text, rubricsOf(marks, half));
+        expect(ranges, hasLength(rubricsOf(marks, half).length), reason: 'no mark of $verse is dropped');
+        // No symbol is a split word: none holds a space, so none breaks over two lines.
+        expect(ranges.any((r) => text.substring(r.$1, r.$2).contains(' ')), isFalse);
+      }
+    }
   });
 
   testWidgets('a tap on the verse beside a symbol still chooses the verse; Back closes the tip', (tester) async {
