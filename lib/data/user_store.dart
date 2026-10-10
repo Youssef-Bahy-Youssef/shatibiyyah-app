@@ -260,5 +260,25 @@ class UserStore {
     }
   }
 
+  /// Deletes the note [uuid]: a tombstone, so «تراجع» can bring it back.
+  Future<void> deleteNoteById(String uuid, {DateTime? at}) {
+    final now = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    return db.rawUpdate(
+      'UPDATE notes SET deleted_at = ?, updated_at = ? WHERE uuid = ? AND deleted_at IS NULL',
+      [now, now, uuid],
+    );
+  }
+
+  /// «تراجع»: the deleted note [uuid] is live again, with its uuid and text. False
+  /// when its verse has a live note since: that one stays, this one stays deleted.
+  Future<bool> restoreNote(String uuid, {DateTime? at}) async =>
+      await db.rawUpdate(
+        'UPDATE notes SET deleted_at = NULL, updated_at = ? '
+        'WHERE uuid = ? AND deleted_at IS NOT NULL AND NOT EXISTS ('
+        'SELECT 1 FROM notes live WHERE live.deleted_at IS NULL AND live.matn_verse_id = notes.matn_verse_id)',
+        [(at ?? DateTime.now()).millisecondsSinceEpoch, uuid],
+      ) ==
+      1;
+
   Future<void> close() => db.close();
 }

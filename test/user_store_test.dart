@@ -227,5 +227,36 @@ void main() {
       expect(await store.notes(), isEmpty);
       expect((await store.db.rawQuery('SELECT deleted_at FROM notes')).single['deleted_at'], isNotNull);
     });
+
+    // Plan 5.1, ADR 0009.
+    test('an edit keeps the uuid and created_at, and moves updated_at', () async {
+      await store.saveNote(229, 'انظر الوافي', at: DateTime(2026, 1, 1));
+      final uuid = (await store.notes()).single.uuid;
+      await store.saveNote(229, 'انظر إبراز المعاني', at: DateTime(2026, 1, 2));
+      final row = (await store.db.query('notes')).single;
+      expect(row['uuid'], uuid);
+      expect(row['created_at'], DateTime(2026, 1, 1).millisecondsSinceEpoch);
+      expect(row['updated_at'], DateTime(2026, 1, 2).millisecondsSinceEpoch);
+    });
+
+    test('delete by id, then «تراجع»: the same uuid and text', () async {
+      await store.saveNote(229, 'انظر الوافي');
+      final n = (await store.notes()).single;
+      await store.deleteNoteById(n.uuid);
+      expect(await store.notes(), isEmpty);
+      expect(await store.restoreNote(n.uuid), isTrue);
+      final back = (await store.notes()).single;
+      expect((back.uuid, back.verse, back.body), (n.uuid, 229, 'انظر الوافي'));
+      expect(await store.db.query('notes'), hasLength(1)); // the same row, not a copy
+    });
+
+    test('«تراجع» gives way to a note written on the verse since', () async {
+      await store.saveNote(229, 'القديمة');
+      final old = (await store.notes()).single;
+      await store.deleteNoteById(old.uuid);
+      await store.saveNote(229, 'الجديدة');
+      expect(await store.restoreNote(old.uuid), isFalse); // one live note per verse
+      expect((await store.notes()).single.body, 'الجديدة');
+    });
   });
 }

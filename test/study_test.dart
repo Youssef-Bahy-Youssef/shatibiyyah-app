@@ -12,6 +12,7 @@ import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
+import 'package:shatibiyyah/ui/design/components/undo_snackbar.dart';
 import 'package:shatibiyyah/utils/arabic.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/reader_screen.dart';
@@ -346,6 +347,178 @@ void main() {
     expect(row, findsOneWidget);
     expect(removed, findsNothing);
     expect(personal.bookmarks.single.uuid, before.uuid);
+    await unmount(tester);
+  });
+
+  // ── notes: edit, delete, undo (plan 5.1, ADR 0009) ──
+
+  final noteRemoved = find.textContaining('حُذفت الملاحظة');
+  final noteSheet = find.text('ملاحظة على البيت ٢٣٠');
+  final noteRow = find.text('قارن بالوافي');
+
+  Future<Note> writeNote(WidgetTester tester, PersonalData personal) async {
+    await tester.runAsync(() => personal.saveNote(230, 'قارن بالوافي'));
+    await tester.pump();
+    return personal.noteFor(230)!;
+  }
+
+  Future<void> openNote(WidgetTester tester, ReaderController r) async {
+    r.openMenu(230);
+    await tester.pump();
+    await tester.tap(find.text('ملاحظة'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openNotes(WidgetTester tester, ReaderController r) async {
+    await openHome(tester, r);
+    await tester.tap(find.text('الملاحظات ١'));
+    await tester.pump();
+  }
+
+  /// As [until], for a result that shows in the data and not on the screen.
+  Future<void> untilTrue(WidgetTester tester, bool Function() done) async {
+    for (var i = 0; i < 250 && !done(); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('note sheet: «حذف» only on a written note; deleted, then «تراجع» restores the same uuid and text', (tester) async {
+    final (r, personal) = await open(tester);
+    await openNote(tester, r);
+    expect(find.text('حذف'), findsNothing); // nothing to delete yet
+    Navigator.of(tester.element(noteSheet)).pop();
+    await tester.pumpAndSettle();
+
+    final before = await writeNote(tester, personal);
+    await openNote(tester, r);
+    expect(noteRow, findsOneWidget); // its text, in the field
+    await tester.tap(find.text('حذف'));
+    await until(tester, noteRemoved);
+    expect(noteSheet, findsNothing);
+    expect(personal.noteFor(230), isNull);
+
+    await tester.tap(find.text('تراجع'));
+    await untilTrue(tester, () => personal.noteFor(230) != null);
+    final back = personal.noteFor(230)!;
+    expect((back.uuid, back.body), (before.uuid, 'قارن بالوافي'));
+    await unmount(tester);
+  });
+
+  testWidgets('clearing a note and saving deletes it, with the same «تراجع»', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await writeNote(tester, personal);
+    await openNote(tester, r);
+    await tester.enterText(find.byType(TextField), '  ');
+    await tester.tap(find.text('حفظ'));
+    await until(tester, noteRemoved);
+    expect(personal.noteFor(230), isNull);
+
+    await tester.tap(find.text('تراجع'));
+    await untilTrue(tester, () => personal.noteFor(230) != null);
+    final back = personal.noteFor(230)!;
+    expect((back.uuid, back.body), (before.uuid, 'قارن بالوافي'));
+
+    // An empty sheet on a verse with no note closes and says nothing.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => personal.removeNote(back));
+    await openNote(tester, r);
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(noteSheet, findsNothing);
+    expect(noteRemoved, findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('saved notes: swipe-delete then undo; a long press edits or deletes; the empty state after the last', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await writeNote(tester, personal);
+    await openNotes(tester, r);
+    await tester.drag(noteRow, const Offset(500, 0));
+    await tester.pumpAndSettle(); // the row slides away, then is dismissed
+    await until(tester, noteRemoved); // «تراجع» is offered once the delete is written
+    expect(personal.notes, isEmpty);
+    expect(find.text('لم تكتب ملاحظة بعد'), findsOneWidget);
+    expect(find.text('حُذفت الملاحظة: البيت ٢٣٠'), findsOneWidget);
+
+    await tester.tap(find.text('تراجع'));
+    await until(tester, noteRow); // the row is back
+    expect((personal.notes.single.uuid, personal.notes.single.body), (before.uuid, 'قارن بالوافي'));
+
+    // «تعديل» opens the note's sheet; the edit keeps the note.
+    await tester.longPress(noteRow);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تعديل'));
+    await tester.pumpAndSettle();
+    expect(noteSheet, findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'قارن بإبراز المعاني');
+    await tester.tap(find.text('حفظ'));
+    await until(tester, find.text('حُفظت الملاحظة'));
+    expect((personal.notes.single.uuid, personal.notes.single.body), (before.uuid, 'قارن بإبراز المعاني'));
+    expect(find.text('الملاحظات ١'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3)); // the notice leaves
+    await tester.pumpAndSettle();
+
+    // A tap still opens the verse.
+    await tester.tap(find.text('قارن بإبراز المعاني'));
+    await tester.pump();
+    expect(r.verse, 230);
+
+    await tester.longPress(find.text('قارن بإبراز المعاني'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف'));
+    await until(tester, noteRemoved);
+    expect(personal.notes, isEmpty);
+    expect(find.text('لم تكتب ملاحظة بعد'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6)); // the undo lasts 5 s
+    await tester.pumpAndSettle();
+    expect(find.text('تراجع'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('saved notes: «حذف» in the sheet opened from the list offers the list\'s own «تراجع»', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await writeNote(tester, personal);
+    await openNotes(tester, r);
+    await tester.longPress(noteRow);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تعديل'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف'));
+    await until(tester, noteRemoved);
+    expect(find.byType(UndoSnackbar), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing); // one notice, the screen's own
+    expect(personal.notes, isEmpty);
+    await tester.tap(find.text('تراجع'));
+    await until(tester, noteRow);
+    expect(personal.notes.single.uuid, before.uuid);
+    await unmount(tester);
+  });
+
+  testWidgets('a failed note delete keeps the sheet with its text, and the row, and says «تعذّر الحفظ» (F-55)', (tester) async {
+    final (r, personal) = await open(tester);
+    final before = await writeNote(tester, personal);
+    await tester.runAsync(personal.store.close); // every write now throws a DatabaseException
+
+    await openNote(tester, r);
+    await tester.tap(find.text('حذف'));
+    await until(tester, failed);
+    expect(noteSheet, findsOneWidget); // still open
+    expect(noteRow, findsOneWidget); // the text, intact
+    expect(noteRemoved, findsNothing); // nothing to undo
+    expect(personal.noteFor(230)!.uuid, before.uuid);
+    Navigator.of(tester.element(noteSheet)).pop();
+    await tester.pumpAndSettle();
+
+    await openNotes(tester, r);
+    await tester.drag(noteRow, const Offset(500, 0));
+    await tester.pumpAndSettle();
+    await until(tester, failed);
+    expect(noteRow, findsOneWidget); // back in the list
+    expect(noteRemoved, findsNothing);
+    expect(personal.notes.single.uuid, before.uuid);
     await unmount(tester);
   });
 
