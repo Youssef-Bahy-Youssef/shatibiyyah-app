@@ -153,6 +153,17 @@ void main() {
     expect(find.text('لا جديد في هذه النسخة'), findsOneWidget);
   });
 
+  testWidgets('any failure clears the spinner and says «تعذّر…» (F-54)', (tester) async {
+    final (_, personal) = await open(tester, (r) => BackupScreen(reader: r, save: (name, _) async => name));
+    await tester.runAsync(personal.store.close); // the next read throws a DatabaseException
+    await tester.tap(find.text('إنشاء نسخة الآن'));
+    await settle(tester);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.textContaining('تعذّر'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.ancestor(of: find.text('إنشاء نسخة الآن'), matching: find.byType(FilledButton))).onPressed,
+        isNotNull); // it can be tried again
+  });
+
   testWidgets('a file that is not a backup is refused with a reason', (tester) async {
     await open(tester, (r) => BackupScreen(reader: r, open: () async => '{"hello": 1}'));
     await tester.tap(find.text('استعادة من ملف'));
