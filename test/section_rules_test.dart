@@ -123,6 +123,32 @@ void main() {
     expect(audio.seeks.last, windows.cue(229) - 50);
     await tester.runAsync(r.playPause);
   });
+
+  testWidgets('a tap on the verse before the one recited: the player\'s late report of the old place does not take the reader back', (tester) async {
+    final audio = _TickingAudio();
+    final r = await data.reader(tester, audio: true, bookmarks: false, port: audio);
+    final windows = r.engine!.windows;
+    await tester.runAsync(() => r.playScope(const PlaybackScope(230, 234)));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    final reciting = windows.cue(230) + 1500;
+    audio.tick(reciting);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    expect((r.playing, r.verse), (true, 230));
+
+    await tester.runAsync(() async {
+      audio.seekAnswer = Completer<void>(); // made here, on the real clock, where it is awaited
+      final tap = r.tapVerse(229); // the seek is on its way to the player
+      audio.tick(reciting + 10); // what the player sent before it heard of it
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      audio.seekAnswer!.complete();
+      await tap;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    });
+    expect((r.verse, r.engine!.state.verse, r.viewer.activeId), (229, 229, 229));
+    expect(audio.seeks.last, windows.cue(229) - 50);
+    audio.seekAnswer = null;
+    await tester.runAsync(r.playPause);
+  });
 }
 
 /// An audio port whose position the test moves.
@@ -145,10 +171,17 @@ class _TickingAudio implements AudioPort {
   bool get playing => _playing;
   @override
   Stream<bool> get playingChanges => const Stream.empty();
+  /// When set, a seek is answered only when the test completes it.
+  Completer<void>? seekAnswer;
+
   @override
   Future<void> seek(int ms) async {
     seeks.add(ms);
     _at = ms;
+    final answer = seekAnswer;
+    if (answer == null) return;
+    await answer.future;
+    _at = ms; // the player has arrived
   }
 
   @override

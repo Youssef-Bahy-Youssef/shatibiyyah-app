@@ -30,11 +30,13 @@ const Duration kSplashMinimum = Duration(milliseconds: 1200);
 const Duration kSplashFade = Duration(milliseconds: 400);
 const Duration kSplashSlow = Duration(seconds: 2);
 
-/// The logo on the platform's launch screen: 144 px, in the middle of the screen,
-/// on the night ground. Android from 12 draws the adaptive icon's foreground there
-/// (the logo is 54 of its 108 dp, shown at 288 dp); launch_background.xml draws
-/// the same size before 12. The splash begins as that picture.
-const double kLaunchLogoSize = 144;
+/// The logo on the platform's launch screen: 134.4 px, in the middle of the
+/// screen, on the night ground. Android from 12 shows the adaptive icon's
+/// foreground there, its 108 dp layer at 288 dp, and the mark is 70 % of that
+/// layer's 72 dp window (ADR 0028; tool/render_brand_assets.dart).
+/// launch_background.xml draws the same size before 12. The splash begins as that
+/// picture.
+const double kLaunchLogoSize = 72 * (1 - 2 * TaysirLogoPainter.tileInset) * 288 / 108;
 
 /// The logo on the splash once it has settled.
 const double kSplashLogoSize = 176;

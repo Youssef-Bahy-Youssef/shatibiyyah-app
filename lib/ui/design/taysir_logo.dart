@@ -1,46 +1,50 @@
-// lib/ui/design/taysir_logo.dart — the Taysir mark (features-v3 app-logo).
+// lib/ui/design/taysir_logo.dart — the Taysir mark: the open book on its rahl.
 //
-// A gold eight-pointed star around a dark disc holding an open book with a gold
-// bookmark ribbon and a small star. Drawn from the prototype's Logo component
-// (a 200×200 SVG), path for path. `mark` is the bare emblem (drawer header);
-// `icon` sets it on a dark rounded tile (about screen, splash).
-import 'dart:ui' as ui;
-
+// Ivory pages with gilt edges on the folding stand a mushaf rests on, the verse being
+// recited lit in gilt on the right-hand page, as in the reader. Chosen by the owner on
+// 2026-10-11 from the second round of icon candidates (candidate B); the paths were drawn
+// in a 1000-unit square (the mark's own bounds) and are the same the platform icons are
+// rendered from (tool/render_brand_assets.dart), so the in-app logo and the icons match.
+//
+// `mark` is the bare emblem; `icon` sets it on the lapis tile (the about screen).
+// [LogoPalette.cover] is for dark grounds (the binding, the splash): ivory pages, lapis
+// lines. [LogoPalette.paper] is for light grounds: white pages, ink lines, gilt on paper.
+// Every colour is a token (ADR 0013); the two tones the tokens lack (the stand, the page's
+// shade at the spine) are mixed from them.
 import 'package:flutter/material.dart';
 
+import 'tokens.g.dart';
+
 enum LogoVariant { mark, icon }
+
+/// The ground the mark sits on; see [TaysirLogo].
+enum LogoPalette { cover, paper }
 
 class TaysirLogo extends StatelessWidget {
   final double size;
   final LogoVariant variant;
-  const TaysirLogo({super.key, this.size = 48, this.variant = LogoVariant.mark});
+  final LogoPalette palette;
+  const TaysirLogo({super.key, this.size = 48, this.variant = LogoVariant.mark, this.palette = LogoPalette.cover});
 
   @override
   Widget build(BuildContext context) {
-    final mark = CustomPaint(size: Size.square(size), painter: const TaysirLogoPainter());
     return Semantics(
       label: 'شعار تيسير الشاطبية',
       image: true,
       child: SizedBox.square(
         dimension: size,
         child: variant == LogoVariant.mark
-            ? mark
+            ? CustomPaint(painter: TaysirLogoPainter(palette: palette))
             : DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(size * 0.23),
-                  gradient: const RadialGradient(
-                    center: Alignment(0, -0.6),
-                    radius: 1.2,
-                    colors: [Color(0xFF3F2F15), Color(0xFF1B1307)],
-                    stops: [0, 0.7],
-                  ),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 10)),
-                  ],
+                  // The tile of the app icon: the binding, with iOS's corner proportion.
+                  borderRadius: BorderRadius.circular(size * 0.2237),
+                  color: TzColors.paper.cover,
+                  boxShadow: TzColors.paper.float,
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(size * 0.13),
-                  child: CustomPaint(painter: const TaysirLogoPainter()),
+                  padding: EdgeInsets.all(size * TaysirLogoPainter.tileInset),
+                  child: const CustomPaint(painter: TaysirLogoPainter()),
                 ),
               ),
       ),
@@ -48,7 +52,7 @@ class TaysirLogo extends StatelessWidget {
   }
 }
 
-/// Parses the absolute M/L/C/Z subset the logo's SVG paths use.
+/// Parses the absolute M/L/C/Z subset the logo's paths use.
 Path _svg(String d) {
   final path = Path();
   final tokens = RegExp(r'[MLCZ]|-?\d+(?:\.\d+)?').allMatches(d).map((m) => m.group(0)!).toList();
@@ -72,143 +76,189 @@ Path _svg(String d) {
   return path;
 }
 
-class TaysirLogoPainter extends CustomPainter {
-  const TaysirLogoPainter();
+/// The colours one palette paints the mark with.
+class _Inks {
+  final Color page, text, gilt, stand, shade;
+  const _Inks({required this.page, required this.text, required this.gilt, required this.stand, required this.shade});
 
-  static const _gold = [Color(0xFFFFE3B3), Color(0xFFFFB743), Color(0xFFB36F0E)];
-  static final _outerStar = _svg(
-    'M100.0 12.0 L125.8 37.8 L162.2 37.8 L162.2 74.2 L188.0 100.0 L162.2 125.8 '
-    'L162.2 162.2 L125.8 162.2 L100.0 188.0 L74.2 162.2 L37.8 162.2 L37.8 125.8 L12.0 100.0 L37.8 74.2 '
-    'L37.8 37.8 L74.2 37.8 Z',
+  /// On the binding or any dark ground: ivory pages, lapis lines, gilt on cover.
+  static final cover = _Inks(
+    page: TzColors.paper.onCover,
+    text: TzColors.paper.cover,
+    gilt: TzColors.paper.giltOnCover,
+    stand: Color.lerp(TzColors.paper.giltOnCover, TzColors.paper.cover, 0.22)!,
+    shade: Color.lerp(TzColors.paper.onCover, TzColors.paper.gilt, 0.12)!,
   );
-  static final _innerStar = _svg(
-    'M100.0 24.0 L122.3 46.3 L153.7 46.3 L153.7 77.7 L176.0 100.0 L153.7 122.3 '
-    'L153.7 153.7 L122.3 153.7 L100.0 176.0 L77.7 153.7 L46.3 153.7 L46.3 122.3 L24.0 100.0 L46.3 77.7 '
-    'L46.3 46.3 L77.7 46.3 Z',
+
+  /// On paper: white pages, ink lines, gilt on paper.
+  static final paper = _Inks(
+    page: TzColors.paper.raised,
+    text: TzColors.paper.ink,
+    gilt: TzColors.paper.gilt,
+    stand: TzColors.paper.gilt,
+    shade: TzColors.paper.tonal,
   );
-  static final _rosette = _svg(
-    'M125.3 39.0 L135.7 64.3 L161.0 74.7 L150.5 100.0 L161.0 125.3 L135.7 135.7 '
-    'L125.3 161.0 L100.0 150.5 L74.7 161.0 L64.3 135.7 L39.0 125.3 L49.5 100.0 L39.0 74.7 L64.3 64.3 '
-    'L74.7 39.0 L100.0 49.5 Z',
+}
+
+class TaysirLogoPainter extends CustomPainter {
+  final LogoPalette palette;
+
+  /// Paint the mark's silhouette in one colour, its lines as holes: the notification icon.
+  final Color? silhouette;
+
+  const TaysirLogoPainter({this.palette = LogoPalette.cover, this.silhouette});
+
+  /// The mark fills 70% of the icon's tile: the inset on each side, as a fraction of the tile.
+  static const tileInset = 0.15;
+
+  static final Path _stand = _svg(
+    'M533 786.7 C604.5 832.9 676.2 878.8 747.5 925.2 C765.7 937 746.6 967 728.1 955.2 C651.9 906.4 '
+    '576 857.1 500 808 C424 857.1 348 906.3 271.9 955.2 C253.5 967 234.3 937 252.5 925.2 C323.9 878.9 '
+    '395.5 832.9 467 786.7 C423.7 758.7 380.1 731 337 702.6 C320.3 691.6 338.6 661.4 357.3 673.3 C405 '
+    '703.8 452.4 734.7 500 765.4 C547.2 734.9 594.4 704.3 641.7 673.9 C661.9 660.9 679.6 691.8 663 '
+    '702.6 C619.8 730.9 576.3 758.7 533 786.7 Z '
   );
-  static final _sparkle = _svg(
-    'M100 72 L102.6 79.4 L110 82 L102.6 84.6 L100 92 L97.4 84.6 L90 82 L97.4 79.4 Z',
+  static final Path _block = _svg(
+    'M526.2 726.5 C526.2 715.4 526.2 704.4 526.2 693.3 C626.3 656.8 727.3 630 833.5 618.7 C869.5 '
+    '614.9 906 613.5 942.2 615.4 C947.4 615.7 952.7 616 957.9 616.4 C972.5 617.7 978.4 620.9 990.7 '
+    '614.1 C991.1 623 997.6 653.4 977.7 652.1 C969.5 651.6 961.3 650.3 953.2 649.8 C944.2 649.2 935.3 '
+    '648.8 926.3 648.5 C903.3 647.9 880.1 648.7 857.1 650.4 C743.5 659 632.9 687.4 526.2 726.5 Z M9.3 '
+    '614.1 C22.7 622.4 37.1 616.7 52.6 615.7 C90.5 613.2 128.7 614.8 166.5 618.7 C272.1 629.6 374.4 '
+    '656.8 473.8 693.3 C473.8 704.4 473.8 715.4 473.8 726.5 C363.6 686.1 248.6 656.4 130.9 649.6 C112 '
+    '648.5 92.7 648.1 73.7 648.5 C64.7 648.7 55.8 649.2 46.8 649.8 C38.2 650.4 29.6 651.5 21 652 '
+    'C19.7 652.1 17.1 651.2 15.9 650.7 C3.2 644.4 8.9 623.4 9.3 614.1 Z '
   );
-  static final _leftPage = _svg('M100 101 C88 93 74 92 62 96 L62 124 C74 120 88 121 100 129 Z');
-  static final _rightPage = _svg('M100 101 C112 93 126 92 138 96 L138 124 C126 120 112 121 100 129 Z');
-  static final _lines = _svg(
-    'M68 104 C77 101.5 86 102 94 106 M68 111 C77 108.5 86 109 94 113 '
-    'M68 118 C77 115.5 86 116 94 120 M106 106 C114 102 123 101.5 132 104 '
-    'M106 113 C114 109 123 108.5 132 111 M106 120 C114 116 123 115.5 132 118',
+  static final Path _pages = _svg(
+    'M482.1 124.5 C482.1 315.4 482.1 506.3 482.1 697.2 C373.4 656.1 258.8 624.9 142.3 617.3 C112.3 '
+    '615.4 82.6 614.8 52.6 616.4 C47.5 616.6 42.4 617.1 37.2 617.5 C24.9 618.7 12.6 621.5 4.2 610 '
+    'C1.3 606 -0.2 601 0 596.1 C7.6 420 15.1 243.9 22.9 67.9 C23.8 45.5 48.4 45.7 64.9 44.3 C71.4 '
+    '43.8 77.9 43.4 84.4 43.1 C89.6 42.8 94.8 42.7 100 42.6 C107 42.5 114 42.5 121 42.7 C132 43 143 '
+    '43.4 153.9 44.2 C266.8 51.8 377.5 82.4 482.1 124.5 Z M517.9 697.2 C517.9 506.3 517.9 315.4 517.9 '
+    '124.5 C626.3 81.7 740.1 49.7 857 43.5 C884.7 42 912.5 42.2 940.1 44.8 C956.1 46.3 976.2 47.2 '
+    '977.1 67.9 C984.9 243.9 992.4 420 1000 596.1 C1000.2 601 998.7 606 995.8 610 C987.4 621.5 975.1 '
+    '618.7 962.8 617.5 C957.6 617.1 952.5 616.7 947.4 616.4 C913.5 614.5 879.5 615.4 845.7 618.3 '
+    'C733.1 627.9 623.3 657.4 517.9 697.2 Z '
   );
-  static final _ribbon = _svg('M104 104 L104 138 L108 134 L112 138 L112 102 Z');
-  static const _dots = [
-    Offset(130.6, 26.1), Offset(173.9, 69.4), Offset(173.9, 130.6), Offset(130.6, 173.9), //
-    Offset(69.4, 173.9), Offset(26.1, 130.6), Offset(26.1, 69.4), Offset(69.4, 26.1),
-  ];
+  static final Path _shade = _svg(
+    'M418.8 674.4 C418.8 483.2 418.8 291.9 418.8 100.6 C462 116.2 440.9 108.2 482.1 124.5 C482.1 '
+    '315.4 482.1 506.3 482.1 697.2 C444.1 682.9 465.2 690.6 418.8 674.4 Z M517.9 697.2 C517.9 506.3 '
+    '517.9 315.4 517.9 124.5 C559.1 108.2 538 116.2 581.2 100.6 C581.2 291.9 581.2 483.2 581.2 674.4 '
+    'C539.1 689 560.2 681.4 517.9 697.2 Z '
+  );
+  static final Path _text = _svg(
+    'M420.3 212.8 C347 187.9 272.1 168.3 195.1 159 C164.6 155.3 133.9 153.1 103.2 153.4 C93.1 153.5 '
+    '72.5 159.1 66.4 145.6 C65.3 143.2 64.7 140 65.3 137.3 C68.9 120.8 90.8 124.6 102.6 124.5 C119.1 '
+    '124.4 134.8 124.8 151.2 125.9 C230.4 130.8 308.9 147.5 384.7 170.7 C392.2 173 399.7 175.3 407.1 '
+    '177.8 C408.2 178.1 428.4 182.8 434.5 188.2 C446.9 199.1 435.3 216.3 420.3 212.8 Z M691 179.9 '
+    'C668.5 185.6 646.1 191.5 623.9 198.3 C616.5 200.5 609.1 202.9 601.8 205.3 C600.2 205.8 582.2 '
+    '214.1 574.1 213.5 C558.6 212.5 555.9 190.7 570.4 185.4 C622.3 166.5 676.4 152.3 730.6 141.6 '
+    'C785.3 130.9 841.1 123.9 896.8 124.5 C897.2 124.5 920.7 122.7 927.6 127.2 C937.6 133.6 937.1 '
+    '148.9 925.5 153.2 C917.9 156.1 898.6 153.4 896.8 153.4 C889.1 153.3 881.5 153.4 873.8 153.7 '
+    'C850.8 154.3 827.8 156.2 804.9 159 C766.5 163.7 728.7 171.2 691 179.9 Z M423.1 343.8 C412.1 '
+    '341.2 423.9 344.1 398.1 335.6 C383.6 330.8 368.4 326.2 353.7 322 C301.7 307.2 248.6 295.8 194.9 '
+    '289.3 C164.6 285.6 134 283.4 103.5 283.8 C93.4 283.9 72.5 289.5 66.4 276 C65.3 273.5 64.7 270.4 '
+    '65.3 267.7 C68.9 251.2 90.6 255 102.5 254.9 C119.1 254.7 134.7 255.2 151.3 256.2 C230.3 261.2 '
+    '308.8 277.7 384.4 300.9 C395.4 304.3 426.1 311.9 434.5 318.6 C446.3 328 436.6 344.2 423.1 343.8 '
+    'Z M420.3 473.5 C347 448.6 272.1 429 195.1 419.7 C164.6 416 133.9 413.8 103.2 414.1 C93.1 414.2 '
+    '72.5 419.8 66.4 406.3 C65.3 403.8 64.7 400.7 65.3 398 C68.9 381.4 90.8 385.3 102.6 385.2 C119.1 '
+    '385 134.8 385.5 151.2 386.5 C230.4 391.5 308.9 408.1 384.7 431.3 C392.2 433.6 399.7 436 407.1 '
+    '438.5 C408.2 438.8 428.4 443.5 434.5 448.9 C446.9 459.7 435.3 477 420.3 473.5 Z M713.6 435.4 '
+    'C691 440.6 668.5 446 646.2 452.4 C631.5 456.6 616.3 461.2 601.8 466 C593.5 468.7 585.5 473 576.9 '
+    '474.1 C563.4 475.9 556 459.9 564.5 449.9 C569.7 443.7 591.9 438.8 592.6 438.5 C600.1 436.1 607.7 '
+    '433.7 615.3 431.3 C668.4 415.1 722.6 402.3 777.6 394.2 C824.9 387.2 873 383.4 920.9 385.9 C936.2 '
+    '386.7 940 408.4 925.5 413.9 C917.9 416.8 898.6 414.1 896.8 414.1 C889.1 414 881.5 414.1 873.8 '
+    '414.3 C850.8 415 827.8 416.9 804.9 419.7 C774.2 423.4 743.9 429.1 713.6 435.4 Z M420.3 603.8 '
+    'C347 578.9 272.1 559.4 195.1 550 C164.6 546.3 133.9 544.1 103.2 544.4 C93.1 544.6 72.5 550.1 '
+    '66.4 536.7 C65.3 534.2 64.7 531 65.3 528.3 C68.9 511.8 90.8 515.7 102.6 515.5 C119.1 515.4 134.8 '
+    '515.9 151.2 516.9 C230.4 521.8 308.9 538.5 384.7 561.7 C392.2 564 399.7 566.3 407.1 568.8 C408.2 '
+    '569.2 428.4 573.8 434.5 579.3 C446.9 590.1 435.3 607.3 420.3 603.8 Z M713.6 565.7 C691 570.9 '
+    '668.5 576.3 646.2 582.7 C631.5 586.9 616.3 591.5 601.8 596.3 C593.5 599 585.5 603.3 576.9 604.5 '
+    'C562.4 606.4 554.5 587 566.6 578.4 C574 573 606 564.5 615.3 561.7 C668.4 545.4 722.6 532.6 777.6 '
+    '524.5 C824.9 517.5 873 513.7 920.9 516.3 C936.4 517.1 940 538.8 925.5 544.2 C917.9 547.1 898.6 '
+    '544.5 896.8 544.4 C889.1 544.4 881.5 544.5 873.8 544.7 C850.8 545.3 827.8 547.2 804.9 550 C774.2 '
+    '553.7 743.9 559.4 713.6 565.7 Z '
+  );
+  static final Path _wash = _svg(
+    'M605.8 348.1 C591.1 353.1 577.9 360.7 562.8 354.2 C542.7 345.4 543.3 316 561.2 305.6 C572.9 '
+    '298.9 598.2 292.6 611.3 288.5 C642 279.1 673 270.9 704.4 264.1 C776.4 248.3 850.2 239.1 924 '
+    '242.7 C950 244 957 282.7 932.7 294.7 C921.8 300.1 907.5 296.9 896.6 296.8 C881.3 296.7 867 297.2 '
+    '851.7 298.1 C821.4 300 791.2 303.8 761.4 309 C708.5 318.1 656.9 331.9 605.8 348.1 Z '
+  );
+  static final Path _silhouette = _svg(
+    'M482.1 124.5 C482.1 315.4 482.1 506.3 482.1 697.2 C479.3 696.2 476.6 695.1 473.8 694 C473.8 '
+    '704.9 473.8 715.7 473.8 726.5 C427 709.5 451.4 718 400.6 701.3 C433.7 722.6 466.9 744 500 765.4 '
+    'C533.1 744 566.3 722.6 599.4 701.3 C548.6 718 573 709.5 526.2 726.5 C526.2 715.7 526.2 704.9 '
+    '526.2 694 C523.4 695.1 520.7 696.2 517.9 697.2 C517.9 506.3 517.9 315.4 517.9 124.5 C628.5 80.8 '
+    '743.5 50 862.6 43.2 C891.5 41.6 920.5 42.9 949.3 45.8 C963.1 47.2 976.4 51.5 977.1 67.9 C984.9 '
+    '243.9 992.4 420 1000 596.1 C1000.3 604.1 996.5 609.8 990.8 614.9 C991 621.5 997.3 652.8 979 652 '
+    'C972.1 651.8 965.2 650.7 958.4 650.2 C953.1 649.8 947.8 649.4 942.5 649.1 C924 648.2 905.3 648.1 '
+    '886.7 648.8 C812.6 651.7 740 664.9 667.9 682 C670.4 689.4 669.3 698.7 662.1 703.3 C619.2 731.3 '
+    '576 758.9 533 786.7 C604.8 833.1 676.8 879.2 748.4 925.9 C764.9 936.7 747.3 967.5 727.1 954.6 '
+    'C651.3 905.9 575.7 856.9 500 808 C424.3 856.9 348.7 905.9 272.9 954.6 C252.6 967.6 235.1 936.7 '
+    '251.6 925.9 C323.2 879.2 395.2 833.1 467 786.7 C424 758.9 380.8 731.3 337.9 703.3 C330.7 698.7 '
+    '329.6 689.4 332.1 682 C260 664.9 187.5 651.7 113.3 648.8 C94.7 648.1 76 648.2 57.5 649.1 C52.2 '
+    '649.4 46.9 649.8 41.6 650.2 C34.8 650.7 27.9 651.8 21 652 C2.7 652.8 8.9 621.9 9.2 614.9 C3.5 '
+    '609.8 -0.3 604.1 0 596.1 C7.6 420 15.1 243.9 22.9 67.9 C23.9 43.9 52.7 45.2 69.8 44 C74.7 43.6 '
+    '79.5 43.3 84.4 43.1 C89.6 42.9 94.7 42.7 99.8 42.6 C108.7 42.6 117.5 42.6 126.4 42.8 C222.2 45.5 '
+    '317.9 66.8 408.7 97.1 C441 107.9 447.4 111 482.1 124.5 Z M376.1 198.3 C383.5 200.6 390.9 202.9 '
+    '398.2 205.3 C401.5 206.4 418.8 214.8 427.4 213.4 C441.9 211 443.4 190.5 429.6 185.4 C377.7 166.5 '
+    '323.6 152.3 269.4 141.6 C214.7 130.9 158.9 123.9 103.2 124.5 C102.8 124.5 79.3 122.7 72.4 127.2 '
+    'C62.4 133.6 62.9 148.9 74.5 153.2 C82.1 156.1 101.4 153.4 103.2 153.4 C110.9 153.3 118.5 153.4 '
+    '126.2 153.7 C141.3 154.1 157 155.1 172.1 156.5 C195.1 158.7 218.1 161.8 240.9 165.8 C286.7 173.7 '
+    '331.6 185.1 376.1 198.3 Z M420 343 C436.7 346.2 446.4 329 434.5 318.6 C428.4 313.2 408.4 308.6 '
+    '407.1 308.1 C399.5 305.6 392 303.2 384.4 300.9 C308.8 277.7 230.3 261.2 151.3 256.2 C134.7 255.2 '
+    '119.1 254.7 102.5 254.9 C90.6 255 68.9 251.2 65.3 267.7 C64.7 270.4 65.3 273.5 66.4 276 C72.5 '
+    '289.5 93.4 283.9 103.5 283.8 C134 283.4 164.6 285.6 194.9 289.3 C271.8 298.7 346.8 318.2 420 343 '
+    'Z M376.1 459 C383.5 461.3 390.9 463.6 398.2 466 C401.5 467 418.8 475.5 427.4 474.1 C441.9 471.6 '
+    '443.4 451.1 429.6 446.1 C377.7 427.2 323.6 412.9 269.4 402.3 C214.7 391.6 158.9 384.6 103.2 '
+    '385.2 C102.8 385.2 79.3 383.4 72.4 387.8 C62.4 394.3 62.9 409.5 74.5 413.9 C82.1 416.8 101.4 '
+    '414.1 103.2 414.1 C110.9 414 118.5 414.1 126.2 414.3 C141.3 414.8 157 415.8 172.1 417.2 C195.1 '
+    '419.3 218.1 422.5 240.9 426.4 C286.7 434.3 331.6 445.8 376.1 459 Z M376.1 589.3 C383.5 591.6 '
+    '390.9 593.9 398.2 596.3 C401.5 597.4 418.8 605.8 427.4 604.4 C441.9 602 443.4 581.5 429.6 576.4 '
+    'C377.7 557.5 323.6 543.3 269.4 532.6 C214.7 521.9 158.9 515 103.2 515.5 C102.8 515.5 79.3 513.7 '
+    '72.4 518.2 C62.4 524.6 62.9 539.9 74.5 544.2 C82.1 547.1 101.4 544.5 103.2 544.4 C110.9 544.4 '
+    '118.5 544.5 126.2 544.7 C141.3 545.1 157 546.1 172.1 547.5 C195.1 549.7 218.1 552.8 240.9 556.8 '
+    'C286.7 564.7 331.6 576.1 376.1 589.3 Z M646.2 191.7 C683.5 181.5 721 172.3 759.1 165.8 C781.9 '
+    '161.8 804.9 158.7 827.9 156.5 C843 155.1 858.7 154.1 873.8 153.7 C881.5 153.4 889.1 153.3 896.8 '
+    '153.4 C905.5 153.5 914.3 155.4 922.8 154 C936.3 151.7 938.7 134.3 927.6 127.2 C920.7 122.7 897.2 '
+    '124.5 896.8 124.5 C888.8 124.4 880.8 124.5 872.8 124.8 C817.1 126.3 761.6 134.6 707.3 146.5 '
+    'C661.1 156.6 614.9 169.2 570.4 185.4 C557.3 190.2 557.7 209.4 571.3 213.1 C580.5 215.5 596.9 '
+    '206.9 601.8 205.3 C621.2 198.9 626.6 197.5 646.2 191.7 Z M668.5 446.2 C706 436.8 743.7 428.4 782 '
+    '422.8 C804.8 419.4 827.8 416.8 850.9 415.4 C866.1 414.4 881.5 413.9 896.8 414.1 C898.6 414.1 '
+    '917.9 416.8 925.5 413.9 C937.1 409.5 937.6 394.3 927.6 387.8 C920.7 383.4 897.2 385.2 896.8 '
+    '385.2 C888.8 385.1 880.8 385.2 872.8 385.4 C817.1 387 761.6 395.2 707.3 407.1 C661.1 417.3 614.9 '
+    '429.9 570.4 446.1 C555.9 451.4 558.6 473.2 574.1 474.2 C582.2 474.7 600.2 466.5 601.8 466 C609.1 '
+    '463.6 616.5 461.2 623.9 459 C643.8 452.9 648.5 451.7 668.5 446.2 Z M668.5 576.6 C706 567.1 743.7 '
+    '558.8 782 553.1 C804.8 549.7 827.8 547.2 850.9 545.7 C866.1 544.8 881.5 544.3 896.8 544.4 C898.6 '
+    '544.5 917.9 547.1 925.5 544.2 C937.9 539.6 937.8 521.3 925.1 517 C914.9 513.6 883.9 515.5 872.8 '
+    '515.8 C817.1 517.3 761.6 525.6 707.3 537.5 C661.1 547.6 614.9 560.2 570.4 576.4 C555.9 581.7 '
+    '558.6 603.5 574.1 604.6 C582.2 605.1 600.2 596.8 601.8 596.3 C609.1 593.9 616.5 591.6 623.9 '
+    '589.3 C643.8 583.2 648.5 582.1 668.5 576.6 Z M581.3 356.3 C677.1 325 772.8 299.9 874.2 297.1 '
+    'C881.7 296.9 889.2 296.8 896.6 296.8 C912.3 297 929.6 301.4 941.2 288.2 C944.7 284.1 947 279 '
+    '947.7 273.6 C948.3 269.5 947.9 266.9 947 262.9 C942 239.7 915.4 242 897.8 241.8 C889.3 241.7 '
+    '880.7 241.8 872.2 242 C864 242.3 855.9 242.7 847.8 243.2 C752.3 249.1 656.2 271 566.1 303.4 '
+    'C540.8 312.5 541.7 349 567.9 356.1 C572.4 357.3 576.7 357.1 581.3 356.3 Z '
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
-    canvas.scale(size.width / 200, size.height / 200);
-    const box = Rect.fromLTWH(12, 12, 176, 176);
-    final gold = Paint()
-      ..shader = ui.Gradient.linear(box.topLeft, box.bottomRight, _gold, const [0, 0.45, 1]);
-
-    for (final d in _dots) {
-      canvas.drawCircle(d, 3.6, gold);
+    canvas.scale(size.width / 1000, size.height / 1000);
+    if (silhouette != null) {
+      canvas.drawPath(_silhouette, Paint()..color = silhouette!);
+      canvas.restore();
+      return;
     }
-    canvas.drawPath(_outerStar, gold);
-    canvas.drawPath(
-      _outerStar,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeJoin = StrokeJoin.round
-        ..shader = ui.Gradient.linear(box.bottomLeft, box.topRight, const [
-          Color(0xFF7A4A06),
-          Color(0xFFFADBAE),
-        ]),
-    );
-    canvas.drawPath(
-      _innerStar,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFF7A4A06).withValues(alpha: 0.45),
-    );
-    canvas.drawPath(_rosette, Paint()..color = const Color(0xFFFFD48A).withValues(alpha: 0.35));
-    canvas.drawPath(
-      _rosette,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xFF7A4A06).withValues(alpha: 0.35),
-    );
-
-    const centre = Offset(100, 100);
-    canvas.drawCircle(
-      centre,
-      50,
-      Paint()
-        ..shader = ui.Gradient.radial(const Offset(100, 92), 60, const [
-          Color(0xFF3F2F15),
-          Color(0xFF140D05),
-        ]),
-    );
-    canvas.drawCircle(
-      centre,
-      50,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = const Color(0xFFFADBAE),
-    );
-    canvas.drawCircle(
-      centre,
-      44,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xFFFFAB2E).withValues(alpha: 0.55),
-    );
-    canvas.drawPath(_sparkle, Paint()..color = const Color(0xFFFFAB2E));
-
-    final page = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, 92), const Offset(0, 129), const [
-        Color(0xFFFFFBF2),
-        Color(0xFFEADCC0),
-      ]);
-    canvas.drawPath(_leftPage, page);
-    canvas.drawPath(_rightPage, page);
-    canvas.drawPath(
-      _lines,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFB39A6B),
-    );
-    canvas.drawLine(
-      const Offset(100, 101),
-      const Offset(100, 129),
-      Paint()
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF965F0D),
-    );
-    canvas.drawPath(_ribbon, Paint()..color = const Color(0xFFFFAB2E));
-    canvas.drawPath(
-      _ribbon,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFF965F0D),
-    );
+    final inks = palette == LogoPalette.cover ? _Inks.cover : _Inks.paper;
+    canvas.drawPath(_stand, Paint()..color = inks.stand);
+    canvas.drawPath(_block, Paint()..color = inks.gilt);
+    canvas.drawPath(_pages, Paint()..color = inks.page);
+    canvas.drawPath(_shade, Paint()..color = inks.shade);
+    canvas.drawPath(_text, Paint()..color = inks.text);
+    canvas.drawPath(_wash, Paint()..color = inks.gilt);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant TaysirLogoPainter old) => old.palette != palette || old.silhouette != silhouette;
 }

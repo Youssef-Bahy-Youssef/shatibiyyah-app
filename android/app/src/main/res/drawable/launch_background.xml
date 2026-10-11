@@ -2,11 +2,12 @@
 <!-- Launch screen before Android 12: the logo on the night ground, as the in-app splash begins. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/launch_ground" />
-    <!-- 144 dp: the size Android 12's own launch screen shows the logo at, so the in-app
-         splash begins at one size on every version (lib/ui/shell/boot_splash.dart). -->
+    <!-- 134.4 dp: the size Android 12's own launch screen shows the logo at, so the in-app
+         splash begins at one size on every version (kLaunchLogoSize in
+         lib/ui/shell/boot_splash.dart; test/boot_splash_test.dart holds the two together). -->
     <item
-        android:width="144dp"
-        android:height="144dp"
+        android:width="134.4dp"
+        android:height="134.4dp"
         android:gravity="center"
         android:drawable="@drawable/splash_logo" />
 </layer-list>

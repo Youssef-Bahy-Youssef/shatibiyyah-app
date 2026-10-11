@@ -5,7 +5,7 @@
 // shatibiyyah-data; the 94 manuscript pages are assets/pages/page001–094.webp.
 // No recording is bundled: one plays from a file on the device. The only audio in
 // the app is «بيت الافتتاح», the verse recited as it opens (ADR 0027). The theme
-// (dark espresso or paper) is app-wide and switched from the tools sheet.
+// (night or paper) is app-wide and switched from the tools sheet.
 import 'dart:async';
 import 'dart:io';
 
@@ -131,7 +131,7 @@ class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObse
         ],
         // The one theme source: the tokens (item 3.1).
         theme: tzThemeData(tzThemeFor(theme, ink: appNightInk.value)),
-        // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
+        // Status and navigation bar icons follow the theme: light on night, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
           child: Directionality(textDirection: TextDirection.rtl, child: child!),
