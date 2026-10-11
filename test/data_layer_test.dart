@@ -263,7 +263,7 @@ void main() {
       expect(rumuz.byCode('ظ')!.readerIds, hasLength(4));
     });
 
-    test('every span lies inside its hemistich; a verse in review has none', () {
+    test('every span lies inside its hemistich', () {
       var total = 0, verses = 0;
       for (var n = 1; n <= matn.lastVerse; n++) {
         final v = matn.verse(n), spans = rumuz.spansOf(n);
@@ -275,7 +275,7 @@ void main() {
           if (!s.isName) expect(rumuz.byCode(s.symbol!), isNotNull, reason: 'verse $n');
         }
       }
-      expect((total, verses), (1314, 534));
+      expect((total, verses), (2193, 817));
     });
 
     test('Quranic quotations of a block: approved spans inside their segment', () async {
@@ -315,7 +315,7 @@ void main() {
     test('the counts of the full build', () async {
       Future<int> count(String table) async =>
           (await store.db.rawQuery('SELECT count(*) AS n FROM $table')).first['n']! as int;
-      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (1314, 4124, 1819));
+      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (2193, 4124, 1819));
     });
   });
 }
