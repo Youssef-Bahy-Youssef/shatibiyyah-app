@@ -10,6 +10,10 @@
 // publishes that window's length and where the player stands in it, with the
 // speed, and the system moves the bar from there by itself. A new verse, a verse
 // played again, a pause, a gap and a change of speed each publish again.
+//
+// The recitation belongs to the app the student sees: swiping the app away from
+// the recent apps ends it, and its notification with it (Android keeps a media
+// service running after its task is gone unless it is told to stop).
 import 'package:audio_service/audio_service.dart';
 
 import '../ui/reader/reader_controller.dart';
@@ -23,6 +27,9 @@ class LockScreenHandler extends BaseAudioHandler {
   /// with no screen (a headset button, the «تابع» widget), and its first play can
   /// arrive while the reader is still being built.
   bool _playWhenAttached = false;
+
+  /// The app was swiped away: the session stays idle until a recitation plays again.
+  bool _ended = false;
 
   /// Starts following [reader] (at boot).
   void attach(ReaderController reader) {
@@ -39,6 +46,8 @@ class LockScreenHandler extends BaseAudioHandler {
   void _publish() {
     final r = _reader;
     if (r == null) return;
+    if (r.playing) _ended = false;
+    if (_ended) return;
     final key = '${r.audioAvailable}|${r.recording.id}|${r.verse}|${r.playing}|${r.inTitle}|${r.inGap}|'
         '${r.speed}|${r.verseRepetition}|${r.sectionRepetition}';
     if (key == _shown) return;
@@ -103,6 +112,18 @@ class LockScreenHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() => pause();
+
+  /// The app was swiped away from the recent apps (Android): the recitation stops
+  /// and the session goes idle, which takes the notification down and lets the
+  /// service end. The next change the reader makes publishes afresh.
+  @override
+  Future<void> onTaskRemoved() async {
+    _playWhenAttached = false;
+    await pause();
+    _ended = true;
+    _shown = null;
+    playbackState.add(PlaybackState(processingState: AudioProcessingState.idle, playing: false));
+  }
 
   @override
   Future<void> skipToNext() async => _reader?.next();
