@@ -7,7 +7,8 @@
 // within 24 hours of an error shown to the user (v2.last_error_at). Only a count
 // of days and the last day counted are stored (v2.review.days_used), never what
 // was done. The platform decides whether the sheet actually appears; the request
-// counts either way.
+// counts either way. «قيّم التطبيق» on «حول» opens the store's page whenever the
+// student wishes; having gone there, they are not asked again for 90 days.
 import 'package:in_app_review/in_app_review.dart';
 
 import '../services/preferences_service.dart';
@@ -63,6 +64,10 @@ class RatingPrompt {
         (last == null || now.difference(last) >= kReviewInterval) &&
         (error == null || now.difference(error) >= kErrorQuiet);
   }
+
+  /// «قيّم التطبيق» took the student to the store's page: they have been asked,
+  /// by their own hand, so the sheet waits its interval from now.
+  void openedListing() => prefs.setString(kReviewLastPromptPref, '${clock().millisecondsSinceEpoch}');
 
   /// Audio played or a commentary was opened: counts the day, then asks if the
   /// rules allow. True when asked.

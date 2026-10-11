@@ -18,4 +18,7 @@ Future<void> loadGoldenFonts() async {
     for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold']) 'assets/fonts/IBMPlexSansArabic-$w.ttf',
   ]);
   await family('packages/lucide_icons_flutter/Lucide', ['packages/lucide_icons_flutter/assets/lucide.ttf']);
+  // «حول» draws two glyphs the sprite lacks at the sprite's own weight.
+  await family('packages/lucide_icons_flutter/Lucide300',
+      ['packages/lucide_icons_flutter/assets/build_font/LucideVariable-w300.ttf']);
 }
