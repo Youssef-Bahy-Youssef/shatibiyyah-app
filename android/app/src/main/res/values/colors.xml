@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Espresso, the launch and window background in both themes (features-v3 boot-splash). -->
-    <color name="espresso">#1B1307</color>
+    <!-- The night ground (the token night.bg), the launch and window background in both themes:
+         the logo's ivory pages need a dark ground, and the in-app splash that follows is night
+         (ADR 0028). test/launch_ground_test.dart holds it to the token. -->
+    <color name="launch_ground">#0D1015</color>
 </resources>
