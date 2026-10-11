@@ -16,6 +16,7 @@ import '../../data/settings_store.dart';
 import '../../data/user_store.dart';
 import '../../domain/playback_engine.dart';
 import '../../domain/playback_plan.dart';
+import '../../domain/section_time.dart';
 import '../../app/audio_library.dart';
 import '../../app/app_update.dart';
 import '../../app/rating.dart';
@@ -308,6 +309,28 @@ class ReaderController extends ChangeNotifier {
 
   bool _inSection(PlaybackEngine e, int verse) =>
       _sectionSet && e.plan.scope.fromVerse <= verse && verse <= e.plan.scope.toVerse;
+
+  /// [section] as the time its listener hears: what the dock's bar and the
+  /// player's scrubber measure against.
+  SectionTime? get sectionTime {
+    final e = engine, s = section;
+    return e == null || s == null ? null : SectionTime(e.windows, s, titles: _settings.playTitles);
+  }
+
+  /// The section in hand was played to its end and the listener has not moved
+  /// since: ▶ starts it again.
+  bool get sectionEnded {
+    final e = engine;
+    return e != null && (_engineState?.finished ?? false) && e.plan.verse == _verse && _inSection(e, _verse);
+  }
+
+  /// How much of [time] (a [sectionTime]) has been heard. It reads the player,
+  /// so it moves between two states of the reader.
+  int sectionElapsedMs(SectionTime time) =>
+      time.elapsedMs(engine?.audio.currentPositionMs ?? 0, _verse, ended: sectionEnded);
+
+  /// The same as a part of the section, 0…1.
+  double sectionProgress(SectionTime time) => time.fraction(sectionElapsedMs(time));
 
   Future<void> playPause() async {
     final e = engine;

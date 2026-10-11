@@ -43,6 +43,35 @@ class SilentAudio implements AudioPort {
   Future<void> setSpeed(double speed) async {}
 }
 
+/// An audio port whose position the test moves.
+class TickingAudio implements AudioPort {
+  final _positions = StreamController<int>.broadcast();
+  int _at = 0;
+  bool _playing = false;
+
+  void tick(int ms) {
+    _at = ms;
+    _positions.add(ms);
+  }
+
+  @override
+  Stream<int> get positionMs => _positions.stream;
+  @override
+  int get currentPositionMs => _at;
+  @override
+  bool get playing => _playing;
+  @override
+  Stream<bool> get playingChanges => const Stream.empty();
+  @override
+  Future<void> seek(int ms) async => _at = ms;
+  @override
+  Future<void> play() async => _playing = true;
+  @override
+  Future<void> pause() async => _playing = false;
+  @override
+  Future<void> setSpeed(double speed) async {}
+}
+
 /// The downloads with the chosen recording fixed in one state: what the dock
 /// shows while it downloads, after it failed, or once paused.
 class FixedLibrary extends AudioLibrary {

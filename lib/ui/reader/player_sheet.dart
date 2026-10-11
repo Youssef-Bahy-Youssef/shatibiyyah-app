@@ -166,14 +166,10 @@ class PlayerSheet extends StatelessWidget {
     );
   }
 
-  // The section as time: from its first verse's cue (its spoken title, if it
-  // starts there) to its last verse's end.
+  // The section as time (SectionTime): what the dock's bar shows too.
   Widget _scrubber(BuildContext context) {
     final engine = reader.engine!;
-    final windows = engine.windows, scope = reader.section!;
-    final start = scope.fromChapterTitle ? windows.chapterStart(scope.fromVerse) : windows.cue(scope.fromVerse);
-    final end = windows.verseEnd(scope.toVerse);
-    final total = (end - start).clamp(1, 1 << 31);
+    final scope = reader.section!, time = reader.sectionTime!;
     final count = scope.toVerse - scope.fromVerse + 1;
     final at = (reader.verse - scope.fromVerse + 1).clamp(1, count);
     return Padding(
@@ -181,21 +177,17 @@ class PlayerSheet extends StatelessWidget {
       child: StreamBuilder<int>(
         stream: engine.audio.positionMs,
         builder: (context, _) {
-          // The player's position while it is inside the current verse; else where the verse begins.
-          final verse = reader.verse.clamp(scope.fromVerse, scope.toVerse);
-          final position = engine.audio.currentPositionMs;
-          final inVerse = position >= windows.cue(verse) - 100 && position < windows.verseEnd(verse);
-          final elapsed = ((inVerse ? position : windows.cue(verse)) - start).clamp(0, total);
+          final elapsed = reader.sectionElapsedMs(time);
           return SectionScrubber(
-            progress: elapsed / total,
+            progress: time.fraction(elapsed),
             ticks: [
               if (count <= kMaxScrubberTicks)
-                for (var v = scope.fromVerse + 1; v <= scope.toVerse; v++) (windows.cue(v) - start) / total,
+                for (var v = scope.fromVerse + 1; v <= scope.toVerse; v++) time.fraction(time.cueMs(v)),
             ],
             start: playTime(elapsed),
             middle: 'البيت ${ar(at)} من ${ar(count)}',
-            end: playTime(total),
-            onSeek: (f) => reader.tapVerse(windows.at(start + (f * total).round()).verse.clamp(scope.fromVerse, scope.toVerse)),
+            end: playTime(time.totalMs),
+            onSeek: (f) => reader.tapVerse(time.verseAt((f * time.totalMs).round())),
           );
         },
       ),

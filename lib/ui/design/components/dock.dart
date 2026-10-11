@@ -8,6 +8,8 @@
 // a recitation is loaded the row ends in the player's transport, in the player's
 // order: previous verse, play, next verse, 4 px apart (v2.css .np-ctl), so
 // their targets touch.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
@@ -42,7 +44,12 @@ class NpPlaying extends NowPlaying {
   /// whole of [subtitle] does not fit beside the buttons. Null when the name is all there is.
   final String? compactSubtitle;
   final bool playing;
-  final double progress; // through the section, 0…1
+
+  /// Through the section as time, 0…1: nothing at its start, 1 at its end.
+  final double progress;
+
+  /// [progress] as the recitation moves on, between two builds of the row.
+  final Stream<double>? progressChanges;
   final VoidCallback onPrevious, onToggle, onNext;
 
   /// A tap on the row itself (the khatam and the text): the player.
@@ -54,6 +61,7 @@ class NpPlaying extends NowPlaying {
       this.compactSubtitle,
       required this.playing,
       required this.progress,
+      this.progressChanges,
       required this.onPrevious,
       required this.onToggle,
       required this.onNext,
@@ -246,8 +254,8 @@ class _NowPlayingRow extends StatelessWidget {
               ],
             ),
           ),
-          if (np case NpPlaying(:final progress))
-            PositionedDirectional(start: 16, end: 16, bottom: 0, child: _Bar(progress)),
+          if (np case NpPlaying(:final progress, :final progressChanges))
+            PositionedDirectional(start: 16, end: 16, bottom: 0, child: _Bar(progress, progressChanges)),
         ],
       ),
     );
@@ -299,26 +307,85 @@ class _Subtitle extends StatelessWidget {
 }
 
 /// The section's progress: 2 px of gilt on the binding's hairline, from the start.
-class _Bar extends StatelessWidget {
+///
+/// The recitation moving on is drawn as it comes: a step a listener cannot see
+/// is not drawn at all, and a small one needs no animation. A jump (another
+/// verse, a repeat going back, the section starting again) glides for 320 ms.
+class _Bar extends StatefulWidget {
   final double progress;
-  const _Bar(this.progress);
+  final Stream<double>? changes;
+  const _Bar(this.progress, this.changes);
+
+  /// A move smaller than this is not drawn: under half a pixel of the bar on any phone.
+  static const double unseen = 0.0005;
+
+  /// A move of up to this much is the recitation itself and is drawn at once.
+  static const double step = 0.02;
+
+  @override
+  State<_Bar> createState() => _BarState();
+}
+
+class _BarState extends State<_Bar> {
+  late double _shown = widget.progress;
+  bool _glide = false;
+  StreamSubscription<double>? _changes;
+
+  @override
+  void initState() {
+    super.initState();
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(_Bar old) {
+    super.didUpdateWidget(old);
+    _show(widget.progress);
+    if (old.changes != widget.changes) {
+      _changes?.cancel();
+      _listen();
+    }
+  }
+
+  void _listen() => _changes = widget.changes?.listen((p) {
+        if (_show(p)) setState(() {});
+      });
+
+  /// Takes [progress] as what the bar shows; false when that changes nothing on screen.
+  bool _show(double progress) {
+    final move = progress - _shown;
+    if (move == 0) return false;
+    // The two ends are always drawn: the bar is empty at the start and full at the end.
+    if (move.abs() < _Bar.unseen && progress > 0 && progress < 1) return false;
+    _glide = move.abs() > _Bar.step;
+    _shown = progress;
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _changes?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: Container(
-        height: 2,
-        color: c.coverLine,
-        alignment: AlignmentDirectional.centerStart,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(end: progress.clamp(0, 1).toDouble()),
-          duration: tzDuration(context, TzMotion.long),
-          curve: TzMotion.standard,
-          builder: (_, p, _) => FractionallySizedBox(
-            widthFactor: p,
-            child: Container(key: Dock.barFillKey, height: 2, color: c.giltOnCover),
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: Container(
+          height: 2,
+          color: c.coverLine,
+          alignment: AlignmentDirectional.centerStart,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: _shown.clamp(0, 1).toDouble()),
+            duration: _glide ? tzDuration(context, TzMotion.long) : Duration.zero,
+            curve: TzMotion.standard,
+            builder: (_, p, _) => FractionallySizedBox(
+              widthFactor: p,
+              child: Container(key: Dock.barFillKey, height: 2, color: c.giltOnCover),
+            ),
           ),
         ),
       ),
