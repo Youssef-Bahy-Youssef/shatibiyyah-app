@@ -19,12 +19,21 @@ class LockScreenHandler extends BaseAudioHandler {
   ReaderController? _reader;
   String? _shown; // what was last published, to skip identical updates
 
+  /// Play was asked for before a reader was attached: the session can be started
+  /// with no screen (a headset button, the «تابع» widget), and its first play can
+  /// arrive while the reader is still being built.
+  bool _playWhenAttached = false;
+
   /// Starts following [reader] (at boot).
   void attach(ReaderController reader) {
     _reader?.removeListener(_publish);
     _reader = reader;
     reader.addListener(_publish);
     _publish();
+    if (_playWhenAttached) {
+      _playWhenAttached = false;
+      play();
+    }
   }
 
   void _publish() {
@@ -75,13 +84,21 @@ class LockScreenHandler extends BaseAudioHandler {
   @override
   Future<void> play() async {
     final r = _reader;
-    if (r != null && !r.playing) await r.playPause();
+    if (r == null) {
+      _playWhenAttached = true;
+    } else if (!r.playing) {
+      await r.playPause();
+    }
   }
 
   @override
   Future<void> pause() async {
     final r = _reader;
-    if (r != null && r.playing) await r.playPause();
+    if (r == null) {
+      _playWhenAttached = false;
+    } else if (r.playing) {
+      await r.playPause();
+    }
   }
 
   @override

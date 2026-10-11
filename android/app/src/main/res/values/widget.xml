@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- radius.dock: the binding's corners. From Android 12 a launcher rounds widgets itself (values-v31). -->
+    <dimen name="widget_radius">26dp</dimen>
+    <!-- The same layout under a second name: see layout/widget_resume.xml. -->
+    <item name="widget_resume_fixed" type="layout">@layout/widget_resume</item>
+</resources>

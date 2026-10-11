@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The press feedback over a widget's control: a ripple with no resting colour, in the
+     binding's own translucent ivory (the hairline's colour). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/widget_cover_line">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <corners android:radius="32dp" />
+            <solid android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+</ripple>

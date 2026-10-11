@@ -17,6 +17,8 @@ import 'package:audio_service/audio_service.dart';
 import 'app/opening_recitation.dart';
 import 'app/reader_boot.dart';
 import 'app/reminders.dart';
+import 'app/routes.dart';
+import 'app/widgets.dart';
 import 'services/audio_focus.dart';
 import 'services/lock_screen.dart';
 import 'services/opening_audio.dart';
@@ -139,6 +141,8 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
   ReaderController? _reader;
   bool _error = false;
   StreamSubscription<ReminderTarget>? _taps;
+  HomeWidgets? _widgets;
+  WidgetRequest? _openWhenShown; // a widget's tap that started the app, until the splash is gone
 
   /// «بيت الافتتاح»: starts under the splash and goes on over the reader (ADR 0027).
   final OpeningRecitation _opening = OpeningRecitation(JustAudioOpening());
@@ -155,16 +159,21 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _taps?.cancel();
+    _widgets?.dispose();
     unawaited(_opening.stop());
     super.dispose();
   }
 
   /// Leaving the app moves «تذكير الباب» to three days from now, on the current
-  /// verse, and ends the opening verse.
+  /// verse, ends the opening verse, and tells the home-screen widgets where the
+  /// reader stands without waiting.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _opening.lifecycle(state);
-    if (state == AppLifecycleState.paused) _reader?.reminders?.reschedule();
+    if (state == AppLifecycleState.paused) {
+      _reader?.reminders?.reschedule();
+      _widgets?.publishNow();
+    }
   }
 
   /// The verse does not wait for the reader: only for its switch, read here from
@@ -186,6 +195,12 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
       });
       lockScreen?.attach(reader);
       _taps = reader.reminders?.taps.listen(_openReminder);
+      // The home-screen widgets (Android; iOS in plan 7.4). Started here, not after the
+      // splash: the widget's ▶ starts the app with no screen, and no frame is ever drawn.
+      if (Platform.isAndroid) {
+        _widgets = HomeWidgets(port: PlatformWidgetPort(), reader: reader, open: _openFromWidget);
+        unawaited(_widgets!.start());
+      }
       if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);
@@ -202,9 +217,31 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     appShell.currentState?.select(DockTab.matn);
   }
 
-  /// After the splash: the tour on the first run, else the reminder that launched the app.
+  /// A tap on a home-screen widget: the reader on its verse, or the downloads.
+  void _openFromWidget(WidgetRequest request) {
+    final reader = _reader;
+    final navigator = appNavigator.currentState;
+    if (reader == null || navigator == null || appShell.currentState == null) {
+      _openWhenShown = request; // the app is still starting
+      return;
+    }
+    navigator.popUntil((r) => r.isFirst);
+    if (request.verse case final verse?) {
+      // The widget shows the current verse: only a widget that is behind moves the reader.
+      if (verse != reader.verse) reader.tapVerse(verse);
+      appShell.currentState?.select(DockTab.matn);
+    } else {
+      navigator.push(MaterialPageRoute<void>(builder: (_) => AppRoute.downloads.build(reader)));
+    }
+  }
+
+  /// After the splash: the tour on the first run, else what launched the app (a widget's
+  /// tap, or a reminder).
   Future<void> _afterSplash() async {
     _firstRun();
+    final fromWidget = _openWhenShown;
+    _openWhenShown = null;
+    if (fromWidget != null) _openFromWidget(fromWidget);
     final target = await _reader?.reminders?.launchTarget();
     if (target != null && mounted) _openReminder(target);
   }

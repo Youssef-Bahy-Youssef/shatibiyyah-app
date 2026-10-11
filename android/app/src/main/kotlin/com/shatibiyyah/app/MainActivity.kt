@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Bundle
 import android.os.StatFs
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -12,10 +13,29 @@ import io.flutter.plugin.common.MethodChannel
 // audio_service (the lock screen) requires the host Activity to extend
 // AudioServiceActivity so the background media service binds to the correct FlutterEngine.
 import com.ryanheise.audioservice.AudioServiceActivity
+import com.shatibiyyah.app.widgets.WidgetBridge
 
 class MainActivity : AudioServiceActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // A tap on a home-screen widget that started the app: once, not again when the
+        // activity is rebuilt or reopened from the recents.
+        if (savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0) openFromWidget(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openFromWidget(intent)
+    }
+
+    private fun openFromWidget(intent: Intent?) {
+        WidgetBridge.requestOf(intent)?.let { WidgetBridge.request(this, it) }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // The home-screen widgets (lib/app/widgets.dart).
+        WidgetBridge.attach(this, flutterEngine)
         // What the recording downloader asks the device (lib/services/device_storage.dart).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "taysir/device").setMethodCallHandler { call, result ->
             when (call.method) {

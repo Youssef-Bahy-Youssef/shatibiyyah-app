@@ -122,6 +122,29 @@ void main() {
         reason: 'run: python3 design/redesign/tools/gen_flutter_tokens.py');
   });
 
+  // The home-screen widgets are drawn by Android (plan 6.1): the same roles, as Kotlin for the
+  // code and as day and night colour resources for the layouts.
+  for (final (flag, path) in [
+    ('--kotlin', 'android/app/src/main/kotlin/com/shatibiyyah/app/widgets/WidgetTokens.g.kt'),
+    ('--colors', 'android/app/src/main/res/values/widget_colors.xml'),
+    ('--colors-night', 'android/app/src/main/res/values-night/widget_colors.xml'),
+  ]) {
+    test('${path.split('/').skip(4).join('/')} is up to date with tokens.json and v2.css', () async {
+      final gen = _generator();
+      if (gen == null) {
+        markTestSkipped('the workspace (design/redesign/) is not checked out around the app');
+        return;
+      }
+      if (!gen.readAsStringSync().contains(flag)) {
+        markTestSkipped('this checkout of the generator does not write the widgets\' tokens yet');
+        return;
+      }
+      final run = await Process.run('python3', [gen.path, '--stdout', flag]);
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+      expect(File(path).readAsStringSync(), run.stdout, reason: 'run: python3 design/redesign/tools/gen_flutter_tokens.py');
+    });
+  }
+
   test('ThemeData for each theme comes from the tokens: Material follows paper and night', () {
     for (final (tz, brightness) in [(TzTheme.paper, Brightness.light), (TzTheme.dark, Brightness.dark)]) {
       final ThemeData t = tzThemeData(tz);

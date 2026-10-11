@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tap targets over «تابع»'s one control, which is drawn at the left of the row (the widget
+     reads right to left): the 48 dp disc, 14–16 dp in from the corner, or the wider «تنزيل» pill.
+     Each target reaches past its drawing, so it covers both the normal and the tight margins. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+    <FrameLayout
+        android:id="@+id/widget_button"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|left"
+        android:layout_marginLeft="8dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/widget_tap_round" />
+    <FrameLayout
+        android:id="@+id/widget_button_wide"
+        android:layout_width="112dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|left"
+        android:layout_marginLeft="8dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/widget_tap_round"
+        android:contentDescription="تنزيل التلاوة"
+        android:visibility="gone" />
+</merge>

@@ -67,6 +67,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- «تابع», the home-screen widget (lib/app/widgets.dart; kotlin/…/widgets). It is redrawn
+             when the app publishes a state or it is tapped; its ▶/❚❚ goes to WidgetActions. -->
+        <receiver android:name=".widgets.ResumeWidget" android:exported="true" android:label="@string/widget_resume_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_resume"/>
+        </receiver>
+        <receiver android:name=".widgets.WidgetActions" android:exported="false"/>
+        <!-- ▶ pressed while the app is not running: holds the process in the foreground for the
+             few seconds the app takes to start, until the audio service above takes over. -->
+        <service android:name=".widgets.WidgetStartService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
