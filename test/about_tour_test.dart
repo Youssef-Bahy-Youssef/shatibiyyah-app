@@ -76,7 +76,9 @@ void main() {
       await show(tester, (r) => AboutScreen(reader: r));
       expect(find.text('تيسير الشاطبية'), findsOneWidget);
       expect(find.text('حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي'), findsOneWidget);
-      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بصفحات المتن وبالنص'), findsOneWidget);
+      expect(find.text('رفيق لدراسة الشاطبية وحفظها: المتن، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.'),
+          findsOneWidget);
+      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بصفحاته وبالنص'), findsOneWidget); // under the row «المتن»
       expect(find.text('الوافي · إبراز المعاني · سراج القارئ'), findsOneWidget);
       expect(find.text('محمد بن عتيق الصنوي · عبدالحميد بن عبدالله القريو الليبي'), findsOneWidget);
       for (final label in ['المتن', 'الشروح', 'التلاوة']) {
