@@ -50,9 +50,11 @@ app.*.map.json
 **/*.keystore
 **/*.jks
 
-# Audio is downloaded at runtime, never bundled or versioned.
+# Recordings are downloaded at runtime, never bundled or versioned. The one piece
+# of audio in the app is the opening verse (ADR 0027).
 *.mp3
 /assets/audio/
+!/assets/opening/verse-1124.mp3
 
 # Local tool state and caches
 /android/.kotlin/

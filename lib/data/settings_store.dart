@@ -89,6 +89,10 @@ class SettingsStore {
   bool get playTitles => prefs.getString('v2.titles.play') != '0';
   set playTitles(bool on) => prefs.setString('v2.titles.play', on ? '1' : '0');
 
+  /// «بيت الافتتاح»: whether the opening verse is recited when the app is opened (ADR 0027).
+  bool get playOpening => prefs.getString('v2.opening.play') != '0';
+  set playOpening(bool on) => prefs.setString('v2.opening.play', on ? '1' : '0');
+
   /// Speed is remembered per reciter (features-v3 playback-speed).
   double speedFor(String recordingId) {
     final v = double.tryParse(prefs.getString('v2.speed.$recordingId') ?? '');
