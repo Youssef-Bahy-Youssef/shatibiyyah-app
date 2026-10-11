@@ -76,9 +76,9 @@ void main() {
       await show(tester, (r) => AboutScreen(reader: r));
       expect(find.text('تيسير الشاطبية'), findsOneWidget);
       expect(find.text('حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي'), findsOneWidget);
-      expect(find.text('رفيق لدراسة الشاطبية وحفظها: المتن، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.'),
+      expect(find.text('رفيقك لدراسة متن الشاطبية وحفظها، بتلاوة صوتية بيتًا بيتًا، وشروح تعينك على فهم كل بيت'),
           findsOneWidget);
-      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بصفحاته وبالنص'), findsOneWidget); // under the row «المتن»
+      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بعرض الصفحة أو النص'), findsOneWidget); // under the row «المتن»
       expect(find.text('الوافي · إبراز المعاني · سراج القارئ'), findsOneWidget);
       expect(find.text('محمد بن عتيق الصنوي · عبدالحميد بن عبدالله القريو الليبي'), findsOneWidget);
       for (final label in ['المتن', 'الشروح', 'التلاوة']) {
@@ -92,15 +92,24 @@ void main() {
     testWidgets('«أعد الجولة» replays the three cards, and «تم» comes back', (tester) async {
       await show(tester, (r) => AboutScreen(reader: r));
       await tester.scrollUntilVisible(find.text('أعد الجولة'), 200);
+      expect(find.text('بطاقات قصيرة تعرّفك بالتطبيق'), findsOneWidget); // under the row
       await tester.tap(find.text('أعد الجولة'));
       await tester.pumpAndSettle();
       expect(find.byType(TourScreen), findsOneWidget);
-      expect(find.text('المتن أولًا'), findsOneWidget);
+      expect(find.text('المتن بين يديك'), findsOneWidget);
+      expect(find.text('صفحات متن الشاطبية بتحقيق الشيخ محمد تميم الزعبي، والبيت الذي تسمعه مظلَّل أمامك.'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pumpAndSettle();
+      expect(find.text('اضغط مطوّلًا على أي بيت'), findsOneWidget);
+      expect(find.text('تقرأ شرحه، أو تبدأ الاستماع منه، أو تضع عليه مرجعًا أو ملاحظة تعود إليها.'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pumpAndSettle();
-      expect(find.text('اختر القارئ'), findsNothing); // replayed: no reciter step
+      expect(find.text('متوفر حاليًا ثلاثة شروح لكل بيت'), findsOneWidget);
+      expect(
+          find.text('الوافي وإبراز المعاني وسراج القارئ: تنقّل بينها والبيت أمامك. '
+              'المتن والشروح على جهازك دون اتصال، والتلاوة تُنزَّل مرة واحدة.'),
+          findsOneWidget);
+      expect(find.text('اختر التلاوة'), findsNothing); // replayed: no reciter step
       await tester.tap(find.text('تم'));
       await tester.pumpAndSettle();
       expect(find.byType(TourScreen), findsNothing);
@@ -227,34 +236,34 @@ void main() {
       // Arabic pages turn the other way: the next card comes with a swipe to the right.
       await tester.fling(find.byType(TourScreen), const Offset(200, 0), 900);
       await tester.pumpAndSettle();
-      expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
+      expect(find.text('اضغط مطوّلًا على أي بيت'), findsOneWidget);
       await tester.fling(find.byType(TourScreen), const Offset(-200, 0), 900);
       await tester.pumpAndSettle();
-      expect(find.text('المتن أولًا'), findsOneWidget);
+      expect(find.text('المتن بين يديك'), findsOneWidget);
 
       await next(tester);
       await next(tester);
       // The last card: a swipe on does not end the tour; that is the button's.
       await tester.fling(find.byType(TourScreen), const Offset(200, 0), 900);
       await tester.pumpAndSettle();
-      expect(find.text('الشروح الثلاثة على جهازك'), findsOneWidget);
+      expect(find.text('متوفر حاليًا ثلاثة شروح لكل بيت'), findsOneWidget);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
+      expect(find.text('اضغط مطوّلًا على أي بيت'), findsOneWidget);
       expect(find.byType(TourScreen), findsOneWidget);
       await unmount(tester);
     });
 
-    testWidgets('first run: Back from «اختر القارئ» returns to the card it was reached from', (tester) async {
+    testWidgets('first run: Back from «اختر التلاوة» returns to the card it was reached from', (tester) async {
       await show(tester, (r) => tour(r, replay: false));
       await next(tester);
       await tester.tap(find.text('تخطَّ'));
       await tester.pumpAndSettle();
-      expect(find.text('اختر القارئ'), findsOneWidget);
+      expect(find.text('اختر التلاوة'), findsOneWidget);
       expect(find.text('تخطَّ'), findsNothing);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
+      expect(find.text('اضغط مطوّلًا على أي بيت'), findsOneWidget);
       await unmount(tester);
     });
 
@@ -266,7 +275,7 @@ void main() {
         await next(tester);
         expect(tester.takeException(), isNull, reason: 'card ${i + 2}');
       }
-      await tester.tap(find.text('اختر القارئ'));
+      await tester.tap(find.text('اختر التلاوة'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await unmount(tester);

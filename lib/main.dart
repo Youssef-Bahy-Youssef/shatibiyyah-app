@@ -262,7 +262,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     if (target != null && mounted) _openReminder(target);
   }
 
-  /// The first time only: the tour, then «اختر القارئ» (features-v3 onboarding-tour).
+  /// The first time only: the tour, then «اختر التلاوة» (features-v3 onboarding-tour).
   void _firstRun() {
     final reader = _reader;
     final prefs = reader?.store?.prefs;
