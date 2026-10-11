@@ -378,17 +378,15 @@ class PageViewerController extends ChangeNotifier {
     _invalidate();
   }
 
-  /// Shows verse [id]'s page and pulses the verse, leaving the playing mark where
-  /// it is: the student went to look at a verse while another is recited.
+  /// Shows verse [id]'s page, leaving the playing mark where it is: the student
+  /// went to look at a verse while another is recited. Nothing marks the verse
+  /// (the owner's choice, ADR 0030): the wash is the recited verse's alone.
   void showVerse(int id) {
     final b = data.getBox(id);
-    if (b == null) return;
-    if (b.page != currentPage) {
-      _loadPage(b.page);
-      prevBox = null;
-      resetView(false);
-    }
-    if (!reduceMotion) pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
+    if (b == null || b.page == currentPage) return;
+    _loadPage(b.page);
+    prevBox = null;
+    resetView(false);
     _invalidate();
   }
 

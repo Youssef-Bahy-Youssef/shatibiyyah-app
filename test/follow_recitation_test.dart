@@ -225,8 +225,7 @@ void main() {
       expect((r.verse, r.engine!.plan.verse, r.playing), (226, 226, true), reason: 'the recitation did not move');
       expect((r.detached, r.browsedVerse, r.viewer.currentPage), (true, 700, pageOf(700)));
       expect(r.viewer.activeId, 226);
-      expect(r.viewer.pulse!.box, verseBox(r, 700), reason: 'the verse asked for is pointed out');
-      expect(wash(r), isNull);
+      expect((r.viewer.pulse, wash(r)), (null, null), reason: 'nothing marks the verse asked for');
       // The top bar names the chapter of the verse asked for, not of the page's first verse.
       expect(r.headerChapter, content.matn.chapterOfVerse(700));
       expect(r.chapter, content.matn.chapterOfVerse(226));
@@ -236,12 +235,12 @@ void main() {
       expect(wash(r), verseBox(r, 226));
     });
 
-    test('a verse on the page of the recited one: shown, with nothing to come back from', () async {
+    test('a verse on the page of the recited one: nothing changes, and nothing to come back from', () async {
       final (r, _) = await reader();
       await play(r);
       await r.goToVerse(229);
       expect((r.verse, r.detached, r.browsedVerse, r.viewer.currentPage), (226, false, null, 19));
-      expect(r.viewer.pulse!.box, verseBox(r, 229));
+      expect((r.viewer.pulse, wash(r)), (null, verseBox(r, 226)));
     });
 
     test('the recited verse itself: the view returns to it', () async {
@@ -312,13 +311,12 @@ void main() {
       expect(c.prevBox, isNull, reason: 'the wash does not glide in from another page');
     });
 
-    test('showVerse turns to a verse and pulses it; the mark stays where it was', () async {
+    test('showVerse turns to a verse\'s page and marks nothing; the wash stays where it was', () async {
       final c = await viewer();
       c.setActiveVerse(1);
       c.showVerse(3);
       expect((c.currentPage, c.activeId, c.activePage), (2, 1, 1));
-      expect(c.pulse!.box, const Rect.fromLTWH(0, 300, 900, 70));
-      expect(wash(c), isNull);
+      expect((c.pulse, wash(c)), (null, null));
     });
   });
 }

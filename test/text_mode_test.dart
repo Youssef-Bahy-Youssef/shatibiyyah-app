@@ -202,6 +202,8 @@ void main() {
       expect(onScreen(tester, 1000), isTrue);
       expect((r.verse, r.playing, r.detached), (226, true, true));
       expect(find.text('$chip ٢٢٦'), findsOneWidget);
+      final opened = tester.widget<VerseUnit>(unit(1000));
+      expect((opened.playing, opened.chosen), (false, false), reason: 'nothing marks the verse opened');
 
       // The recitation moves on: the column stays where the student is.
       await tester.runAsync(() => r.engine!.jumpTo(227));

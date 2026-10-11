@@ -180,6 +180,9 @@ void main() {
     expect((r.verse, r.playing), (226, true), reason: 'the recitation is where it was');
     expect(r.viewer.currentPage, content.layout.pageOfVerse(first.fromVerse));
     expect(find.text('عودة إلى البيت ٢٢٦'), findsOneWidget);
+    // Nothing marks the chapter's first verse: no wash, no pulse (the owner's choice).
+    expect(r.viewer.activeId, 226);
+    expect((r.viewer.pulse, r.viewer.playingRectAt(r.viewer.hiliteStart + 1000)), (null, null));
 
     await tester.tap(find.text('عودة إلى البيت ٢٢٦'));
     await frames();
