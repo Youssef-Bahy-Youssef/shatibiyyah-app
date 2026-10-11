@@ -71,6 +71,12 @@ void main() {
     expect(AppRoute.values.map((r) => r.name), isNot(contains('home')));
   });
 
+  // A word, not a feature: the booklet's pages are «المتن», as the dock's tab and the
+  // «حول» screen's row name them. The owner dropped «المخطوط» on 2026-10-11 (ADR 0016).
+  test('the pages are «المتن»: the app does not say «المخطوط»', () {
+    expect(_hits(RegExp('مخطوط')), isEmpty);
+  });
+
   test('a new user database has none of the removed tables', () async {
     sqfliteFfiInit();
     final dir = await Directory.systemTemp.createTemp('removed_features');

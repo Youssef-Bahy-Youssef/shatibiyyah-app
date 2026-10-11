@@ -53,7 +53,7 @@ class AboutScreen extends StatelessWidget {
               SettingsRow(
                 icon: 'retry',
                 label: 'أعد الجولة',
-                caption: 'ثلاث بطاقات على صفحة من المخطوط',
+                caption: 'ثلاث بطاقات على صفحة من المتن',
                 onTap: () => TourScreen.open(
                   context,
                   content: r!.content,
@@ -115,7 +115,7 @@ class _Masthead extends StatelessWidget {
           const GiltRule(centered: true),
           const SizedBox(height: 10),
           Text(
-            'رفيق لدراسة متن الشاطبية وحفظه: المخطوط، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.',
+            'رفيق لدراسة متن الشاطبية وحفظه: المتن، والتلاوة بيتًا بيتًا، والشروح الثلاثة. يعمل دون اتصال.',
             textAlign: TextAlign.center,
             style: TzType.body.copyWith(color: c.ink2),
           ),
@@ -137,7 +137,7 @@ class _Contents extends StatelessWidget {
       SettingsRow.info(
         icon: 'book',
         label: 'المتن',
-        caption: '${versesCount(matn.lastVerse)} في ${chaptersCount(matn.chapters.length)}، بصفحات المخطوط وبالنص',
+        caption: '${versesCount(matn.lastVerse)} في ${chaptersCount(matn.chapters.length)}، بصفحات المتن وبالنص',
       ),
       SettingsRow.info(
         icon: 'pen',
