@@ -76,7 +76,7 @@ void main() {
       await show(tester, (r) => AboutScreen(reader: r));
       expect(find.text('تيسير الشاطبية'), findsOneWidget);
       expect(find.text('حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي'), findsOneWidget);
-      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بصفحات المخطوط وبالنص'), findsOneWidget);
+      expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بصفحات المتن وبالنص'), findsOneWidget);
       expect(find.text('الوافي · إبراز المعاني · سراج القارئ'), findsOneWidget);
       expect(find.text('محمد بن عتيق الصنوي · عبدالحميد بن عبدالله القريو الليبي'), findsOneWidget);
       for (final label in ['المتن', 'الشروح', 'التلاوة']) {
@@ -93,7 +93,7 @@ void main() {
       await tester.tap(find.text('أعد الجولة'));
       await tester.pumpAndSettle();
       expect(find.byType(TourScreen), findsOneWidget);
-      expect(find.text('المخطوط أولًا'), findsOneWidget);
+      expect(find.text('المتن أولًا'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('التالي'));
@@ -228,7 +228,7 @@ void main() {
       expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
       await tester.fling(find.byType(TourScreen), const Offset(-200, 0), 900);
       await tester.pumpAndSettle();
-      expect(find.text('المخطوط أولًا'), findsOneWidget);
+      expect(find.text('المتن أولًا'), findsOneWidget);
 
       await next(tester);
       await next(tester);

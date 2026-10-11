@@ -636,7 +636,7 @@ void main() {
 
     testWidgets('three cards, «تخطَّ» on each; then the reciter; «ابدأ التلاوة» ends the first run', (tester) async {
       final (_, prefs) = await openTour(tester);
-      expect(find.text('المخطوط أولًا'), findsOneWidget);
+      expect(find.text('المتن أولًا'), findsOneWidget);
       expect(find.text('تخطَّ'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pump();
