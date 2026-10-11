@@ -47,7 +47,7 @@ void main() {
     }
     final groups = [for (final n in spec.nodes) if (n.cls == 'sgroup') n];
     for (var i = 0; i < groups.length; i++) {
-      // The last group has one row more than the design (see the screen's header), so only its top is the spec's.
+      // The last group has two rows more than the design (see the screen's header), so only its top is the spec's.
       final outer = rect(tester, find.byType(SettingsGroup).at(i)); // with its margins: 18 above, 16 at the sides
       final actual = Rect.fromLTRB(outer.left + 16, outer.top + 18, outer.right - 16, outer.bottom);
       if (i < groups.length - 1) {
@@ -78,8 +78,11 @@ void main() {
     c.line('its caption', rect(tester, find.text('أسماء القراء ورموزهم وإطار الصفحة')), spec.text('أسماء القراء ورموزهم وإطار الصفحة').rect, tol: 1.5);
     c.same('the ink\'s name is the default, jade', find.text('يشم').evaluate().length, 1);
 
-    c.box('titles switch', rect(tester, find.byKey(TzSwitch.trackKey)), spec.component('TzSwitch').rect);
+    // The design's one switch; «بيت الافتتاح» has the other, below every drawn row.
+    c.box('titles switch', rect(tester, find.byKey(TzSwitch.trackKey).first), spec.component('TzSwitch').rect);
     expect(find.text('تُتلى'), findsOneWidget);
+    final drawn = rect(tester, find.byType(SettingsRow).at(rows.length - 1));
+    c.same('«بيت الافتتاح» is below the rows the design draws', rect(tester, find.text('بيت الافتتاح')).top > drawn.bottom, true);
     for (final label in ['التلاوة', 'التنزيلات', 'عناوين الأبواب', 'رموز القراء', 'نسخ احتياطي واستعادة', 'حول تيسير الشاطبية']) {
       c.line('«$label»', rect(tester, find.text(label)), spec.text(label).rect);
     }

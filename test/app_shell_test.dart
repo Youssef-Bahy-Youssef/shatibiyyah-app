@@ -199,6 +199,7 @@ void main() {
     await tester.tap(find.text('حول تيسير الشاطبية'));
     await tester.pumpAndSettle();
     expect(find.byType(AboutScreen), findsOneWidget);
+    await tester.scrollUntilVisible(find.text(versionLabel(kAppVersion)), 200); // the last line, under the groups
     expect(find.text(versionLabel(kAppVersion)), findsOneWidget);
     await unmount(tester);
   });
