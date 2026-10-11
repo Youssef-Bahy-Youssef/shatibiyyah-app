@@ -1,5 +1,8 @@
 // tool/render_brand_assets.dart — draws the app icons and the Android launch logo
 // from TaysirLogoPainter, so the platform assets match the in-app logo exactly.
+// The icon is the book on its rahl on the lapis tile (the binding), flat, the mark at
+// 70% of the tile; on Android the launcher masks the middle 72 of the 108 dp layer, so
+// the foreground keeps the same 70% of that window.
 //
 //   flutter test tool/render_brand_assets.dart
 //
@@ -22,24 +25,21 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/taysir_logo.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 
 const _android = 'android/app/src/main/res';
 const _ios = 'ios/Runner/Assets.xcassets/AppIcon.appiconset';
 const _launch = 'ios/Runner/Assets.xcassets/LaunchImage.imageset';
 const _densities = {'mdpi': 1.0, 'hdpi': 1.5, 'xhdpi': 2.0, 'xxhdpi': 3.0, 'xxxhdpi': 4.0};
 
-/// The tile behind the logo: the prototype's `radial-gradient(120% 100% at 50% 20%, #3F2F15, #1B1307 70%)`.
+/// The tile behind the logo: the binding, flat (ADR 0019: no gradient washes).
 void _tile(Canvas c, double s, {double radius = 0}) {
   final rect = Rect.fromLTWH(0, 0, s, s);
-  final paint = Paint()
-    ..shader = ui.Gradient.radial(
-      Offset(s / 2, s * 0.2),
-      s * 1.1,
-      const [Color(0xFF3F2F15), Color(0xFF1B1307)],
-      const [0, 0.7],
-    );
-  c.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)), paint);
+  c.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)), Paint()..color = TzColors.paper.cover);
 }
+
+/// The mark on a tile of side [s]: 70% of the tile, centred.
+void _onTile(Canvas c, double s) => _logo(c, s * (1 - 2 * TaysirLogoPainter.tileInset), Offset(s, s) * TaysirLogoPainter.tileInset);
 
 void _logo(Canvas c, double size, Offset at) {
   c.save();
@@ -64,22 +64,22 @@ void main() {
     await tester.runAsync(() async {
       for (final MapEntry(key: name, value: d) in _densities.entries) {
         final dir = '$_android/mipmap-$name';
-        // Legacy launcher icon (48 dp): the prototype's `icon` variant.
+        // Legacy launcher icon (48 dp): the icon variant.
         await _png('$dir/ic_launcher.png', (48 * d).round(), (c, s) {
-          _tile(c, s, radius: s * 0.23);
-          _logo(c, s * 0.74, Offset(s * 0.13, s * 0.13));
+          _tile(c, s, radius: s * 0.2237);
+          _onTile(c, s);
         });
-        // Adaptive icon layers (108 dp; the launcher masks the middle 72 dp).
+        // Adaptive icon layers (108 dp; the launcher masks the middle 72 dp): the mark at
+        // 70% of that window, as on the tile.
         await _png('$dir/ic_launcher_foreground.png', (108 * d).round(), (c, s) {
-          _logo(c, s * 0.5, Offset(s * 0.25, s * 0.25));
+          final window = s * 72 / 108;
+          final mark = window * (1 - 2 * TaysirLogoPainter.tileInset);
+          _logo(c, mark, Offset((s - mark) / 2, (s - mark) / 2));
         });
         await _png('$dir/ic_launcher_background.png', (108 * d).round(), (c, s) => _tile(c, s));
-        // Notification small icon: alpha only, so the logo's shape filled with white.
+        // Notification small icon: alpha only, so the mark's silhouette in white, its lines as holes.
         await _png('$_android/drawable-$name/ic_stat_taysir.png', (24 * d).round(), (c, s) {
-          c.saveLayer(Rect.fromLTWH(0, 0, s, s),
-              Paint()..colorFilter = const ColorFilter.mode(Color(0xFFFFFFFF), BlendMode.srcIn));
-          _logo(c, s, Offset.zero);
-          c.restore();
+          const TaysirLogoPainter(silhouette: Color(0xFFFFFFFF)).paint(c, Size.square(s));
         });
       }
       await _png('$_android/drawable-xxhdpi/splash_logo.png', 128 * 3, (c, s) => _logo(c, s, Offset.zero));
@@ -93,7 +93,7 @@ void main() {
         final scale = int.parse((icon['scale'] as String).replaceAll('x', ''));
         await _png('$_ios/${icon['filename']}', (points * scale).round(), (c, s) {
           _tile(c, s);
-          _logo(c, s * 0.74, Offset(s * 0.13, s * 0.13));
+          _onTile(c, s);
         });
       }
     });
