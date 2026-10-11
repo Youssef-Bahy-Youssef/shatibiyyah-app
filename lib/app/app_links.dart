@@ -19,7 +19,8 @@ const String? kAppStoreId = null;
 
 /// One line saying what the app is: under its name on «حول», and in what
 /// «شارك التطبيق» sends.
-const String kAppLine = 'رفيق لدراسة الشاطبية وحفظها: المتن، والتلاوة بيتًا بيتًا، والشروح الثلاثة.';
+const String kAppLine =
+    'رفيقك لدراسة متن الشاطبية وحفظها، بتلاوة صوتية بيتًا بيتًا، وشروح تعينك على فهم كل بيت';
 
 class AppLinks {
   /// Where «أرسل ملاحظة» writes.

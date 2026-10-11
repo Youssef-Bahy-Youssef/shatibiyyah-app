@@ -1,5 +1,5 @@
 // ignore_for_file: invalid_use_of_visible_for_testing_member
-// Golden images of «حول» and the tour (its three cards and «اختر القارئ»), in
+// Golden images of «حول» and the tour (its three cards and «اختر التلاوة»), in
 // paper and night, at 2× with real shadows as the handoff's goldens are. The
 // design has no drawing of these screens: they are built from its components,
 // and these images pin how that came out. «حول» is a debug build's, so it has

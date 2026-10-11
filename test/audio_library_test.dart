@@ -636,18 +636,19 @@ void main() {
 
     testWidgets('three cards, «تخطَّ» on each; then the reciter; «ابدأ التلاوة» ends the first run', (tester) async {
       final (_, prefs) = await openTour(tester);
-      expect(find.text('المتن أولًا'), findsOneWidget);
+      expect(find.text('المتن بين يديك'), findsOneWidget);
       expect(find.text('تخطَّ'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pump();
-      expect(find.text('الشرح والمراجعة حول البيت'), findsOneWidget);
+      expect(find.text('اضغط مطوّلًا على أي بيت'), findsOneWidget);
       await tester.tap(find.text('التالي'));
       await tester.pump();
-      expect(find.text('الشروح الثلاثة على جهازك'), findsOneWidget);
+      expect(find.text('متوفر حاليًا ثلاثة شروح لكل بيت'), findsOneWidget);
       expect(find.textContaining('اختبار'), findsNothing);
-      await tester.tap(find.text('اختر القارئ'));
+      await tester.tap(find.text('اختر التلاوة'));
       await tester.pump();
-      expect(find.text('اختر القارئ'), findsOneWidget); // the pick screen's title
+      expect(find.text('اختر التلاوة'), findsOneWidget); // the pick screen's title
+      expect(find.text('المتن والشروح جاهزة الآن دون تنزيل. اختر التلاوة التي تسمعها مع المتن.'), findsOneWidget);
       expect(find.text('ابدأ التلاوة'), findsOneWidget); // Atiq is on the device
       expect(tourDone(prefs), isFalse);
       await tester.tap(find.text('ابدأ التلاوة'));
