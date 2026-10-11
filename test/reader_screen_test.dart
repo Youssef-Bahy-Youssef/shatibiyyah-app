@@ -530,33 +530,9 @@ void main() {
     });
 
     testWidgets('الخاتمة from the index opens page 93 with no outline', (tester) async {
-      late ReaderController r;
-      await tester.runAsync(() async {
-        // The snapshot as item 1.4 will make it: الخاتمة has no heading row.
-        final dir = await Directory.systemTemp.createTemp('no_heading');
-        addTearDown(() => dir.delete(recursive: true));
-        final copy = await File('assets/content/content.sqlite').copy('${dir.path}/content.sqlite');
-        final db = await databaseFactoryFfi.openDatabase(copy.path);
-        await db.rawDelete("DELETE FROM chapter_header_regions WHERE chapter_id = 'chapter:shatibiyyah:077'");
-        await db.close(); // no VACUUM: the size stays what content.json says
-        final stripped = await AppContent.open(
-          loadAsset: (key) async =>
-              ByteData.sublistView(await File(key.endsWith('.sqlite') ? copy.path : key).readAsBytes()),
-          supportDir: await Directory('${dir.path}/support').create(),
-          factory: databaseFactoryFfi,
-        );
-        addTearDown(stripped.store.close);
-        expect(stripped.layout.headerRegion('chapter:shatibiyyah:077'), isNull);
-        SharedPreferences.setMockInitialValues({});
-        final prefs = await Prefs.create();
-        final windows = await stripped.windowsFor(stripped.recordings.defaultRecording);
-        r = ReaderController(
-          content: stripped,
-          recording: stripped.recordings.defaultRecording,
-          viewer: PageViewerController(legacyData(stripped, windows), prefs),
-          initialVerse: 226,
-        );
-      });
+      // The page prints no «الخاتمة»: the snapshot has no heading row for it (plan 1.4).
+      expect(content.layout.headerRegion('chapter:shatibiyyah:077'), isNull);
+      final r = await reader(tester);
       await show(tester, r);
       // The index as its own route (the dock's tab is app_shell_test's).
       Navigator.of(tester.element(find.byType(ReaderScreen)))

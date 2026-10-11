@@ -117,6 +117,28 @@ void main() {
       expect(layout.headerRegion(id)!.page, 19);
       expect(layout.headersOnPage(19), contains(id));
     });
+
+    // ADR 0011: a heading box is the frame of a printed title. The old app's boxes
+    // had 15 strips of 33 to 38 px under their titles, and الخاتمة's was the line
+    // of verse 1159.
+    test('every heading box frames a title: tall enough, over its first verse, on no verse', () {
+      final without = <String>[];
+      for (final c in matn.chapters) {
+        final header = layout.headerRegion(c.id);
+        if (header == null) {
+          without.add(c.shortLabel);
+          continue;
+        }
+        final first = layout.verseRegion(c.fromVerse);
+        expect(header.page, first.page, reason: c.shortLabel);
+        expect(header.rect.height, greaterThanOrEqualTo(40), reason: c.shortLabel);
+        expect(header.rect.bottom, lessThanOrEqualTo(first.rect.top), reason: c.shortLabel);
+        for (final v in layout.versesOnPage(header.page)) {
+          expect(layout.verseRegion(v).rect.overlaps(header.rect), isFalse, reason: '${c.shortLabel} on verse $v');
+        }
+      }
+      expect(without, ['الخاتمة']); // the page prints no title for it
+    });
   });
 
   group('CommentaryRepository', () {
@@ -253,7 +275,7 @@ void main() {
           if (!s.isName) expect(rumuz.byCode(s.symbol!), isNotNull, reason: 'verse $n');
         }
       }
-      expect((total, verses), (1306, 531));
+      expect((total, verses), (1314, 534));
     });
 
     test('Quranic quotations of a block: approved spans inside their segment', () async {
@@ -293,7 +315,7 @@ void main() {
     test('the counts of the full build', () async {
       Future<int> count(String table) async =>
           (await store.db.rawQuery('SELECT count(*) AS n FROM $table')).first['n']! as int;
-      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (1306, 4124, 1819));
+      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (1314, 4124, 1819));
     });
   });
 }
