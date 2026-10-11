@@ -3,6 +3,7 @@
 // the platform's launch screen leaves off (the logo alone, 144 px, in the middle
 // of the screen) and settles into its own picture.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/ui/design/taysir_logo.dart';
 import 'package:shatibiyyah/ui/shell/boot_splash.dart';
@@ -45,6 +46,32 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(name, findsNothing); // well before 1200 ms
+  });
+
+  group('lifting', () {
+    double target(WidgetTester tester) => tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity;
+    final lightBars = find.byWidgetPredicate(
+        (w) => w is AnnotatedRegion<SystemUiOverlayStyle> && w.value == SystemUiOverlayStyle.light);
+
+    testWidgets('loading that outlasts the minimum: the fade begins a frame after the reader is first built',
+        (tester) async {
+      await tester.pumpWidget(app(false));
+      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pumpWidget(app(true)); // the frame the reader is built in: the heaviest of the launch
+      expect(find.text('reader'), findsOneWidget);
+      expect(target(tester), 1); // still wholly covered
+      await tester.pump();
+      expect(target(tester), 0); // now it lifts
+    });
+
+    testWidgets('the status bar\'s icons are the splash\'s until it lifts, then the app\'s', (tester) async {
+      await tester.pumpWidget(app(true));
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(lightBars, findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 200)); // lifting
+      expect(name, findsOneWidget);
+      expect(lightBars, findsNothing);
+    });
   });
 
   group('from the launch screen', () {

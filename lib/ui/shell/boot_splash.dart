@@ -6,6 +6,10 @@
 // loading takes longer than 2 s. A tap skips the minimum wait (never the loading
 // itself).
 //
+// It starts to lift a frame after what it covers was first built, so the heaviest
+// frame of the launch is drawn under it, not in the fade; and the status bar's
+// icons become the app's as the fade begins, not with a snap at its end.
+//
 // It takes over from the platform's launch screen, which can only draw the logo
 // on a flat ground: its first frame is that same picture, and it settles into its
 // own (the larger logo, the name under it, the glow behind) in 320 ms, so nothing
@@ -52,6 +56,9 @@ class _BootSplashState extends State<BootSplash> {
   bool _minimumDone = false;
   bool _slow = false;
   bool _gone = false;
+
+  /// What the splash covers has been on the screen for a frame.
+  bool _drawn = false;
   late final Timer _minimum;
   late final Timer _slowTimer;
 
@@ -62,7 +69,18 @@ class _BootSplashState extends State<BootSplash> {
     _slowTimer = Timer(kSplashSlow, () {
       if (mounted && !widget.ready) setState(() => _slow = true);
     });
+    if (widget.ready) _coveredIsBuilt();
   }
+
+  @override
+  void didUpdateWidget(BootSplash old) {
+    super.didUpdateWidget(old);
+    if (widget.ready && !old.ready) _coveredIsBuilt();
+  }
+
+  void _coveredIsBuilt() => WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _drawn = true);
+      });
 
   void _skip() {
     if (mounted && !_minimumDone) setState(() => _minimumDone = true);
@@ -77,7 +95,7 @@ class _BootSplashState extends State<BootSplash> {
 
   @override
   Widget build(BuildContext context) {
-    final leaving = widget.ready && _minimumDone;
+    final leaving = widget.ready && _minimumDone && _drawn;
     return Stack(
       children: [
         widget.child,
@@ -85,6 +103,7 @@ class _BootSplashState extends State<BootSplash> {
           AnimatedOpacity(
             opacity: leaving ? 0 : 1,
             duration: kSplashFade,
+            curve: TzMotion.exit,
             onEnd: () {
               if (leaving && mounted) {
                 setState(() => _gone = true);
@@ -103,6 +122,12 @@ class _BootSplashState extends State<BootSplash> {
                 ),
               ),
             ),
+          ),
+        // Always dark, so the status bar's icons are light whatever the theme, until
+        // the splash starts to lift.
+        if (!leaving && !_gone)
+          const IgnorePointer(
+            child: AnnotatedRegion<SystemUiOverlayStyle>(value: SystemUiOverlayStyle.light, child: SizedBox.expand()),
           ),
       ],
     );
@@ -144,86 +169,82 @@ class _SplashFaceState extends State<_SplashFace> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
-    // Always dark, so the status bar icons stay light whatever the theme.
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Directionality(
-        textDirection: TextDirection.rtl,
-        child: ColoredBox(
-          color: TzColors.night.bg,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // The glow behind the logo comes up with the name.
-              FadeTransition(
-                opacity: _settled,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -0.24),
-                      radius: 1.1,
-                      colors: [TzColors.night.raised, TzColors.night.bg, TzColors.night.bg],
-                      stops: const [0, 0.62, 1],
-                    ),
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: ColoredBox(
+        color: TzColors.night.bg,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // The glow behind the logo comes up with the name.
+            FadeTransition(
+              opacity: _settled,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -0.24),
+                    radius: 1.1,
+                    colors: [TzColors.night.raised, TzColors.night.bg, TzColors.night.bg],
+                    stops: const [0, 0.62, 1],
                   ),
                 ),
               ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ScaleTransition(scale: _logoScale, child: const TaysirLogo(size: kSplashLogoSize)),
-                  // The name opens out from under the logo. While it has no height the
-                  // logo alone is centred, where the launch screen drew it. Nothing is
-                  // clipped: the marks under the last line reach past its box.
-                  AnimatedBuilder(
-                    animation: _settled,
-                    builder: (context, child) =>
-                        Align(alignment: Alignment.topCenter, heightFactor: _settled.value, child: child),
-                    child: FadeTransition(
-                      opacity: _settled,
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 26),
-                          Text('تيسير الشاطبية', style: TzType.display.copyWith(color: TzColors.night.ink)),
-                          const SizedBox(height: 6),
-                          Text(
-                            'حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي',
-                            style: TzType.chapter.copyWith(color: TzColors.night.ink2),
-                          ),
-                        ],
-                      ),
+            ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ScaleTransition(scale: _logoScale, child: const TaysirLogo(size: kSplashLogoSize)),
+                // The name opens out from under the logo. While it has no height the
+                // logo alone is centred, where the launch screen drew it. Nothing is
+                // clipped: the marks under the last line reach past its box.
+                AnimatedBuilder(
+                  animation: _settled,
+                  builder: (context, child) =>
+                      Align(alignment: Alignment.topCenter, heightFactor: _settled.value, child: child),
+                  child: FadeTransition(
+                    opacity: _settled,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 26),
+                        Text('تيسير الشاطبية', style: TzType.display.copyWith(color: TzColors.night.ink)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي',
+                          style: TzType.chapter.copyWith(color: TzColors.night.ink2),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              if (widget.slow)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 56 + MediaQuery.of(context).padding.bottom,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: 96,
-                        height: 3,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(999),
-                          child: LinearProgressIndicator(
-                            color: TzColors.night.action,
-                            backgroundColor: TzColors.night.line,
-                          ),
+                ),
+              ],
+            ),
+            if (widget.slow)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 56 + MediaQuery.of(context).padding.bottom,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      height: 3,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          color: TzColors.night.action,
+                          backgroundColor: TzColors.night.line,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'يعمل دون اتصال',
-                        style: TzType.caption.copyWith(color: TzColors.night.ink3),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'يعمل دون اتصال',
+                      style: TzType.caption.copyWith(color: TzColors.night.ink3),
+                    ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
