@@ -34,18 +34,29 @@ import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
 import 'ui/design/taysir_colors.dart';
 
-/// The lock-screen handler, when the platform service started.
-LockScreenHandler? lockScreen;
+/// The lock-screen handler, once the platform service has started; null when it
+/// could not.
+Future<LockScreenHandler?> lockScreen = Future.value();
 
 /// The app's navigator: a tapped reminder opens its verse from outside the tree.
 final GlobalKey<NavigatorState> appNavigator = GlobalKey<NavigatorState>();
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Lock screen, notification and headset buttons. Never let an init failure here
-  // blank the whole app — the in-app player works regardless.
+  // Asked for now, so a headset button or a widget that started the process is
+  // heard as early as before; the first frame does not wait for the answer.
+  lockScreen = _startLockScreen();
+  applyOrientationPolicy();
+  runApp(const ShatibiyyahApp());
+  // The window's size may be known only once the first frame is laid out.
+  WidgetsBinding.instance.addPostFrameCallback((_) => applyOrientationPolicy());
+}
+
+/// Lock screen, notification and headset buttons. Never let an init failure here
+/// blank the whole app — the in-app player works regardless.
+Future<LockScreenHandler?> _startLockScreen() async {
   try {
-    lockScreen = await AudioService.init(
+    return await AudioService.init(
       builder: LockScreenHandler.new,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.shatibiyyah.hirz.channel.audio',
@@ -53,11 +64,9 @@ Future<void> main() async {
         androidNotificationOngoing: true,
       ),
     );
-  } catch (_) {}
-  applyOrientationPolicy();
-  runApp(const ShatibiyyahApp());
-  // The window's size may be known only once the first frame is laid out.
-  WidgetsBinding.instance.addPostFrameCallback((_) => applyOrientationPolicy());
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Phones stay upright; a tablet (shortest side from 600 dp, plan P8) turns freely,
@@ -193,7 +202,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
       reader.addListener(() {
         if (reader.playing || !reader.playOpening) unawaited(_opening.stop());
       });
-      lockScreen?.attach(reader);
+      unawaited(lockScreen.then((handler) => handler?.attach(reader)));
       _taps = reader.reminders?.taps.listen(_openReminder);
       // The home-screen widgets (Android; iOS in plan 7.4). Started here, not after the
       // splash: the widget's ▶ starts the app with no screen, and no frame is ever drawn.
