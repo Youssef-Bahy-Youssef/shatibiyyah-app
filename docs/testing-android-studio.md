@@ -101,6 +101,21 @@ their day arithmetic, and pairs their states with the design's renders in `build
       the note is back. Restore again: «لا جديد في هذه النسخة».
 - [ ] Restore any other file (e.g. an image): «الملف ليس نسخة احتياطية…».
 
+## 4b. «حول»: the privacy line and «رأيك ودعمك» (plan 5.4, ADR 0033)
+
+- [ ] «الإعدادات ← حول تيسير الشاطبية»: «في التطبيق» ends with «مراجعك وملاحظاتك / تبقى على
+      جهازك». The row does nothing when tapped.
+- [ ] «أرسل ملاحظة»: the mail app opens on a letter to `kSupportEmail`
+      (`lib/app/app_links.dart`), subject «ملاحظة على تيسير الشاطبية», and under an
+      empty body one line with the version, the content and this device. On an emulator with
+      no mail account the address is copied instead and a message says so.
+- [ ] «شارك التطبيق»: the system's share sheet, with three lines (the name, the app's line, the
+      Google Play link).
+- [ ] «قيّم التطبيق»: Google Play opens on the app's page. Until the app is published the page
+      says it was not found.
+- [ ] The backup is off: `adb shell dumpsys package com.shatibiyyah.app | grep -o ALLOW_BACKUP`
+      prints nothing.
+
 ## 5. Reminders
 
 - [ ] «☰ ← التنبيهات ← فائدة اليوم»: Android asks for notification permission.

@@ -1,8 +1,11 @@
 // lib/services/device_storage.dart — what the app asks the device, answered by
 // MainActivity on Android ("taysir/device" channel): the recording downloader's
-// questions (free space, a network, an unmetered one) and the system's «save as» and
-// «open» document pickers, for backups and for a share card's image. Elsewhere (iOS not yet in scope, tests)
+// questions (free space, a network, an unmetered one), the system's «save as» and
+// «open» document pickers, for backups and for a share card's image, and the
+// device's own name for a report. Elsewhere (iOS not yet in scope, tests)
 // the answers are "unknown" and "yes", and the pickers are unsupported.
+import 'dart:io' show Platform;
+
 import 'package:flutter/services.dart';
 
 const MethodChannel _channel = MethodChannel('taysir/device');
@@ -33,6 +36,20 @@ Future<bool> deviceOnline() async {
   } on MissingPluginException {
     return true;
   }
+}
+
+/// The device and its system as a report names them («Google Pixel 8 · Android 16»);
+/// where the device is not asked, the system as Dart knows it.
+Future<String> deviceSystem() async {
+  try {
+    final named = await _channel.invokeMethod<String>('system');
+    if (named != null) return named;
+  } on MissingPluginException {
+    // not Android
+  } on PlatformException {
+    // the device would not say
+  }
+  return '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
 }
 
 /// Why a document could not be saved or read.
