@@ -1,10 +1,17 @@
 // «حول», the tour it replays and «أدوات التجربة»: what «حول» says is read from
-// the content; each tour card lays its own state on the real page 19, in the
-// places the layout gives; a swipe and Back move between the cards.
+// the content; «رأيك ودعمك» has a row for each place the app can point to, and
+// each row does one thing with the device; each tour card lays its own state on
+// the real page 19, in the places the layout gives; a swipe and Back move
+// between the cards.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shatibiyyah/app/app_links.dart';
+import 'package:shatibiyyah/app/rating.dart';
 import 'package:shatibiyyah/app/reminders.dart';
 import 'package:shatibiyyah/services/notifications.dart';
+import 'package:shatibiyyah/ui/design/components/settings_row.dart';
 import 'package:shatibiyyah/ui/design/night_page.dart';
 import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
@@ -33,6 +40,12 @@ class _CountedNotifications implements NotificationPort {
   Future<void> schedule(PlannedNotification n) async => scheduled.add(n);
   @override
   Future<void> showNow(PlannedNotification n) async => shown.add(n);
+}
+
+/// The store's own rating sheet, never asked for here.
+class _NoSheet implements ReviewPort {
+  @override
+  Future<bool> request() async => false;
 }
 
 void main() {
@@ -87,6 +100,200 @@ void main() {
       await tester.scrollUntilVisible(find.text(versionLabel(kAppVersion)), 200);
       expect(find.text(versionLabel(kAppVersion)), findsOneWidget);
       await unmount(tester);
+    });
+
+    testWidgets('«في التطبيق» ends with the student\'s own bookmarks and notes: they stay on the device', (tester) async {
+      await show(tester, (r) => AboutScreen(reader: r));
+      final row = find.widgetWithText(SettingsRow, 'مراجعك وملاحظاتك');
+      expect(find.descendant(of: row, matching: find.text('تبقى على جهازك')), findsOneWidget);
+      expect(tester.getSemantics(find.text('مراجعك وملاحظاتك')).label, 'مراجعك وملاحظاتك\nتبقى على جهازك');
+      expect(find.ancestor(of: find.text('مراجعك وملاحظاتك'), matching: find.byType(InkWell)), findsNothing);
+      // The last row of the group that names the matn, the books and the reciters.
+      final group = find.ancestor(of: row, matching: find.byType(SettingsGroup));
+      expect(find.descendant(of: group, matching: find.text('في التطبيق')), findsOneWidget);
+      expect(tester.getRect(row).top, tester.getRect(find.widgetWithText(SettingsRow, 'التلاوة')).bottom);
+      expect(tester.getRect(row).bottom, closeTo(tester.getRect(group).bottom, 1));
+      await unmount(tester);
+    });
+
+    group('«رأيك ودعمك»', () {
+      final page = Uri.parse('https://play.google.com/store/apps/details?id=$kAndroidPackage');
+      AppLinks links({String? address = 'taysir@example.org', bool listed = true}) =>
+          AppLinks(supportEmail: address, listing: listed ? page : null, storeName: listed ? 'Google Play' : null);
+
+      Future<void> tapRow(WidgetTester tester, String label) async {
+        await tester.scrollUntilVisible(find.text(label), 200); // built, perhaps still under the fold
+        await tester.ensureVisible(find.text(label));
+        await tester.pump();
+        await tester.tap(find.text(label));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      // A screen tall enough to hold every group: the list builds only what is near the screen.
+      const whole = Size(390, 1600);
+
+      testWidgets('a row for each place there is to go, in the order note, share, rate; none with nowhere to go',
+          (tester) async {
+        await show(tester, (r) => AboutScreen(reader: r, links: links()), size: whole);
+        final tops = [
+          for (final label in ['في التطبيق', 'رأيك ودعمك', 'أرسل ملاحظة', 'شارك التطبيق', 'قيّم التطبيق', 'أعد الجولة'])
+            tester.getRect(find.text(label)).top,
+        ];
+        expect(tops, [...tops]..sort());
+        final rate = find.widgetWithText(SettingsRow, 'قيّم التطبيق');
+        expect(find.descendant(of: rate, matching: find.text('في Google Play')), findsOneWidget);
+
+        await show(tester, (r) => AboutScreen(reader: r, links: links(address: null)), size: whole);
+        expect(find.text('أرسل ملاحظة'), findsNothing);
+        expect(find.text('شارك التطبيق'), findsOneWidget);
+        expect(find.text('قيّم التطبيق'), findsOneWidget);
+
+        await show(tester, (r) => AboutScreen(reader: r, links: links(listed: false)), size: whole);
+        expect(find.text('أرسل ملاحظة'), findsOneWidget);
+        expect(find.text('شارك التطبيق'), findsNothing);
+        expect(find.text('قيّم التطبيق'), findsNothing);
+
+        await show(tester, (r) => AboutScreen(reader: r, links: links(address: null, listed: false)), size: whole);
+        expect(find.text('رأيك ودعمك'), findsNothing);
+        expect(find.text('أعد الجولة'), findsOneWidget);
+        await unmount(tester);
+      });
+
+      testWidgets('the build\'s own links: the owner\'s address and this platform\'s store', (tester) async {
+        final opened = <Uri>[];
+        await show(
+          tester,
+          (r) => AboutScreen(
+            reader: r,
+            open: (uri) async {
+              opened.add(uri);
+              return true;
+            },
+            system: () async => 'Android',
+          ),
+          size: whole, // a test runs as Android
+        );
+        for (final label in ['أرسل ملاحظة', 'شارك التطبيق', 'قيّم التطبيق']) {
+          expect(find.text(label), findsOneWidget, reason: label);
+        }
+        await tester.tap(find.text('أرسل ملاحظة'));
+        await tester.pump();
+        await tester.pump();
+        expect(opened.single.path, kSupportEmail);
+        await tester.tap(find.text('قيّم التطبيق'));
+        await tester.pump();
+        await tester.pump();
+        expect('${opened.last}', 'https://play.google.com/store/apps/details?id=$kAndroidPackage');
+        await unmount(tester);
+      });
+
+      testWidgets('«أرسل ملاحظة» opens a letter to the address, saying the version, the content and the device',
+          (tester) async {
+        final opened = <Uri>[];
+        await show(
+          tester,
+          (r) => AboutScreen(
+            reader: r,
+            links: links(),
+            open: (uri) async {
+              opened.add(uri);
+              return true;
+            },
+            system: () async => 'Google Pixel 8 · Android 16',
+          ),
+        );
+        await tapRow(tester, 'أرسل ملاحظة');
+        final content = data.content.store.manifest.contentSha256.substring(0, 8);
+        expect(opened, [
+          feedbackMail(
+              address: 'taysir@example.org', version: kAppVersion, content: content, system: 'Google Pixel 8 · Android 16'),
+        ]);
+        expect(Uri.decodeComponent(opened.single.query), endsWith('الإصدار $kAppVersion · المحتوى $content · Google Pixel 8 · Android 16'));
+        expect(find.byType(SnackBar), findsNothing);
+        await unmount(tester);
+      });
+
+      testWidgets('with no mail app the address is copied, and the student is told', (tester) async {
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String;
+          return null;
+        });
+        addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+        await show(
+          tester,
+          (r) => AboutScreen(reader: r, links: links(), open: (_) async => false, system: () async => 'Android'),
+        );
+        await tapRow(tester, 'أرسل ملاحظة');
+        expect(copied, 'taysir@example.org');
+        expect(find.text('لا تطبيق بريد على الجهاز. نُسخ العنوان: taysir@example.org'), findsOneWidget);
+        await unmount(tester);
+      });
+
+      testWidgets('«شارك التطبيق» hands the system the app\'s name, its line and its page, from the row', (tester) async {
+        final shared = <ShareParams>[];
+        final opened = <Uri>[];
+        await show(
+          tester,
+          (r) => AboutScreen(
+            reader: r,
+            links: links(),
+            share: (params) async => shared.add(params),
+            open: (uri) async {
+              opened.add(uri);
+              return true;
+            },
+          ),
+        );
+        await tapRow(tester, 'شارك التطبيق');
+        expect(shared.single.text, 'تيسير الشاطبية\n$kAppLine\n$page');
+        expect(shared.single.files, isNull);
+        expect(shared.single.sharePositionOrigin, tester.getRect(find.widgetWithText(SettingsRow, 'شارك التطبيق')));
+        expect(opened, isEmpty);
+        await unmount(tester);
+      });
+
+      testWidgets('«قيّم التطبيق» opens the store\'s page, and the rating sheet then waits its 90 days', (tester) async {
+        final opened = <Uri>[];
+        var now = DateTime(2026, 10, 11, 9);
+        late RatingPrompt rating;
+        await show(tester, (r) {
+          r.store!.prefs.setString(kReviewDaysUsedPref, '$kReviewAfterDays 2026-10-10');
+          rating = r.rating = RatingPrompt(prefs: r.store!.prefs, port: _NoSheet(), clock: () => now);
+          return AboutScreen(
+            reader: r,
+            links: links(),
+            open: (uri) async {
+              opened.add(uri);
+              return true;
+            },
+          );
+        });
+        expect(rating.mayAsk, isTrue);
+        await tapRow(tester, 'قيّم التطبيق');
+        expect(opened, [page]);
+        expect(rating.mayAsk, isFalse);
+        now = now.add(kReviewInterval - const Duration(minutes: 1));
+        expect(rating.mayAsk, isFalse);
+        now = now.add(const Duration(minutes: 1));
+        expect(rating.mayAsk, isTrue);
+        expect(find.byType(SnackBar), findsNothing);
+        await unmount(tester);
+      });
+
+      testWidgets('a store that does not open says so, and the rating sheet may still ask', (tester) async {
+        late RatingPrompt rating;
+        await show(tester, (r) {
+          r.store!.prefs.setString(kReviewDaysUsedPref, '$kReviewAfterDays 2026-10-10');
+          rating = r.rating = RatingPrompt(prefs: r.store!.prefs, port: _NoSheet(), clock: () => DateTime(2026, 10, 11, 9));
+          return AboutScreen(reader: r, links: links(), open: (_) async => false);
+        });
+        await tapRow(tester, 'قيّم التطبيق');
+        expect(find.text('تعذّر فتح Google Play'), findsOneWidget);
+        expect(rating.mayAsk, isTrue);
+        await unmount(tester);
+      });
     });
 
     testWidgets('«أعد الجولة» replays the three cards, and «تم» comes back', (tester) async {

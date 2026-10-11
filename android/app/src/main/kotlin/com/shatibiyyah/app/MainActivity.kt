@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.os.StatFs
 import io.flutter.embedding.engine.FlutterEngine
@@ -52,6 +53,8 @@ class MainActivity : AudioServiceActivity() {
                     val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
                     result.success(caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true)
                 }
+                // «أرسل ملاحظة»: the device and its Android version, for the line under a report.
+                "system" -> result.success("${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
                 // «نسخ احتياطي»: the system's «save as» and «open» pickers, so a backup is a
                 // file wherever the user puts it (Downloads, Drive…), with no storage permission.
                 "saveDocument" -> startDocument(result, (call.argument<String>("text") ?: "").toByteArray(Charsets.UTF_8)) {
