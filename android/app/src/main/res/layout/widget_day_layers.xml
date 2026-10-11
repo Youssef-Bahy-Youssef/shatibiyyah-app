@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «بيت اليوم», the leaf (ADR 0025): the vellum, the rule under the verse, and a mask for each ink
+     (DayPainter), tinted with its colour role. A mask covers only the rows it inks: DayWidget sets
+     each box's padding to that band. The colours are the day and night resources. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+    <ImageView
+        android:id="@+id/widget_day_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_leaf" />
+    <!-- The rule the chapter's title sits on: gilt at 55%, as the rule the khatam sits on. -->
+    <FrameLayout
+        android:id="@+id/widget_day_rule_box"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <FrameLayout
+            android:id="@+id/widget_day_rule"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:alpha="0.55"
+            android:background="@color/widget_gilt" />
+    </FrameLayout>
+    <FrameLayout
+        android:id="@+id/widget_day_box_gilt"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_gilt"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:tint="@color/widget_gilt" />
+    </FrameLayout>
+    <FrameLayout
+        android:id="@+id/widget_day_box_number"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_number"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:tint="@color/widget_ink" />
+    </FrameLayout>
+    <FrameLayout
+        android:id="@+id/widget_day_box_chapter"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_chapter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:tint="@color/widget_ink2" />
+    </FrameLayout>
+    <FrameLayout
+        android:id="@+id/widget_day_box_verse"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_verse"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:tint="@color/widget_verse_ink" />
+    </FrameLayout>
+</merge>

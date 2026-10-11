@@ -1,0 +1,19 @@
+{
+  "$comment": "«بيت اليوم» (plan 6.2, ADR 0025): the verse for a day, by local calendar dates. Checked by test/daily_verse_test.dart and, on a device, by the widget's own arithmetic (WidgetProbe).",
+  "verses": 1173,
+  "cases": [
+    {"added": "2026-10-11", "today": "2026-10-11", "verse": 1, "why": "the day it is added"},
+    {"added": "2026-10-11", "today": "2026-10-12", "verse": 2, "why": "the next day"},
+    {"added": "2026-10-11", "today": "2026-11-11", "verse": 32, "why": "a month on"},
+    {"added": "2026-10-11", "today": "2029-12-26", "verse": 1173, "why": "day 1172: the last verse"},
+    {"added": "2026-10-11", "today": "2029-12-27", "verse": 1, "why": "day 1173: the first verse again, never verse 0"},
+    {"added": "2026-10-11", "today": "2029-12-28", "verse": 2, "why": "the second round"},
+    {"added": "2026-10-11", "today": "2033-03-14", "verse": 1, "why": "day 2346: the third round"},
+    {"added": "2026-10-24", "today": "2026-10-25", "verse": 2, "why": "a day of 25 hours where clocks go back is one day"},
+    {"added": "2027-03-27", "today": "2027-03-28", "verse": 2, "why": "a day of 23 hours where clocks go forward is one day"},
+    {"added": "2028-02-28", "today": "2028-03-01", "verse": 3, "why": "over 29 February"},
+    {"added": "2026-12-31", "today": "2027-01-01", "verse": 2, "why": "over the new year"},
+    {"added": "2026-10-11", "today": "2026-10-10", "verse": 1, "why": "a clock set back before the day it was added: the first verse, not a negative day"},
+    {"added": "2026-10-11", "today": "2020-01-01", "verse": 1, "why": "a clock far in the past"}
+  ]
+}

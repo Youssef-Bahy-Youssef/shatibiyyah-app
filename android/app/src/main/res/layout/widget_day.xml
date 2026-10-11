@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «بيت اليوم» under «تلقائي». The rubric is the booklet's crimson by day and the reader's chosen ink at night, and that ink is not a resource: so there are two rubric views, and each shows only in its own half of the day (its alpha is 1 or 0 by day and night). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_day_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layoutDirection="ltr">
+    <include layout="@layout/widget_day_layers" />
+    <FrameLayout
+        android:id="@+id/widget_day_box_rubric"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+            android:id="@+id/widget_day_rubric_day"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:alpha="@dimen/widget_alpha_day"
+            android:tint="@color/widget_paper_rubric" />
+        <ImageView
+            android:id="@+id/widget_day_rubric_night"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:alpha="@dimen/widget_alpha_night"
+            android:tint="@color/widget_night_rubric" />
+    </FrameLayout>
+</FrameLayout>

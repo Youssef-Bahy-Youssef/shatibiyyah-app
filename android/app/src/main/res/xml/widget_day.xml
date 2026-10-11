@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «بيت اليوم»: 4×2, and it can be made as small as 2×2 (ADR 0017). No update period: it is
+     redrawn at local midnight by one alarm, and when its picture would change. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_day"
+    android:previewImage="@drawable/widget_day_preview"
+    android:description="@string/widget_day_description"
+    android:widgetCategory="home_screen" />

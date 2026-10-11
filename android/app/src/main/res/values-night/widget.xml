@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- At night: the leaf's hairline, and the night rubric view of «بيت اليوم». -->
+    <color name="widget_leaf_ring">@color/widget_line_soft</color>
+    <item name="widget_alpha_day" format="float" type="dimen">0</item>
+    <item name="widget_alpha_night" format="float" type="dimen">1</item>
+</resources>

@@ -202,7 +202,7 @@ internal object ResumePainter {
     }
 
     /** The eight-point star from two squares (v2.js `khatam`) on [star], and the number it holds on [number]. */
-    private fun khatam(context: Context, star: Canvas, number: Canvas, cx: Float, cy: Float, size: Float, label: String) {
+    fun khatam(context: Context, star: Canvas, number: Canvas, cx: Float, cy: Float, size: Float, label: String) {
         val h = size * 0.335f
         val outer = h * sqrt(2f)
         val inner = (h / cos(PI / 8)).toFloat()

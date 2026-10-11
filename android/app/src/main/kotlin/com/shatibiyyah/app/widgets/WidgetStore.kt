@@ -5,8 +5,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * What the app last told «تابع» (lib/domain/widget_state.dart). Before the app has ever run this
- * is a new install's state: the first verse, nothing downloaded, the system's theme.
+ * What the app last told the widgets (lib/domain/widget_state.dart). Before the app has ever run
+ * this is a new install's state: the first verse, nothing downloaded, the system's theme, jade,
+ * and names and symbols in rubric.
  */
 internal data class ResumeState(
     val verse: Int = 1,
@@ -14,6 +15,8 @@ internal data class ResumeState(
     val audio: Boolean = false,
     val recording: String? = null,
     val theme: String = "auto",
+    val ink: String = WidgetTokens.defaultNightInk,
+    val rubric: Boolean = true,
 )
 
 /** The widgets' own small store: the published state, and what was asked while the app was not running. */
@@ -21,6 +24,7 @@ internal object WidgetStore {
     private const val FILE = "taysir.widgets"
     private const val RESUME = "resume"
     private const val PENDING = "pending"
+    private const val DAY = "day.added."
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
@@ -34,6 +38,8 @@ internal object WidgetStore {
                 audio = j.optBoolean("audio"),
                 recording = if (j.isNull("recording")) null else j.optString("recording"),
                 theme = j.optString("theme", "auto"),
+                ink = j.optString("ink", WidgetTokens.defaultNightInk),
+                rubric = j.optBoolean("rubric", true),
             )
         } catch (_: Exception) {
             ResumeState()
@@ -51,6 +57,13 @@ internal object WidgetStore {
         } catch (_: Exception) {
         }
     }
+
+    /** The local date («YYYY-MM-DD») on which «بيت اليوم» [id] was added, or null before it is noted. */
+    fun dayAdded(context: Context, id: Int): String? = prefs(context).getString("$DAY$id", null)
+
+    fun setDayAdded(context: Context, id: Int, date: String) = prefs(context).edit().putString("$DAY$id", date).apply()
+
+    fun forgetDay(context: Context, id: Int) = prefs(context).edit().remove("$DAY$id").apply()
 
     fun addPending(context: Context, request: Map<String, Any>) {
         val p = prefs(context)

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The leaf's vellum. At night a hairline separates it from a dark wallpaper. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_matn_bg" />
+    <stroke android:width="1dp" android:color="@color/widget_leaf_ring" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>

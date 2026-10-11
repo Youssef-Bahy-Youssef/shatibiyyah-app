@@ -16,6 +16,7 @@ import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/lock_screen.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -106,6 +107,8 @@ void main() {
         'audio': true,
         'recording': r.recording.id,
         'theme': 'auto',
+        'ink': 'jade',
+        'rubric': true,
       });
 
       await r.playPause();
@@ -132,7 +135,27 @@ void main() {
     test('it carries no content: no verse text, no chapter name, no reciter name', () async {
       // The widget reads those from the content snapshot itself (ADR 0001).
       final keys = resumeWidgetState(await reader()).toJson().keys.toSet();
-      expect(keys, {'v', 'verse', 'playing', 'audio', 'recording', 'theme'});
+      expect(keys, {'v', 'verse', 'playing', 'audio', 'recording', 'theme', 'ink', 'rubric'});
+    });
+
+    test('«بيت اليوم» is told the night ink and whether reader names and symbols are set in rubric', () async {
+      final r = await reader();
+      r.setNightInk(TzNightPage.wisteria);
+      expect(resumeWidgetState(r).ink, 'wisteria');
+      r.setShowRubric(false);
+      expect(resumeWidgetState(r).rubric, isFalse);
+      r.setNightInk(TzNightPage.jade); // the notifier is app-wide: leave it as it was
+    });
+
+    test('a change of ink or of the rubric switch is published', () async {
+      final r = await reader();
+      final port = _Port();
+      final widgets = HomeWidgets(port: port, reader: r, open: (_) {}, interval: Duration.zero);
+      await widgets.start();
+      r.setShowRubric(false);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      expect(port.published.last['rubric'], isFalse);
+      widgets.dispose();
     });
   });
 

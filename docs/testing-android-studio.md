@@ -53,10 +53,12 @@ To see the first run again: *Device Manager* → ⋮ → **Wipe Data**, or
 - [ ] Long press a verse: menu with الشرح / تشغيل من هنا / مرجع and the chips.
       Back closes the menu first.
 
-## 2b. The home-screen widget «تابع» (plan 6.1)
+## 2b. The home-screen widgets (plans 6.1, 6.2)
 
-`tool/widget_check.sh` checks its drawing for every verse on the connected device, and pairs
-its states with the design's renders in `build/widgets/`. By hand:
+`tool/widget_check.sh` checks both widgets' drawing for every verse on the connected device, and
+their day arithmetic, and pairs their states with the design's renders in `build/widgets/`.
+
+«تابع», by hand:
 
 - [ ] Add «تابع» from the launcher's widgets **before opening the app**: it shows verse 1 and
       «تنزيل». «تنزيل» opens «التنزيلات».
@@ -67,6 +69,14 @@ its states with the design's renders in `build/widgets/`. By hand:
 - [ ] A tap on the verse opens «المتن» on it.
 - [ ] «المظهر ← تلقائي», then the system's dark theme on and off: the widget follows, with
       the app closed. «ورقي» and «ليلي» hold whatever the system is in.
+
+«بيت اليوم», by hand:
+
+- [ ] Add it: verse 1 that day, with its number and its chapter. A tap opens «المتن» on it.
+- [ ] Make it 2×2: each hemistich wraps inside itself, nothing is cut.
+- [ ] The next morning it shows verse 2 (or set the device's date a day on: it changes at once).
+- [ ] A verse with reader symbols is in the rubric ink with dotted underlines; at night, in the
+      ink chosen in «لون الحبر الليلي». «إبراز رموز القراء وأسمائهم» off: plain ink.
 
 ## 3. Study and navigation (P6)
 
