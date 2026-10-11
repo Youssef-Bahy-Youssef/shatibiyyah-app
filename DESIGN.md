@@ -11,7 +11,7 @@ Companion files:
 
 | decision | value |
 |---|---|
-| audio | **Both recordings are downloaded inside the app on demand.** Nothing is bundled |
+| audio | **Both recordings are downloaded inside the app on demand.** No recording is bundled; the one audio file in the app is the opening verse (`assets/opening/verse-1124.mp3`, 212 KB, workspace ADR 0027) |
 | feature focus | commentary reader · verse text + text mode · reciter switch · memorization tools |
 | app location | stays in `~/Documents/Projects/temp/flutter_shatibiyyah` |
 
