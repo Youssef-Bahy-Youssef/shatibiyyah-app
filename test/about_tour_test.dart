@@ -160,12 +160,31 @@ void main() {
         await unmount(tester);
       });
 
-      testWidgets('the build\'s own links: this platform\'s store, and a note only once there is an address',
-          (tester) async {
-        await show(tester, (r) => AboutScreen(reader: r), size: whole); // a test runs as Android
-        expect(find.text('شارك التطبيق'), findsOneWidget);
-        expect(find.text('قيّم التطبيق'), findsOneWidget);
-        expect(find.text('أرسل ملاحظة'), kSupportEmail == null ? findsNothing : findsOneWidget);
+      testWidgets('the build\'s own links: the owner\'s address and this platform\'s store', (tester) async {
+        final opened = <Uri>[];
+        await show(
+          tester,
+          (r) => AboutScreen(
+            reader: r,
+            open: (uri) async {
+              opened.add(uri);
+              return true;
+            },
+            system: () async => 'Android',
+          ),
+          size: whole, // a test runs as Android
+        );
+        for (final label in ['أرسل ملاحظة', 'شارك التطبيق', 'قيّم التطبيق']) {
+          expect(find.text(label), findsOneWidget, reason: label);
+        }
+        await tester.tap(find.text('أرسل ملاحظة'));
+        await tester.pump();
+        await tester.pump();
+        expect(opened.single.path, kSupportEmail);
+        await tester.tap(find.text('قيّم التطبيق'));
+        await tester.pump();
+        await tester.pump();
+        expect('${opened.last}', 'https://play.google.com/store/apps/details?id=$kAndroidPackage');
         await unmount(tester);
       });
 

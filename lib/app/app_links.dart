@@ -2,13 +2,13 @@
 // about-and-support; ADR 0033): the address «أرسل ملاحظة» writes to, and the
 // store page «شارك التطبيق» sends and «قيّم التطبيق» opens.
 //
-// A row on «حول» shows only when its destination exists: with no address there
-// is no «أرسل ملاحظة»; on a platform with no store page there is neither «شارك
+// A row on «حول» shows only when its destination exists: links given no address
+// have no «أرسل ملاحظة»; on a platform with no store page there is neither «شارك
 // التطبيق» nor «قيّم التطبيق».
 import 'package:flutter/foundation.dart';
 
-/// The address feedback is written to; null until the owner names one (plan Q12).
-const String? kSupportEmail = null;
+/// The address feedback is written to, named by the owner on 2026-10-11 (plan Q12).
+const String kSupportEmail = 'youssefbahy2026@gmail.com';
 
 /// The Android application id, which is the app's page on Google Play
 /// (test/app_links_test.dart keeps it equal to android/app/build.gradle.kts).

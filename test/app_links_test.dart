@@ -40,14 +40,12 @@ void main() {
   });
 
   group('the support address', () {
-    test('is an address when there is one, and reaches every platform\'s links', () {
-      if (kSupportEmail case final address?) {
-        expect(address, matches(RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$')));
-      }
+    test('is an address, and reaches every platform\'s links', () {
+      expect(kSupportEmail, matches(RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$')));
       for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
         debugDefaultTargetPlatformOverride = platform;
         expect(AppLinks.ofPlatform().supportEmail, kSupportEmail, reason: '$platform');
-        expect(AppLinks.ofPlatform(supportEmail: 'a@b.example').supportEmail, 'a@b.example', reason: '$platform');
+        expect(AppLinks.ofPlatform(supportEmail: null).supportEmail, isNull, reason: '$platform');
       }
     });
   });

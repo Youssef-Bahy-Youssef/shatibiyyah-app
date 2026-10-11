@@ -105,8 +105,8 @@ their day arithmetic, and pairs their states with the design's renders in `build
 
 - [ ] «الإعدادات ← حول تيسير الشاطبية»: «في التطبيق» ends with «مراجعك وملاحظاتك / تبقى على
       جهازك». The row does nothing when tapped.
-- [ ] «أرسل ملاحظة» (drawn once `kSupportEmail` is set in `lib/app/app_links.dart`): the mail
-      app opens on a letter to that address, subject «ملاحظة على تيسير الشاطبية», and under an
+- [ ] «أرسل ملاحظة»: the mail app opens on a letter to `kSupportEmail`
+      (`lib/app/app_links.dart`), subject «ملاحظة على تيسير الشاطبية», and under an
       empty body one line with the version, the content and this device. On an emulator with
       no mail account the address is copied instead and a message says so.
 - [ ] «شارك التطبيق»: the system's share sheet, with three lines (the name, the app's line, the
