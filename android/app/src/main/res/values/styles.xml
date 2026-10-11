@@ -8,6 +8,6 @@
     </style>
     <!-- Behind the Flutter UI once it runs. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">@color/espresso</item>
+        <item name="android:windowBackground">@color/launch_ground</item>
     </style>
 </resources>

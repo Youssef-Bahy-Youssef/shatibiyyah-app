@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launch screen before Android 12: the logo on espresso, as the in-app splash begins. -->
+<!-- Launch screen before Android 12: the logo on the night ground, as the in-app splash begins. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/espresso" />
+    <item android:drawable="@color/launch_ground" />
     <item>
         <bitmap
             android:gravity="center"

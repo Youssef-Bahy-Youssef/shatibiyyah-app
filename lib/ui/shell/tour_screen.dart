@@ -163,7 +163,8 @@ class _TourScreenState extends State<TourScreen> {
   }
 
   Widget _tour(BuildContext context) {
-    final c = TzTheme.of(context).colors;
+    final tz = TzTheme.of(context);
+    final c = tz.colors;
     final card = _cards[_card];
     final last = _card == _cards.length - 1;
     return LayoutBuilder(
@@ -179,7 +180,10 @@ class _TourScreenState extends State<TourScreen> {
               padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 8, 0),
               child: Row(
                 children: [
-                  const ExcludeSemantics(child: TaysirLogo(size: 34)), // the name is beside it
+                  ExcludeSemantics(
+                    // the name is beside it
+                    child: TaysirLogo(size: 34, palette: tz.night ? LogoPalette.cover : LogoPalette.paper),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text('تيسير الشاطبية',
