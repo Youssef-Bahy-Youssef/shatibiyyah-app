@@ -295,4 +295,26 @@ void main() {
     expect(tester.widget<Dock>(find.byType(Dock)).nowPlaying, isA<NpNone>());
     await unmount(tester);
   });
+
+  testWidgets('the dock: the reciter alone by default; with a repeat count the name gives way where the line does not fit', (tester) async {
+    final r = await data.reader(tester, audio: true);
+    await pumpPhone(tester, AppShell(reader: r));
+    await tester.runAsync(() => r.playScope(const PlaybackScope(226, 234)));
+    await tester.pump(const Duration(milliseconds: 400));
+    final name = r.recording.reciterName;
+    NpPlaying np() => tester.widget<Dock>(find.byType(Dock)).nowPlaying! as NpPlaying;
+    Finder inRow(String text) => find.descendant(of: find.byKey(Dock.rowKey), matching: find.text(text));
+    expect((np().subtitle, np().compactSubtitle), (name, null));
+    expect(inRow(name), findsOneWidget);
+
+    r.setVerseRepeats(3);
+    await tester.pump(const Duration(milliseconds: 400));
+    final count = np().compactSubtitle!;
+    expect(count, matches(r'^تكرار [١-٣]/٣$'));
+    expect(np().subtitle, '$name · $count');
+    // With the count at its widest the whole line is over the 150 px beside the three buttons.
+    expect(inRow(count), findsOneWidget);
+    expect(inRow('$name · $count'), findsNothing);
+    await unmount(tester);
+  });
 }

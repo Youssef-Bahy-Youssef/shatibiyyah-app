@@ -7,6 +7,7 @@
 // under it), and at its end either a value with a chevron, a chevron alone, or a
 // control. A control drawn smaller than its 48 px target says by how much it
 // overhangs its drawing ([controlOverhang]), so the row keeps the measured height.
+// A row that only informs («حول») has neither chevron nor target.
 import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
@@ -96,6 +97,15 @@ class SettingsRow extends StatelessWidget {
       onTap = null,
       semanticLabel = null;
 
+  /// A row that only says something: no chevron, and not a target.
+  const SettingsRow.info({super.key, this.icon, this.leading, required this.label, this.caption})
+    : value = null,
+      valueStyle = null,
+      control = null,
+      controlOverhang = 0,
+      onTap = null,
+      semanticLabel = null;
+
   static const leadingKey = ValueKey('settings-row-leading');
 
   /// The label and its control at the two ends of one line; when large text
@@ -154,26 +164,29 @@ class SettingsRow extends StatelessWidget {
                           ],
                         ),
                 ),
-                const SizedBox(width: 12),
-                if (value != null) ...[
-                  // A long value (a reciter's full name) gives way to the label.
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 170),
-                    child: Text(
-                      value!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: valueStyle ?? TzType.label.copyWith(color: c.ink2, fontWeight: FontWeight.w400),
+                // A row that only informs ends with its words.
+                if (onTap != null) ...[
+                  const SizedBox(width: 12),
+                  if (value != null) ...[
+                    // A long value (a reciter's full name) gives way to the label.
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 170),
+                      child: Text(
+                        value!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: valueStyle ?? TzType.label.copyWith(color: c.ink2, fontWeight: FontWeight.w400),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  TzIcon('chev', size: 22, color: c.ink2),
-                ] else
-                  TzIcon('chev', size: 20, color: c.ink3),
+                    const SizedBox(width: 8),
+                    TzIcon('chev', size: 22, color: c.ink2),
+                  ] else
+                    TzIcon('chev', size: 20, color: c.ink3),
+                ],
               ],
             ),
     );
-    if (onTap == null) return row;
+    if (onTap == null) return control != null ? row : MergeSemantics(child: row);
     return MergeSemantics(
       child: Semantics(
         button: true,

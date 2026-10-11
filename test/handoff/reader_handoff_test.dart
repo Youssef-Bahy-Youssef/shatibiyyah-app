@@ -66,7 +66,10 @@ void main() {
     c.box('tabs', rect(tester, find.byKey(Dock.tabsKey)), spec.component('Dock tabs').rect);
     c.box('dock khatam', rect(tester, find.descendant(of: find.byKey(Dock.rowKey), matching: find.byType(Khatam))), spec.component('Khatam').rect);
     c.box('play disc', rect(tester, find.byKey(Dock.playDiscKey)), spec.cls('dplay').rect);
-    c.centre('next verse', rect(tester, find.bySemanticsLabel('البيت التالي')), spec.id(26).rect);
+    // The transport, in the player's order (v2.css .np-ctl).
+    final [previous, _, next] = spec.childrenOf(spec.cls('np-ctl'));
+    c.centre('previous verse', rect(tester, find.bySemanticsLabel('البيت السابق')), previous.rect);
+    c.centre('next verse', rect(tester, find.bySemanticsLabel('البيت التالي')), next.rect);
     c.line('dock title', rect(tester, find.textContaining('البيت ٢٢٦', findRichText: true)), spec.id(23).rect);
     for (final label in ['المتن', 'الفهرس', 'المحفوظ', 'الإعدادات']) {
       c.same('tab $label centre', rect(tester, find.text(label)).center.dx.round(), spec.text(label).rect.center.dx.round());
@@ -107,9 +110,9 @@ void main() {
 
     c.box('spotlight', onPage(tester, r.viewer.viewRectOfVerse(229)!), spec.component('VerseHighlight').rect, tol: 1.5);
     c.box('popover', rect(tester, body), spec.component('AnchoredPopover').rect, tol: 1.5);
-    c.box('khatam', rect(tester, inBody(find.byType(Khatam))), spec.id(42).rect, tol: 1.5);
+    c.box('khatam', rect(tester, inBody(find.byType(Khatam))), spec.id(45).rect, tol: 1.5);
     c.line('«البيت ٢٢٩»', rect(tester, inBody(find.text('البيت ٢٢٩'))), spec.text('البيت ٢٢٩').rect, tol: 1.5);
-    c.line('where it is', rect(tester, inBody(find.textContaining('· ص ١٩'))), spec.id(46).rect, tol: 1.5);
+    c.line('where it is', rect(tester, inBody(find.textContaining('· ص ١٩'))), spec.id(49).rect, tol: 1.5);
     final tag = spec.text('مراجعة');
     c.same('tag ends at the body\'s end', rect(tester, inBody(find.text('مراجعة'))).left.round(), tag.rect.left.round());
     c.line('first hemistich', rect(tester, inBody(find.text(data.content.matn.verse(229).firstHemistich))),
@@ -148,12 +151,12 @@ void main() {
 
     c.box('lit heading', onPage(tester, r.viewer.viewRectOfChapter(index)!), spec.component('VerseHighlight').rect, tol: 1.5);
     c.box('popover', rect(tester, body), spec.component('AnchoredPopover').rect, tol: 1.5);
-    c.box('khatam', rect(tester, inBody(find.byType(Khatam))), spec.id(42).rect, tol: 1.5);
+    c.box('khatam', rect(tester, inBody(find.byType(Khatam))), spec.id(45).rect, tol: 1.5);
     c.line('ordinal', rect(tester, inBody(find.text('الباب الحادي عشر'))), spec.text('الباب الحادي عشر').rect, tol: 1.5);
-    c.line('size, range, page', rect(tester, inBody(find.textContaining('· ص ١٩'))), spec.id(46).rect, tol: 1.5);
+    c.line('size, range, page', rect(tester, inBody(find.textContaining('· ص ١٩'))), spec.id(49).rect, tol: 1.5);
     expect(inBody(find.text('يبدأ بـ')), findsOneWidget);
     final firstWords = rect(tester, inBody(find.text(data.content.matn.verse(226).firstHemistich)));
-    c.same('first words: a 34 dp line at 238', (firstWords.top - spec.id(47).rect.top).abs() <= 1.5 && (firstWords.height - 34).abs() <= 1, true);
+    c.same('first words: a 34 dp line at 238', (firstWords.top - spec.id(50).rect.top).abs() <= 1.5 && (firstWords.height - 34).abs() <= 1, true);
     c.box('«تشغيل الباب»', rect(tester, find.widgetWithText(TzButton, 'تشغيل الباب')), spec.text('تشغيل الباب').rect, tol: 1.5);
     c.box('«الشرح»', rect(tester, find.widgetWithText(TzButton, 'الشرح')), spec.text('الشرح').rect, tol: 1.5);
     c.done();

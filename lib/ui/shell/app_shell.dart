@@ -135,17 +135,19 @@ class AppShellState extends State<AppShell> {
       final of = section.toVerse - section.fromVerse + 1;
       final at = (r.verse - section.fromVerse + 1).clamp(1, of);
       final repeats = r.settings.verseRepeats;
-      final parts = [
-        rec.reciterName,
+      // What differs from the defaults; the row keeps these when the reciter's name does not fit.
+      final settings = [
         if (r.speed != 1) '${ar(r.speed)}×',
         if (repeats == null || repeats > 1) 'تكرار ${ar(r.verseRepetition)}/${repeats == null ? '∞' : ar(repeats)}',
       ];
       return NpPlaying(
         verse: ar(r.verse),
         position: '${ar(at)} من ${ar(of)}',
-        subtitle: parts.join(' · '),
+        subtitle: [rec.reciterName, ...settings].join(' · '),
+        compactSubtitle: settings.isEmpty ? null : settings.join(' · '),
         playing: r.playing,
         progress: (at - 1 + 0.4) / of,
+        onPrevious: r.previous,
         onToggle: r.playPause,
         onNext: r.next,
         onOpen: () => showPlayerSheet(context, r),

@@ -128,6 +128,26 @@ void main() {
     expect(find.byType(BackupScreen), findsOneWidget);
   });
 
+  testWidgets('«بيت الافتتاح» is recited until the student turns it off, and the choice is kept', (tester) async {
+    final (r, _) = await open(tester, (r) => SettingsScreen(reader: r));
+    // The last row of «التطبيق», below the fold.
+    await tester.ensureVisible(find.text('بيت الافتتاح'));
+    await tester.pump();
+    expect((r.playOpening, r.store!.playOpening), (true, true));
+    expect(find.bySemanticsLabel('تلاوة بيت الافتتاح عند فتح التطبيق'), findsOneWidget);
+
+    await tester.tap(find.text('يُتلى'));
+    await tester.pump();
+    expect((r.playOpening, r.store!.playOpening), (false, false));
+    expect(SettingsStore(r.store!.prefs).playOpening, isFalse); // what the next launch reads
+    expect(find.text('لا يُتلى'), findsOneWidget);
+    expect(isBackupSetting('v2.opening.play'), isTrue);
+
+    await tester.tap(find.text('لا يُتلى'));
+    await tester.pump();
+    expect((r.playOpening, r.store!.playOpening), (true, true));
+  });
+
   testWidgets('a backup is saved, then restored into another device\'s data', (tester) async {
     String? savedName;
     String? savedText;
