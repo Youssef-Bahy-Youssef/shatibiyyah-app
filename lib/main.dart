@@ -5,7 +5,7 @@
 // shatibiyyah-data; the 94 manuscript pages are assets/pages/page001–094.webp.
 // No recording is bundled: one plays from a file on the device. The only audio in
 // the app is «بيت الافتتاح», the verse recited as it opens (ADR 0027). The theme
-// (dark espresso or paper) is app-wide and switched from the tools sheet.
+// (night or paper) is app-wide and switched from the tools sheet.
 import 'dart:async';
 import 'dart:io';
 
@@ -32,20 +32,32 @@ import 'ui/design/tz_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
+import 'ui/widgets/page_viewer.dart';
 import 'ui/design/taysir_colors.dart';
 
-/// The lock-screen handler, when the platform service started.
-LockScreenHandler? lockScreen;
+/// The lock-screen handler, once the platform service has started; null when it
+/// could not.
+Future<LockScreenHandler?> lockScreen = Future.value();
 
 /// The app's navigator: a tapped reminder opens its verse from outside the tree.
 final GlobalKey<NavigatorState> appNavigator = GlobalKey<NavigatorState>();
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Lock screen, notification and headset buttons. Never let an init failure here
-  // blank the whole app — the in-app player works regardless.
+  // Asked for now, so a headset button or a widget that started the process is
+  // heard as early as before; the first frame does not wait for the answer.
+  lockScreen = _startLockScreen();
+  applyOrientationPolicy();
+  runApp(const ShatibiyyahApp());
+  // The window's size may be known only once the first frame is laid out.
+  WidgetsBinding.instance.addPostFrameCallback((_) => applyOrientationPolicy());
+}
+
+/// Lock screen, notification and headset buttons. Never let an init failure here
+/// blank the whole app — the in-app player works regardless.
+Future<LockScreenHandler?> _startLockScreen() async {
   try {
-    lockScreen = await AudioService.init(
+    return await AudioService.init(
       builder: LockScreenHandler.new,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.shatibiyyah.hirz.channel.audio',
@@ -53,11 +65,9 @@ Future<void> main() async {
         androidNotificationOngoing: true,
       ),
     );
-  } catch (_) {}
-  applyOrientationPolicy();
-  runApp(const ShatibiyyahApp());
-  // The window's size may be known only once the first frame is laid out.
-  WidgetsBinding.instance.addPostFrameCallback((_) => applyOrientationPolicy());
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Phones stay upright; a tablet (shortest side from 600 dp, plan P8) turns freely,
@@ -121,7 +131,7 @@ class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObse
         ],
         // The one theme source: the tokens (item 3.1).
         theme: tzThemeData(tzThemeFor(theme, ink: appNightInk.value)),
-        // Status and navigation bar icons follow the theme: light on espresso, dark on paper.
+        // Status and navigation bar icons follow the theme: light on night, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
           child: Directionality(textDirection: TextDirection.rtl, child: child!),
@@ -188,12 +198,17 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
 
   Future<void> _init() async {
     try {
-      final reader = await bootReader();
+      // The page the reader opens on is decoded while the rest is prepared, so the
+      // splash never lifts on an empty sheet that the scan then pops into.
+      Future<void>? firstPage;
+      final reader = await bootReader(
+        onFirstPage: (page) => firstPage = mounted ? PageViewer.warm(context, page) : null,
+      );
       // A recitation takes over from the opening verse, and its switch going off ends it.
       reader.addListener(() {
         if (reader.playing || !reader.playOpening) unawaited(_opening.stop());
       });
-      lockScreen?.attach(reader);
+      unawaited(lockScreen.then((handler) => handler?.attach(reader)));
       _taps = reader.reminders?.taps.listen(_openReminder);
       // The home-screen widgets (Android; iOS in plan 7.4). Started here, not after the
       // splash: the widget's ▶ starts the app with no screen, and no frame is ever drawn.
@@ -201,6 +216,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
         _widgets = HomeWidgets(port: PlatformWidgetPort(), reader: reader, open: _openFromWidget);
         unawaited(_widgets!.start());
       }
+      await firstPage;
       if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);

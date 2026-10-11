@@ -102,6 +102,40 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
   }
 
+  testWidgets('a page decoded ahead is drawn with the reader\'s first frame', (tester) async {
+    final r = await data.reader(tester, bookmarks: false);
+    Future<void> first(Widget home) async {
+      tester.view.physicalSize = kHandoffScreen;
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = kHandoffPadding;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: tzThemeData(TzTheme.paper),
+        builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: home,
+      ));
+    }
+
+    int drawn() => tester.state<PageViewerState>(find.byType(PageViewer)).overlayPage;
+
+    // Left to the viewer, the scan is asked for in its first frame and comes later.
+    imageCache.clear();
+    imageCache.clearLiveImages();
+    await first(AppShell(reader: r));
+    expect(drawn(), 0);
+    await unmount(tester);
+
+    // What the launch does: verse 226's page is decoded before the reader is shown.
+    imageCache.clear();
+    imageCache.clearLiveImages();
+    await first(const SizedBox());
+    await tester.runAsync(() => PageViewer.warm(tester.element(find.byType(SizedBox)), 19));
+    await first(AppShell(reader: r));
+    expect(drawn(), 19);
+    await unmount(tester);
+  });
+
   testWidgets('ten position ticks: the reader tells no one, the page is neither rebuilt nor repainted', (tester) async {
     final (r, audio, start) = await reciting(tester);
     var told = 0;

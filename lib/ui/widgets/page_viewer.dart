@@ -881,6 +881,13 @@ class PageViewer extends StatefulWidget {
   @visibleForTesting
   static final Set<int> debugPrecached = {};
 
+  static String pageAsset(int page) => 'assets/pages/page${page.toString().padLeft(3, '0')}.webp';
+
+  /// Decodes [page]'s scan ahead of the viewer: a page warmed before the viewer is
+  /// first built is drawn in its first frame, not a moment after it.
+  static Future<void> warm(BuildContext context, int page) =>
+      precacheImage(AssetImage(pageAsset(page)), context, onError: (_, _) {});
+
   @override
   State<PageViewer> createState() => PageViewerState();
 }
@@ -923,16 +930,14 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     _watched = page;
     _stream?.removeListener(_onImage);
     // Already decoded (a neighbour fetched ahead): the listener is called at once.
-    _stream = AssetImage(_pageAsset(page)).resolve(createLocalImageConfiguration(context))..addListener(_onImage);
+    _stream = AssetImage(PageViewer.pageAsset(page)).resolve(createLocalImageConfiguration(context))
+      ..addListener(_onImage);
     for (final n in [page - 1, page + 1]) {
       if (n < 1 || n > c.data.pageCount) continue;
       PageViewer.debugPrecached.add(n);
-      precacheImage(AssetImage(_pageAsset(n)), context, onError: (_, _) {});
+      PageViewer.warm(context, n);
     }
   }
-
-  String _pageAsset(int n) =>
-      'assets/pages/page${n.toString().padLeft(3, '0')}.webp';
 
   @override
   Widget build(BuildContext context) {
@@ -1059,7 +1064,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     _imageOf = of;
     PageViewer.debugImageBuilds++;
     Widget image = Image.asset(
-      _pageAsset(c.currentPage),
+      PageViewer.pageAsset(c.currentPage),
       width: c.baseW,
       height: c.baseH,
       fit: BoxFit.fill,
