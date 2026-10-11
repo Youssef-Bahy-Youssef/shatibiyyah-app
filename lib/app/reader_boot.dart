@@ -29,21 +29,23 @@ import 'reminders.dart';
 /// The verse the reader was on (restored at launch).
 const String kSessionVerse = 'v2.session.verse';
 
-Future<ReaderController> bootReader() async {
-  final content = await AppContent.open();
-  final prefs = await Prefs.create();
+/// Builds the reader. [supportDir] is where the app keeps its files (the
+/// platform's, unless a test gives one).
+Future<ReaderController> bootReader({Directory? supportDir}) async {
+  // What needs nothing from one another starts together: the bundled content, the
+  // preferences, the student's own data and the download service each wait on a
+  // different part of the platform, so the launch takes the longest of them, not
+  // their sum.
+  final files = supportDir == null ? getApplicationSupportDirectory() : Future.value(supportDir);
+  final (support, content, prefs, user, background) = await (
+    files,
+    files.then((dir) => AppContent.open(supportDir: dir)),
+    Prefs.create(),
+    files.then((dir) => UserStore.open(directory: dir.path)),
+    _startBackgroundTransfer(),
+  ).wait;
   migrateLegacyPrefs(prefs, content.matn);
-  final support = await getApplicationSupportDirectory();
 
-  final user = await UserStore.open(directory: support.path);
-  // Downloads carry on in the background where the platform allows it (Android);
-  // elsewhere, or if the service does not start, they run while the app runs.
-  BackgroundTransfer? background;
-  if (Platform.isAndroid) {
-    try {
-      background = await BackgroundTransfer.start();
-    } catch (_) {}
-  }
   final library = AudioLibrary(
     content: content,
     prefs: prefs,
@@ -55,7 +57,9 @@ Future<ReaderController> bootReader() async {
       transfer: background,
     ),
   );
-  await library.refresh();
+  final personal = PersonalData(user);
+  // The bookmarks and notes are read while the recordings on the device are looked at.
+  await (library.refresh(), personal.load()).wait;
   if (background != null) {
     background.onUnattendedComplete = library.backgroundFinished;
     // A download still running since before the app was closed: show it again.
@@ -72,6 +76,18 @@ Future<ReaderController> bootReader() async {
   final windows = await content.windowsOrNull(recording); // null: no audio for an unusable one (F-41)
 
   final initial = _restoreVerse(prefs, content.matn.lastVerse);
+  // The notifications are set up while the player opens the recording. Until
+  // there is a reader, its verse is the one it will open on.
+  ReaderController? shown;
+  final reminders = Reminders(
+    prefs: prefs,
+    port: LocalNotifications(),
+    content: content,
+    verse: () => shown?.verse ?? initial,
+  );
+  // No notifications on this platform: the reader works without them.
+  final remindersStarted = reminders.start().then((_) => true, onError: (Object _) => false);
+
   final chapter = content.matn.chapterOfVerse(initial);
   final engine = windows == null
       ? null
@@ -80,7 +96,7 @@ Future<ReaderController> bootReader() async {
         );
 
   final viewer = PageViewerController(legacyData(content, windows), prefs);
-  final reader = ReaderController(
+  final reader = shown = ReaderController(
     content: content,
     recording: recording,
     viewer: viewer,
@@ -97,18 +113,12 @@ Future<ReaderController> bootReader() async {
     reader.update = update;
     unawaited(update.check()); // the banner appears when Play answers
   }
-  final personal = PersonalData(user);
-  await personal.load();
   reader.personal = personal;
   CommentaryScreen.onOpened = () => unawaited(rating.used());
   void ribbons() => viewer.setRibbons({for (final e in personal.ribbons.entries) e.key: e.value.index});
   personal.addListener(ribbons);
   ribbons();
-  final reminders = Reminders(prefs: prefs, port: LocalNotifications(), content: content, verse: () => reader.verse);
-  try {
-    await reminders.start();
-    reader.reminders = reminders;
-  } catch (_) {} // no notifications on this platform: the reader works without them
+  if (await remindersStarted) reader.reminders = reminders;
   var saved = initial;
   reader.addListener(() {
     if (reader.verse != saved) {
@@ -117,6 +127,17 @@ Future<ReaderController> bootReader() async {
     }
   });
   return reader;
+}
+
+/// Downloads carry on in the background where the platform allows it (Android);
+/// elsewhere, or if the service does not start, they run while the app runs.
+Future<BackgroundTransfer?> _startBackgroundTransfer() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    return await BackgroundTransfer.start();
+  } catch (_) {
+    return null;
+  }
 }
 
 int _restoreVerse(Prefs prefs, int lastVerse) {
