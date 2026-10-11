@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Espresso, the launch and window background in both themes (features-v3 boot-splash). -->
-    <color name="espresso">#1B1307</color>
+    <!-- The launch and window background in both themes (features-v3 boot-splash): the night
+         ground the in-app splash is drawn on, from the tokens (widget_colors.xml is generated),
+         so the splash takes over from the launch screen without a change of colour. -->
+    <color name="launch_ground">@color/widget_night_bg</color>
 </resources>
