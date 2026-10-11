@@ -10,6 +10,10 @@
 // generation — a seek completing late, a silence timer, a boundary reached just
 // as the user pressed «next» — is dropped, so quick taps never jump back (AUD-20).
 //
+// While a seek is on its way the player's position is not read: a report it sent
+// just before it heard of the seek arrives just after, from where it stood. After
+// a jump back that is past the end of the verse asked for, and would end it.
+//
 // A range ends on time at any speed (ADR 0005): its end is scheduled from the
 // player's position and the speed, and set again on every position update. The
 // position stream alone is too coarse: about 200 ms apart, so at 2× it would let
@@ -87,6 +91,7 @@ class PlaybackEngine {
   double _speed = 1;
   PlanAction? _current;
   int _generation = 0;
+  int? _seeking; // the generation of the last seek asked, until the player answers it
 
   PlaybackEngine(this.audio, this.plan, {this.boundaryLeadMs = 40, this.commandLeadMs = 15}) {
     _positionSub = audio.positionMs.listen(_onPosition);
@@ -165,7 +170,12 @@ class PlaybackEngine {
       case PlayRange():
         if (!action.continuous) {
           _logEnd(ended, 'seek');
-          await audio.seek(action.fromMs);
+          _seeking = generation;
+          try {
+            await audio.seek(action.fromMs);
+          } finally {
+            if (_seeking == generation) _seeking = null; // unless a later seek is on its way
+          }
           if (generation != _generation) return; // superseded while seeking
         }
         if (!audio.playing) await audio.play();
@@ -186,6 +196,7 @@ class PlaybackEngine {
   void _onPosition(int ms) {
     final current = _current;
     if (current is! PlayRange || !audio.playing) return;
+    if (_seeking != null) return; // it may be from before the seek; reports count again once the player has answered
     if (ms >= _endOf(current) - boundaryLeadMs) {
       _run(plan.advance(), ended: current);
     } else {
@@ -203,7 +214,7 @@ class PlaybackEngine {
     _endTimer?.cancel();
     _endTimer = null;
     final current = _current;
-    if (current is! PlayRange || !_active || !audio.playing) return;
+    if (current is! PlayRange || !_active || !audio.playing || _seeking != null) return;
     final generation = _generation;
     final leftMs = _endOf(current) - (positionMs ?? audio.currentPositionMs);
     final wait = leftMs / _speed - commandLeadMs; // real time until the command should leave

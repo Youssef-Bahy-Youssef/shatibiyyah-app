@@ -145,6 +145,31 @@ class EndingAudio extends FakeAudio {
   }
 }
 
+/// A player as just_audio is: a seek moves its own position at once and is answered
+/// [seekMs] later. With [staleAt] set, a report the player sent before it heard of
+/// the next seek arrives 5 ms into it, and stands as its position until the answer.
+class SlowSeekAudio extends FakeAudio {
+  final int seekMs;
+  int? staleAt;
+  SlowSeekAudio({this.seekMs = 60});
+
+  @override
+  Future<void> seek(int ms) async {
+    await super.seek(ms);
+    final stale = staleAt;
+    staleAt = null;
+    if (stale == null) {
+      await Future<void>.delayed(Duration(milliseconds: seekMs));
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    _position = stale;
+    _positions.add(stale);
+    await Future<void>.delayed(Duration(milliseconds: seekMs - 5));
+    if (seeks.last == ms) _position = ms; // the player has arrived, unless it was sent elsewhere since
+  }
+}
+
 final windows = PlaybackWindows(
   cues: Int32List.fromList([-1, 1000, 2000, 3000, 4000, 5000]),
   durationMs: 6000,
@@ -240,6 +265,64 @@ void main() {
       expect(after.every((v) => v >= 4), isTrue, reason: '$verses');
       expect(audio.currentPositionMs, greaterThanOrEqualTo(4000));
       audio.dispose();
+    });
+  });
+
+  group('a position the player reported before a jump, arriving after it', () {
+    // Verse 4 is being recited when the jump is asked for: the late report is from there.
+    (SlowSeekAudio, PlaybackEngine, List<int>) reciting4(FakeAsync async) {
+      final audio = SlowSeekAudio();
+      final engine = PlaybackEngine(audio, PlaybackPlan(windows, const PlaybackScope(1, 5), const PlaybackSettings()));
+      engine.play();
+      async.elapse(const Duration(milliseconds: 3500));
+      expect(engine.state.verse, 4);
+      final verses = <int>[];
+      engine.states.listen((s) => verses.add(s.verse));
+      audio.staleAt = audio.currentPositionMs;
+      return (audio, engine, verses);
+    }
+
+    for (final target in [3, 2]) {
+      test('back to verse $target: the engine stays on it, then plays on', () {
+        fakeAsync((async) {
+          final (audio, engine, verses) = reciting4(async);
+          engine.jumpTo(target);
+          async.elapse(const Duration(milliseconds: 300));
+          // Past the end of the verse asked for, the report is not that verse's end.
+          expect(verses.toSet(), {target}, reason: '$verses');
+          expect(audio.seeks.last, windows.cue(target) - 50);
+          // Once the player has answered, its reports count again: the verse ends in its place.
+          async.elapse(const Duration(seconds: 1));
+          expect(engine.state.verse, target + 1);
+          expect(audio.seeks.last, windows.cue(target) - 50); // continuous: no second seek
+          audio.dispose();
+        });
+      });
+    }
+
+    test('a second jump before the player has answered the first: the last verse asked for stands', () {
+      fakeAsync((async) {
+        final (audio, engine, verses) = reciting4(async);
+        engine.jumpTo(2);
+        async.elapse(const Duration(milliseconds: 20));
+        engine.jumpTo(1);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(verses.toSet(), {1}, reason: '$verses');
+        expect(audio.currentPositionMs, inInclusiveRange(950, 2000));
+        audio.dispose();
+      });
+    });
+
+    test('a new speed before the player has answered does not end the verse from the old place', () {
+      fakeAsync((async) {
+        final (audio, engine, verses) = reciting4(async);
+        engine.jumpTo(3);
+        async.elapse(const Duration(milliseconds: 10)); // the late report stands as the player's position
+        engine.setSpeed(1.5);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(verses.toSet(), {3}, reason: '$verses');
+        audio.dispose();
+      });
     });
   });
 
