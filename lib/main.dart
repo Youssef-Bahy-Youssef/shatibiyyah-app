@@ -32,6 +32,7 @@ import 'ui/design/tz_theme.dart';
 import 'ui/reader/reader_controller.dart';
 import 'ui/shell/boot_splash.dart';
 import 'ui/shell/tour_screen.dart';
+import 'ui/widgets/page_viewer.dart';
 import 'ui/design/taysir_colors.dart';
 
 /// The lock-screen handler, once the platform service has started; null when it
@@ -197,7 +198,12 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
 
   Future<void> _init() async {
     try {
-      final reader = await bootReader();
+      // The page the reader opens on is decoded while the rest is prepared, so the
+      // splash never lifts on an empty sheet that the scan then pops into.
+      Future<void>? firstPage;
+      final reader = await bootReader(
+        onFirstPage: (page) => firstPage = mounted ? PageViewer.warm(context, page) : null,
+      );
       // A recitation takes over from the opening verse, and its switch going off ends it.
       reader.addListener(() {
         if (reader.playing || !reader.playOpening) unawaited(_opening.stop());
@@ -210,6 +216,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
         _widgets = HomeWidgets(port: PlatformWidgetPort(), reader: reader, open: _openFromWidget);
         unawaited(_widgets!.start());
       }
+      await firstPage;
       if (mounted) setState(() => _reader = reader);
     } catch (_) {
       if (mounted) setState(() => _error = true);

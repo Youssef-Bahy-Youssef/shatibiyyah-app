@@ -41,11 +41,13 @@ void main() {
 
   test('a first launch: verse 1, nothing to play, no marks, no reminder planned', () async {
     SharedPreferences.setMockInitialValues({});
-    final reader = await bootReader(supportDir: support);
+    final pages = <int>[];
+    final reader = await bootReader(onFirstPage: pages.add, supportDir: support);
     addTearDown(reader.content.store.close);
     addTearDown(reader.user!.db.close);
 
     expect(reader.verse, 1);
+    expect(pages, [1]);
     expect(reader.audioAvailable, isFalse); // no recording is bundled
     expect(reader.library!.isOnDevice(reader.recording), isFalse);
     expect(reader.personal!.bookmarks, isEmpty);
@@ -60,11 +62,13 @@ void main() {
     await user.db.close();
     SharedPreferences.setMockInitialValues({kSessionVerse: '226', kChapterReminderPref: '1'});
 
-    final reader = await bootReader(supportDir: support);
+    final pages = <int>[];
+    final reader = await bootReader(onFirstPage: pages.add, supportDir: support);
     addTearDown(reader.content.store.close);
     addTearDown(reader.user!.db.close);
 
     expect(reader.verse, 226);
+    expect(pages, [19]); // told once, for the page of the verse it opens on
     expect(reader.personal!.bookmarks.single.fromVerse, 229);
     expect(reader.viewer.ribbons, {229: BookmarkColor.green.index});
     // Planned while the reader was still being built: for the verse it opens on.

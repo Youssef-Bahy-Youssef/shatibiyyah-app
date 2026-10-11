@@ -29,9 +29,10 @@ import 'reminders.dart';
 /// The verse the reader was on (restored at launch).
 const String kSessionVerse = 'v2.session.verse';
 
-/// Builds the reader. [supportDir] is where the app keeps its files (the
-/// platform's, unless a test gives one).
-Future<ReaderController> bootReader({Directory? supportDir}) async {
+/// Builds the reader. [onFirstPage] is told the page it will open on as soon as
+/// that is known, well before the reader is there. [supportDir] is where the app
+/// keeps its files (the platform's, unless a test gives one).
+Future<ReaderController> bootReader({void Function(int page)? onFirstPage, Directory? supportDir}) async {
   // What needs nothing from one another starts together: the bundled content, the
   // preferences, the student's own data and the download service each wait on a
   // different part of the platform, so the launch takes the longest of them, not
@@ -45,6 +46,8 @@ Future<ReaderController> bootReader({Directory? supportDir}) async {
     _startBackgroundTransfer(),
   ).wait;
   migrateLegacyPrefs(prefs, content.matn);
+  final initial = _restoreVerse(prefs, content.matn.lastVerse);
+  onFirstPage?.call(content.layout.pageOfVerse(initial));
 
   final library = AudioLibrary(
     content: content,
@@ -75,7 +78,6 @@ Future<ReaderController> bootReader({Directory? supportDir}) async {
   final recording = library.current;
   final windows = await content.windowsOrNull(recording); // null: no audio for an unusable one (F-41)
 
-  final initial = _restoreVerse(prefs, content.matn.lastVerse);
   // The notifications are set up while the player opens the recording. Until
   // there is a reader, its verse is the one it will open on.
   ReaderController? shown;
