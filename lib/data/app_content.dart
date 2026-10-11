@@ -25,6 +25,10 @@ class AppContent {
   /// order): offered as «غير صالحة», never played. Found once at open (F-41).
   final Set<String> _unusable = {};
 
+  /// The windows of each usable recording, as they were found then: 1173 cues are
+  /// read from the database once, not again at boot and at every change of reciter.
+  final Map<String, PlaybackWindows> _windows = {};
+
   AppContent._(this.store, this.matn, this.layout, this.books, this.recordings, this.rumuz);
 
   /// Whether [recording] can be played: every verse has a cue, in order.
@@ -55,7 +59,7 @@ class AppContent {
     );
     for (final r in content.recordings.recordings) {
       try {
-        await content.windowsFor(r);
+        content._windows[r.id] = await content._readWindows(r);
       } on ArgumentError {
         content._unusable.add(r.id);
       }
@@ -64,7 +68,10 @@ class AppContent {
   }
 
   /// Verse and chapter windows of [recording] (spoken titles marked disputed are ignored).
-  Future<PlaybackWindows> windowsFor(Recording recording) async {
+  Future<PlaybackWindows> windowsFor(Recording recording) async =>
+      _windows[recording.id] ?? await _readWindows(recording);
+
+  Future<PlaybackWindows> _readWindows(Recording recording) async {
     final announcements = await recordings.announcements(recording.id);
     return PlaybackWindows(
       cues: await recordings.cues(recording.id, matn.lastVerse),

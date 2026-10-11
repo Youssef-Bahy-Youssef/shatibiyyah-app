@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/commentary_repository.dart';
 import 'package:shatibiyyah/data/content_store.dart';
 import 'package:shatibiyyah/data/layout_repository.dart';
@@ -52,6 +53,24 @@ void main() {
       final again = await ContentStore.open(
           loadAsset: _loadFromDisk, supportDir: support, factory: databaseFactoryFfi);
       expect(again.manifest.contentSha256, store.manifest.contentSha256);
+    });
+  });
+
+  group('AppContent', () {
+    test('a recording\'s windows are read once, at open', () async {
+      final dir = await Directory.systemTemp.createTemp('app_content_test');
+      final content = await AppContent.open(loadAsset: _loadFromDisk, supportDir: dir, factory: databaseFactoryFfi);
+      addTearDown(() async {
+        await content.store.close();
+        await dir.delete(recursive: true);
+      });
+      for (final r in content.recordings.recordings) {
+        expect(content.isUsable(r), isTrue);
+        final windows = await content.windowsFor(r);
+        expect(windows.lastVerse, 1173);
+        // What the boot and a change of reciter ask for is what was found at open.
+        expect(await content.windowsOrNull(r), same(windows));
+      }
     });
   });
 
