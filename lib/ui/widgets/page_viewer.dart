@@ -71,7 +71,14 @@ class PageViewerController extends ChangeNotifier {
   // page + highlight state
   int currentPage = 0;
   int? activeId;
+
+  /// The playing mark, in image pixels, and the page it is on: the active verse's
+  /// box, or its chapter's printed heading while the title is recited
+  /// ([activeTitle]). It stays through page turns: the wash is drawn whenever
+  /// [activePage] is the page on screen.
   Rect? activeBox;
+  int? activePage;
+  bool activeTitle = false;
   Rect? prevBox;
   double hiliteStart = 0;
   ({Rect box, double start})? pulse;
@@ -203,8 +210,8 @@ class PageViewerController extends ChangeNotifier {
     baseScale = baseW / _pageW;
     // re-clamp / re-center after the frame (avoid notify-during-build)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (zoom > 1.02 && activeBox != null) {
-        _centerOnBox(activeBox!, animate: false);
+      if (zoom > 1.02 && _activeHere != null) {
+        _centerOnBox(_activeHere!, animate: false);
       } else {
         _setView(zoom, tx, ty, false);
       }
@@ -291,8 +298,8 @@ class PageViewerController extends ChangeNotifier {
   void resetView(bool animate) => _setView(1, 0, 0, animate);
 
   void setZoom(double z, bool animate) {
-    if (activeBox != null && z > 1.02) {
-      _centerOnBox(activeBox!, zoom: z, animate: animate);
+    if (_activeHere != null && z > 1.02) {
+      _centerOnBox(_activeHere!, zoom: z, animate: animate);
     } else {
       _setView(z, tx, ty, animate);
     }
@@ -303,8 +310,8 @@ class PageViewerController extends ChangeNotifier {
     if (!isWide) return;
     if (zoom > 1.05) {
       resetView(true);
-    } else if (activeBox != null) {
-      _centerOnBox(activeBox!, zoom: 2.2, animate: true);
+    } else if (_activeHere != null) {
+      _centerOnBox(_activeHere!, zoom: 2.2, animate: true);
     } else {
       _setView(2.2, viewW / 2 - viewW, ty, true);
     }
@@ -323,10 +330,7 @@ class PageViewerController extends ChangeNotifier {
       return;
     }
     _loadPage(n);
-    if (activeId != null && data.pageOfVerse(activeId!) != n) {
-      activeBox = null;
-      prevBox = null;
-    }
+    prevBox = null; // a glide does not cross pages
     if (fromUser) {
       resetView(true);
       _pageChange.add(n);
@@ -340,24 +344,51 @@ class PageViewerController extends ChangeNotifier {
     setPage(n, true);
   }
 
+  /// The playing mark when it is on the page on screen.
+  Rect? get _activeHere => activePage == currentPage ? activeBox : null;
+
   // ── active verse highlight + follow (ported: setActiveVerse) ──
-  void setActiveVerse(int id) {
+  /// Marks verse [id] as the one recited. With [title], its chapter's title is
+  /// being recited: the mark is the heading printed on the page, where there is
+  /// one. With [follow] the view goes to the mark's page; without it the page on
+  /// screen stays (the student browsed away) and the mark waits on its own page.
+  void setActiveVerse(int id, {bool title = false, bool follow = true}) {
     final box = data.getBox(id);
     if (box == null) return;
-    final pageChanged = box.page != currentPage;
+    final chapter = box.chapterId;
+    final opens = chapter >= 0 && data.chapters[chapter].startVerse == id;
+    final heading = title && opens ? data.chapterBox(chapter) : null;
+    final page = heading == null ? box.page : data.pageOfChapter(chapter) ?? box.page;
     activeId = id;
-    prevBox = reduceMotion ? null : activeBox;
-    activeBox = Rect.fromLTWH(box.x, box.y, box.w, box.h);
+    activeTitle = title;
+    // The wash glides from where it was only on the same page.
+    prevBox = reduceMotion || activePage != page ? null : activeBox;
+    activeBox = heading ?? Rect.fromLTWH(box.x, box.y, box.w, box.h);
+    activePage = page;
     hiliteStart = _animNow();
 
-    if (pageChanged) {
+    if (page == currentPage) {
+      _followActive(activeBox!);
+    } else if (follow) {
       // v3: a page turn shows the whole new page; the view only zooms by the
       // student's own pinch or double-tap (the old 1.5× "cinematic turn" is gone).
-      _loadPage(box.page);
+      _loadPage(page);
       resetView(false);
-    } else {
-      _followActive(activeBox!);
     }
+    _invalidate();
+  }
+
+  /// Shows verse [id]'s page and pulses the verse, leaving the playing mark where
+  /// it is: the student went to look at a verse while another is recited.
+  void showVerse(int id) {
+    final b = data.getBox(id);
+    if (b == null) return;
+    if (b.page != currentPage) {
+      _loadPage(b.page);
+      prevBox = null;
+      resetView(false);
+    }
+    if (!reduceMotion) pulse = (box: Rect.fromLTWH(b.x, b.y, b.w, b.h), start: _animNow());
     _invalidate();
   }
 
@@ -488,7 +519,7 @@ class PageViewerController extends ChangeNotifier {
   /// previous verse's box to the current one in 320 ms, emphasized (v2.css
   /// .hl.play); at once under reduced motion. In image pixels.
   Rect? playingRectAt(double now) {
-    final to = activeBox;
+    final to = _activeHere;
     if (to == null) return null;
     final from = prevBox;
     if (from == null) return to;

@@ -37,9 +37,10 @@ class AppShell extends StatefulWidget {
   static AppShellState? of(BuildContext context) => context.findAncestorStateOfType<AppShellState>();
 
   /// Opens [verse] in the reader from anywhere: a tab (the shell above it) or a
-  /// pushed screen (the shell at the root), then back to the top level.
+  /// pushed screen (the shell at the root), then back to the top level. A
+  /// recitation that is playing goes on where it is (ReaderController.goToVerse).
   static void openVerse(BuildContext context, ReaderController reader, int verse) {
-    reader.tapVerse(verse);
+    reader.goToVerse(verse);
     (of(context) ?? appShell.currentState)?.select(DockTab.matn);
     Navigator.of(context).popUntil((r) => r.isFirst);
   }

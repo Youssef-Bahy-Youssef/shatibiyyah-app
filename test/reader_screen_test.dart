@@ -181,6 +181,36 @@ void main() {
     await unmount(tester);
   });
 
+  // ADR 0030: «عودة إلى البيت N» shows only while the recited verse is off the page on screen.
+  testWidgets('playing: a page turned away from shows the chip; back on the verse\'s page it goes and the verse is washed',
+      (tester) async {
+    final r = await reader(tester, audio: true);
+    await show(tester, r);
+    Future<void> frames() async {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    await tester.runAsync(r.playPause);
+    await frames();
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsNothing);
+
+    r.viewer.setPage(21, true);
+    await frames();
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsOneWidget);
+    expect(r.viewer.playingRectAt(r.viewer.hiliteStart + 1000), isNull);
+
+    r.viewer.setPage(19, true); // by hand, not by the chip
+    await frames();
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsNothing);
+    expect(r.viewer.playingRectAt(r.viewer.hiliteStart + 1000), r.viewer.activeBox);
+    expect(r.viewer.activePage, 19);
+    await tester.runAsync(r.playPause);
+    await frames();
+    await unmount(tester);
+  });
+
   group('text mode', () {
     Future<ReaderController> textMode(WidgetTester tester) async {
       final r = await reader(tester);
