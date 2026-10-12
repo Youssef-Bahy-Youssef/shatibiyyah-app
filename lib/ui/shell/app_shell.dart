@@ -133,6 +133,7 @@ class AppShellState extends State<AppShell> {
     final library = r.library;
     if (r.audioAvailable) {
       final section = r.section!;
+      final time = r.sectionTime!;
       final of = section.toVerse - section.fromVerse + 1;
       final at = (r.verse - section.fromVerse + 1).clamp(1, of);
       final repeats = r.settings.verseRepeats;
@@ -147,7 +148,10 @@ class AppShellState extends State<AppShell> {
         subtitle: [rec.reciterName, ...settings].join(' · '),
         compactSubtitle: settings.isEmpty ? null : settings.join(' · '),
         playing: r.playing,
-        progress: (at - 1 + 0.4) / of,
+        // The bar is the section as time, the same measure as the player's
+        // scrubber. It follows the player's position, which the reader does not report.
+        progress: r.sectionProgress(time),
+        progressChanges: r.engine!.audio.positionMs.map((_) => r.sectionProgress(time)),
         onPrevious: r.previous,
         onToggle: r.playPause,
         onNext: r.next,

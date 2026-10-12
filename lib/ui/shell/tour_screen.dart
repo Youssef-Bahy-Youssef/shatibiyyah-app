@@ -1,4 +1,4 @@
-// lib/ui/shell/tour_screen.dart — first run: the tour, then «اختر القارئ»
+// lib/ui/shell/tour_screen.dart — first run: the tour, then «اختر التلاوة»
 // (features-v3 onboarding-tour, reciter-catalog).
 //
 // Three short cards over the real page (page 19, not an illustration), each
@@ -6,11 +6,11 @@
 // recited, with the dock under it; a verse held, with its menu; the commentary
 // sheet with the three books. The page stays where it is and what lies on it
 // changes. «تخطَّ» is always there, a swipe or Back moves between the cards, and
-// «حول» can replay the tour. No permission is asked here. Card 3 is «الشروح
-// الثلاثة على جهازك» (plan rev. 3: the prototype's third card hinted at the
-// quiz, which v2 drops).
+// «حول» can replay the tour. No permission is asked here. Card 3 is the three
+// commentaries (plan rev. 3: the prototype's third card hinted at the quiz,
+// which v2 drops).
 //
-// Then the reciter: the pages and books already work; pick a voice, and either
+// Then the recording: the pages and books already work; pick one, and either
 // download it and start (the download goes on while reading) or «لاحقًا».
 import 'dart:math' as math;
 
@@ -36,16 +36,16 @@ bool tourDone(Prefs prefs) => prefs.getString(kTourDonePref) == '1';
 
 const _cards = [
   (
-    title: 'المتن أولًا',
-    text: 'صفحات الشاطبية كما كُتبت، والبيت الذي يُتلى مظلَّل.',
+    title: 'المتن بين يديك',
+    text: 'صفحات متن الشاطبية بتحقيق الشيخ محمد تميم الزعبي، والبيت الذي تسمعه مظلَّل أمامك.',
   ),
   (
-    title: 'الشرح والمراجعة حول البيت',
-    text: 'اضغط مطوّلًا على بيت لتقرأ شرحه، أو تسمعه من موضعه، أو تضع عليه مرجعًا أو ملاحظة تعود إليها.',
+    title: 'اضغط مطوّلًا على أي بيت',
+    text: 'تقرأ شرحه، أو تبدأ الاستماع منه، أو تضع عليه مرجعًا أو ملاحظة تعود إليها.',
   ),
   (
-    title: 'الشروح الثلاثة على جهازك',
-    text: 'الوافي وإبراز المعاني وسراج القارئ مع الصفحات والنص، كلها على جهازك وتعمل دون اتصال. التلاوة وحدها تُنزَّل، مرة واحدة.',
+    title: 'متوفر حاليًا ثلاثة شروح لكل بيت',
+    text: 'الوافي وإبراز المعاني وسراج القارئ: تنقّل بينها والبيت أمامك. المتن والشروح على جهازك دون اتصال، والتلاوة تُنزَّل مرة واحدة.',
   ),
 ];
 
@@ -243,7 +243,7 @@ class _TourScreenState extends State<TourScreen> {
                   SizedBox(
                     width: 148,
                     child: TzButton.primary(
-                      label: last && !widget.replay ? 'اختر القارئ' : (last ? 'تم' : 'التالي'),
+                      label: last && !widget.replay ? 'اختر التلاوة' : (last ? 'تم' : 'التالي'),
                       onPressed: _next,
                     ),
                   ),
@@ -283,7 +283,7 @@ class _Steps extends StatelessWidget {
   }
 }
 
-/// «اختر القارئ»: the pages and books already work; choose a voice.
+/// «اختر التلاوة»: the pages and books already work; choose a recording.
 class _PickReciter extends StatelessWidget {
   final AudioLibrary library;
   final VoidCallback onDone;
@@ -303,12 +303,12 @@ class _PickReciter extends StatelessWidget {
             // A screen of its own: the unwan, as on the dock's tabs.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Semantics(header: true, child: Text('اختر القارئ', style: TzType.display.copyWith(color: c.ink))),
+              child: Semantics(header: true, child: Text('اختر التلاوة', style: TzType.display.copyWith(color: c.ink))),
             ),
             const Padding(padding: EdgeInsets.fromLTRB(20, 6, 20, 0), child: GiltRule()),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-              child: Text('تعمل الصفحات والشروح الآن دون تنزيل. اختر صوتًا تسمعه مع كل بيت.',
+              child: Text('المتن والشروح جاهزة الآن دون تنزيل. اختر التلاوة التي تسمعها مع المتن.',
                   style: TzType.body.copyWith(color: c.ink2)),
             ),
             for (final rec in library.recordings)

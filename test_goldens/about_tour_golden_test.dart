@@ -1,10 +1,12 @@
 // ignore_for_file: invalid_use_of_visible_for_testing_member
-// Golden images of «حول» and the tour (its three cards and «اختر القارئ»), in
+// Golden images of «حول» and the tour (its three cards and «اختر التلاوة»), in
 // paper and night, at 2× with real shadows as the handoff's goldens are. The
 // design has no drawing of these screens: they are built from its components,
 // and these images pin how that came out. «حول» is a debug build's, so it has
-// the «نسخة التطوير» group a store build leaves out. See reader_golden_test.dart
-// for how goldens depend on the platform.
+// the «نسخة التطوير» group a store build leaves out; it is longer than the
+// screen, so it is drawn twice, as it opens and at its end, with every row of
+// «رأيك ودعمك» (an address and a store page are given to it). See
+// reader_golden_test.dart for how goldens depend on the platform.
 //
 //   flutter test test_goldens/about_tour_golden_test.dart [--update-goldens]
 import 'dart:ui' as ui;
@@ -12,6 +14,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/app/app_links.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/about_screen.dart';
@@ -85,8 +88,23 @@ void main() {
     }
   }
 
+  Widget about(ReaderController r) => AboutScreen(
+        reader: r,
+        links: AppLinks(
+          supportEmail: 'taysir@example.org',
+          listing: Uri.https('play.google.com', '/store/apps/details', {'id': kAndroidPackage}),
+          storeName: 'Google Play',
+        ),
+      );
+
   for (final (theme, tz) in [('paper', TzTheme.paper), ('night', TzTheme.dark)]) {
-    testWidgets('about-$theme', (tester) => shoot(tester, 'about-$theme', tz, (r) => AboutScreen(reader: r)));
+    testWidgets('about-$theme', (tester) => shoot(tester, 'about-$theme', tz, about));
+    testWidgets(
+        'about-end-$theme',
+        (tester) => shoot(tester, 'about-end-$theme', tz, about, then: (tester) async {
+              await tester.drag(find.byType(ListView), const Offset(0, -2000));
+              await tester.pump(const Duration(milliseconds: 100));
+            }));
     for (var card = 1; card <= 3; card++) {
       testWidgets('tour-$card-$theme',
           (tester) => shoot(tester, 'tour-$card-$theme', tz, tour, then: (tester) => tap(tester, 'التالي', times: card - 1)));

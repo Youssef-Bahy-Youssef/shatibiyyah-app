@@ -3,6 +3,8 @@
 // failed) over the four tabs (54 px); the active tab is filled and marked with a
 // gilt lozenge. Cover fill, 26 px radius, the dock shadow. 44 px buttons get a
 // 48 px target without moving. Playing, the row ends in previous, play, next.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -204,5 +206,51 @@ void main() {
     await pumpTz(tester, dock(at(0.6)), reducedMotion: true, settle: false);
     await expectInstant(tester);
     expect(tester.getSize(find.byKey(Dock.barFillKey)).width, closeTo(338 * 0.6, 0.5));
+  });
+
+  testWidgets('the bar follows the recitation: a small step at once, an unseen one not at all, a jump over 320 ms', (tester) async {
+    final moves = StreamController<double>();
+    addTearDown(moves.close);
+    await pumpTz(
+      tester,
+      dock(NpPlaying(verse: '٢٢٩', position: '٤ من ٩', subtitle: '', playing: true, progress: 0.2, progressChanges: moves.stream, onPrevious: () {}, onToggle: () {}, onNext: () {})),
+    );
+    double width() => tester.getSize(find.byKey(Dock.barFillKey)).width;
+    Future<void> move(double p) async {
+      moves.add(p);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    expect(width(), closeTo(338 * 0.2, 0.01));
+    await move(0.21);
+    expect(width(), closeTo(338 * 0.21, 0.01));
+    expect(tester.hasRunningAnimations, isFalse);
+    await move(0.2103);
+    expect(width(), closeTo(338 * 0.21, 0.01));
+    // The steps no one sees add up: the bar is never more than half a pixel behind.
+    await move(0.2106);
+    expect(width(), closeTo(338 * 0.2106, 0.01));
+
+    await move(0.6); // another verse
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(width(), inExclusiveRange(338 * 0.2106, 338 * 0.6));
+    await tester.pumpAndSettle();
+    expect(width(), closeTo(338 * 0.6, 0.01));
+    await move(0.05); // a repeat goes back
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(width(), inExclusiveRange(338 * 0.05, 338 * 0.6));
+    await tester.pumpAndSettle();
+    expect(width(), closeTo(338 * 0.05, 0.01));
+
+    // The two ends are drawn however small the last step is.
+    await move(0.9998);
+    await tester.pumpAndSettle();
+    await move(1);
+    expect(width(), 338);
+    await move(0.0002);
+    await tester.pumpAndSettle();
+    await move(0);
+    expect(width(), 0);
   });
 }

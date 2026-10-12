@@ -1,12 +1,9 @@
 // Item 3.13 (was 3.9; F-60, F-61): while a recitation plays, a position tick
 // rebuilds nothing. The page image and the highlight are two layers: the glide
 // of the highlight to the next verse (320 ms) repaints the highlight alone.
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shatibiyyah/domain/playback_engine.dart';
 import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/ui/design/tz_theme.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
@@ -15,35 +12,6 @@ import 'package:shatibiyyah/ui/widgets/page_viewer.dart';
 
 import 'handoff/fixtures.dart';
 import 'handoff/handoff.dart';
-
-/// An audio port whose position the test moves.
-class TickingAudio implements AudioPort {
-  final _positions = StreamController<int>.broadcast();
-  int _at = 0;
-  bool _playing = false;
-
-  void tick(int ms) {
-    _at = ms;
-    _positions.add(ms);
-  }
-
-  @override
-  Stream<int> get positionMs => _positions.stream;
-  @override
-  int get currentPositionMs => _at;
-  @override
-  bool get playing => _playing;
-  @override
-  Stream<bool> get playingChanges => const Stream.empty();
-  @override
-  Future<void> seek(int ms) async => _at = ms;
-  @override
-  Future<void> play() async => _playing = true;
-  @override
-  Future<void> pause() async => _playing = false;
-  @override
-  Future<void> setSpeed(double speed) async {}
-}
 
 void main() {
   final data = HandoffContent();
