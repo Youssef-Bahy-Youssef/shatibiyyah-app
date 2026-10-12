@@ -106,6 +106,38 @@ void main() {
     expect(handler.playbackState.value.playing, isFalse);
   });
 
+  test('the app swiped away from the recent apps: the recitation stops and the session ends', () async {
+    final r = await reader();
+    final handler = LockScreenHandler()..attach(r);
+    await handler.play();
+    await Future<void>.delayed(Duration.zero);
+    expect((r.playing, handler.playbackState.value.processingState), (true, AudioProcessingState.ready));
+
+    await handler.onTaskRemoved();
+    await Future<void>.delayed(Duration.zero);
+    expect(r.playing, isFalse);
+    expect(r.engine!.audio.playing, isFalse, reason: 'the player itself has stopped');
+    // Idle is what takes the notification down and lets the Android service end.
+    expect(handler.playbackState.value.processingState, AudioProcessingState.idle);
+    expect(handler.playbackState.value.playing, isFalse);
+
+    r.setSpeed(1.5); // a late change in the reader does not bring the notification back
+    expect(handler.playbackState.value.processingState, AudioProcessingState.idle);
+
+    await handler.play(); // the app opened again in the same process
+    await Future<void>.delayed(Duration.zero);
+    expect((r.playing, handler.playbackState.value.processingState, handler.playbackState.value.playing),
+        (true, AudioProcessingState.ready, true));
+    await handler.pause();
+  });
+
+  test('swiped away with nothing playing: the session ends all the same', () async {
+    final handler = LockScreenHandler()..attach(await reader());
+    expect(handler.playbackState.value.processingState, AudioProcessingState.ready);
+    await handler.onTaskRemoved();
+    expect(handler.playbackState.value.processingState, AudioProcessingState.idle);
+  });
+
   test('without a recording on the device the session is idle', () async {
     final handler = LockScreenHandler()..attach(await reader(audio: false));
     expect(handler.playbackState.value.processingState, AudioProcessingState.idle);

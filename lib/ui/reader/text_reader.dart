@@ -7,13 +7,17 @@
 // reader's verse and follows it; the recited verse lies on the soft gilt wash,
 // the chosen one (its menu open, or a selected run) is ringed. A tap moves the
 // reader to a verse; a long press (or a double tap, as on the page) opens its
-// menu. The size is the reader's choice of six (17–28 px).
+// menu. The size is the reader's choice of six (17–28 px). While a chapter's
+// title is recited the wash lies on its head. Scrolled by hand until the recited
+// verse is out of view, the column stops following it (the reader's «عودة إلى
+// البيت N» leads back); it follows again once the verse is back in view.
 //
 // The poem has 1173 verses and no fixed heights, so the column is built around
 // an anchor: the verse it opens on stands at the top of a list that grows down
 // from it, over another that grows up from it. A verse out of reach makes a new
 // anchor.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../data/matn_repository.dart';
 import '../../utils/arabic.dart';
@@ -108,6 +112,8 @@ class TextReaderState extends State<TextReader> {
   }
 
   int? _explained;
+  int? _browsed;
+  bool _detached = false;
 
   void _onReader() {
     // The verse the commentary sheet explains stands above the sheet.
@@ -116,9 +122,57 @@ class TextReaderState extends State<TextReader> {
       _explained = explained;
       if (explained != null) WidgetsBinding.instance.addPostFrameCallback((_) => _standAbove(explained));
     }
-    if (_reader.verse == _followedVerse) return;
+    // A verse opened from elsewhere while another is recited: it is shown, and
+    // the column stops following until the student comes back.
+    final browsed = _reader.browsedVerse;
+    if (browsed != _browsed) {
+      _browsed = browsed;
+      if (browsed != null) WidgetsBinding.instance.addPostFrameCallback((_) => _showBrowsed(browsed));
+    }
+    final returned = _detached && !_reader.detached; // «عودة إلى البيت N»
+    final moved = _reader.verse != _followedVerse;
+    _detached = _reader.detached;
     _followedVerse = _reader.verse;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_followedVerse));
+    if (_detached) {
+      // The recitation reached a verse on screen: the column follows it again.
+      if (moved) WidgetsBinding.instance.addPostFrameCallback((_) => _rejoin());
+    } else if (moved || returned) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(_followedVerse));
+    }
+  }
+
+  /// Whether [verse]'s unit is on screen, in part or (with [whole]) in full.
+  bool _inView(int verse, {bool whole = false}) {
+    final box = rowRect(verse), viewport = context.findRenderObject() as RenderBox?;
+    if (box == null || viewport == null || !viewport.hasSize) return false;
+    final view = viewport.localToGlobal(Offset.zero) & viewport.size;
+    final bottom = view.bottom - widget.bottomInset;
+    return whole ? box.top >= view.top && box.bottom <= bottom : box.bottom > view.top && box.top < bottom;
+  }
+
+  void _showBrowsed(int verse) {
+    if (!mounted) return;
+    // Both on screen already: there is nowhere to come back from.
+    if (_inView(verse, whole: true) && _inView(_reader.verse, whole: true)) {
+      return _reader.viewMoved(onRecited: true);
+    }
+    _reveal(verse);
+  }
+
+  void _rejoin() {
+    if (mounted && _reader.detached && _inView(_reader.verse)) _reader.viewMoved(onRecited: true);
+  }
+
+  /// The student's own scroll has come to rest. Where the units stand is known
+  /// once the frame that follows is laid out.
+  bool _onUserScroll(UserScrollNotification n) {
+    if (n.direction != ScrollDirection.idle || n.depth != 0) return false;
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) {
+        if (mounted) _reader.viewMoved(onRecited: _inView(_reader.verse));
+      })
+      ..ensureVisualUpdate();
+    return false;
   }
 
   /// Brings [verse] into view: nothing if it is all on screen, a glide if its
@@ -130,11 +184,7 @@ class TextReaderState extends State<TextReader> {
       setState(() => _anchorOn(verse));
       return;
     }
-    final box = rowRect(verse), viewport = context.findRenderObject() as RenderBox?;
-    if (box != null && viewport != null && viewport.hasSize) {
-      final view = viewport.localToGlobal(Offset.zero) & viewport.size;
-      if (box.top >= view.top && box.bottom <= view.bottom - widget.bottomInset) return;
-    }
+    if (_inView(verse, whole: true)) return;
     Scrollable.ensureVisible(
       row,
       alignment: 0.3,
@@ -147,12 +197,7 @@ class TextReaderState extends State<TextReader> {
   /// Under the commentary sheet: [verse] is all in view above it, or the column
   /// is laid out afresh with the verse at its top.
   void _standAbove(int verse) {
-    if (!mounted) return;
-    final box = rowRect(verse), viewport = context.findRenderObject() as RenderBox?;
-    if (box != null && viewport != null && viewport.hasSize) {
-      final view = viewport.localToGlobal(Offset.zero) & viewport.size;
-      if (box.top >= view.top && box.bottom <= view.bottom - widget.bottomInset) return;
-    }
+    if (!mounted || _inView(verse, whole: true)) return;
     setState(() => _anchorOn(verse));
   }
 
@@ -168,15 +213,18 @@ class TextReaderState extends State<TextReader> {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, box) => _Column(
-          key: ValueKey(_generation),
-          length: _items.length,
-          anchor: _anchor,
-          lead: _lead,
-          // On a tablet the column keeps a reading width.
-          padding: readingPadding(box.maxWidth, side: 12),
-          bottomInset: widget.bottomInset,
-          itemBuilder: _item,
+        builder: (context, box) => NotificationListener<UserScrollNotification>(
+          onNotification: _onUserScroll,
+          child: _Column(
+            key: ValueKey(_generation),
+            length: _items.length,
+            anchor: _anchor,
+            lead: _lead,
+            // On a tablet the column keeps a reading width.
+            padding: readingPadding(box.maxWidth, side: 12),
+            bottomInset: widget.bottomInset,
+            itemBuilder: _item,
+          ),
         ),
       );
 
@@ -193,6 +241,8 @@ class TextReaderState extends State<TextReader> {
             'الأبيات ${isolatedRange(chapter.fromVerse, chapter.toVerse)} · ${versesCount(chapter.verseCount)}',
         title: chapter.title,
         verseSize: size,
+        // Its spoken title is being recited (before the chapter's first verse).
+        playing: _reader.playing && _reader.inTitle && _reader.verse == chapter.fromVerse,
       );
     }
     final v = matn.verse(n);
@@ -210,7 +260,7 @@ class TextReaderState extends State<TextReader> {
         onSymbol: (mark) => _reader.openSymbol(n, mark),
         activeSymbol: symbol != null && symbol.verse == n ? symbol.mark : null,
         fontSize: size,
-        playing: _reader.playing && n == _reader.verse,
+        playing: _reader.playing && n == _reader.verse && !_reader.inTitle,
         chosen: n == _reader.menuVerse || n == _reader.commentaryVerse || (sel != null && sel.from <= n && n <= sel.to),
         onTap: () => _reader.tapVerse(n),
         onDoubleTap: () => _reader.openMenu(n),

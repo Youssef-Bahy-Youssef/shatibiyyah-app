@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shatibiyyah/data/settings_store.dart';
+import 'package:shatibiyyah/domain/playback_plan.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/components/chapter_head.dart';
 import 'package:shatibiyyah/ui/design/components/verse_unit.dart';
+import 'package:shatibiyyah/ui/design/tokens.g.dart';
 import 'package:shatibiyyah/ui/reader/display_sheet.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/reader/text_reader.dart';
@@ -152,5 +154,119 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(DisplaySheet), findsNothing);
     await unmount(tester);
+  });
+
+  // ADR 0030: the column follows the recitation until the student looks elsewhere.
+  group('following the recitation', () {
+    const chip = 'عودة إلى البيت';
+
+    /// The player's answer reaches the reader, and the frames after it are drawn.
+    Future<void> frames(WidgetTester tester) async {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    bool onScreen(WidgetTester tester, int verse) =>
+        unit(verse).evaluate().isNotEmpty &&
+        tester.getRect(find.byType(TextReader)).overlaps(tester.getRect(unit(verse)));
+
+    testWidgets('a chapter\'s title being recited: the wash is on its head, then on its first verse', (tester) async {
+      final r = await textMode(tester);
+      await tester.runAsync(() => r.playChapter(data.content.matn.chapterOfVerse(226)));
+      await frames(tester);
+      expect((r.playing, r.inTitle), (true, true));
+      expect(tester.widget<ChapterHead>(head(11)).playing, isTrue);
+      expect(tester.widget<VerseUnit>(unit(226)).playing, isFalse);
+      final wash = tester.widget<AnimatedContainer>(find.descendant(of: head(11), matching: find.byKey(ChapterHead.titleKey)));
+      expect((wash.decoration! as BoxDecoration).color, TzColors.paper.giltWashSoft);
+
+      await tester.runAsync(() => r.tapVerse(226)); // the verse itself
+      await frames(tester);
+      expect(r.inTitle, isFalse);
+      expect(tester.widget<ChapterHead>(head(11)).playing, isFalse);
+      expect(tester.widget<VerseUnit>(unit(226)).playing, isTrue);
+      await tester.runAsync(r.playPause);
+      await unmount(tester);
+    });
+
+    testWidgets('a verse opened from elsewhere while playing: it is shown, the recitation goes on, the chip leads back',
+        (tester) async {
+      final r = await textMode(tester);
+      await tester.runAsync(r.playPause);
+      await frames(tester);
+      expect(find.textContaining(chip), findsNothing);
+
+      await tester.runAsync(() => r.goToVerse(1000));
+      await frames(tester);
+      expect(onScreen(tester, 1000), isTrue);
+      expect((r.verse, r.playing, r.detached), (226, true, true));
+      expect(find.text('$chip ٢٢٦'), findsOneWidget);
+      final opened = tester.widget<VerseUnit>(unit(1000));
+      expect((opened.playing, opened.chosen), (false, false), reason: 'nothing marks the verse opened');
+
+      // The recitation moves on: the column stays where the student is.
+      await tester.runAsync(() => r.engine!.jumpTo(227));
+      await frames(tester);
+      expect((r.verse, onScreen(tester, 1000), onScreen(tester, 227)), (227, true, false));
+
+      await tester.tap(find.text('$chip ٢٢٧'));
+      await frames(tester);
+      expect((r.detached, onScreen(tester, 227)), (false, true));
+      expect(find.textContaining(chip), findsNothing);
+      await tester.runAsync(r.playPause);
+      await unmount(tester);
+    });
+
+    testWidgets('scrolled away by hand: the chip shows and the column stays; scrolled back: it follows again',
+        (tester) async {
+      final r = await textMode(tester);
+      await tester.runAsync(r.playPause);
+      await frames(tester);
+
+      await tester.drag(find.byType(TextReader), const Offset(0, -2400));
+      await frames(tester);
+      expect((onScreen(tester, 226), r.detached), (false, true));
+      expect(find.text('$chip ٢٢٦'), findsOneWidget);
+
+      await tester.runAsync(() => r.engine!.jumpTo(227)); // as if the recitation went on
+      await frames(tester);
+      expect((r.verse, onScreen(tester, 227), r.detached), (227, false, true), reason: 'the column was not pulled back');
+
+      await tester.drag(find.byType(TextReader), const Offset(0, 2400));
+      await frames(tester);
+      expect((onScreen(tester, 227), r.detached), (true, false));
+      expect(find.textContaining(chip), findsNothing);
+      await tester.runAsync(r.playPause);
+      await unmount(tester);
+    });
+
+    testWidgets('the recitation reaches a verse on screen: the column follows it again', (tester) async {
+      final r = await textMode(tester);
+      await tester.runAsync(() => r.playScope(const PlaybackScope(226, 240)));
+      await frames(tester);
+      await tester.drag(find.byType(TextReader), const Offset(0, -900));
+      await frames(tester);
+      expect((onScreen(tester, 226), r.detached), (false, true));
+      final ahead = [for (var v = 227; v <= 240; v++) if (onScreen(tester, v)) v];
+      expect(ahead, isNotEmpty);
+
+      final next = ahead[ahead.length ~/ 2]; // the last one may stand behind the dock
+      await tester.runAsync(() => r.engine!.jumpTo(next));
+      await frames(tester);
+      expect((r.verse, r.detached), (next, false));
+      expect(find.textContaining(chip), findsNothing);
+      await tester.runAsync(r.playPause);
+      await unmount(tester);
+    });
+
+    testWidgets('nothing playing: scrolling shows no chip', (tester) async {
+      final r = await textMode(tester);
+      await tester.drag(find.byType(TextReader), const Offset(0, -2400));
+      await frames(tester);
+      expect(r.detached, isFalse);
+      expect(find.textContaining(chip), findsNothing);
+      await unmount(tester);
+    });
   });
 }

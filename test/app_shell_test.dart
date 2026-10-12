@@ -153,6 +153,46 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a chapter chosen in the index while a recitation plays: it goes on, and the chip leads back',
+      (tester) async {
+    final r = await open(tester, audio: true);
+    // What plays keeps moving (the shamsa, the equaliser): frames are pumped, never settled.
+    Future<void> frames() async {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+
+    await tester.runAsync(r.playPause);
+    await frames();
+    expect(r.playing, isTrue);
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsNothing);
+
+    await tester.tap(find.text('الفهرس'));
+    await frames();
+    final first = content.matn.chapters.firstWhere((c) => c.partId == content.matn.parts[2].id);
+    await tester.enterText(find.byType(TextField), '${first.fromVerse}');
+    await frames();
+    await tester.tap(find.text(first.shortLabel));
+    await frames();
+
+    expect(find.byType(IndexScreen), findsNothing);
+    expect((r.verse, r.playing), (226, true), reason: 'the recitation is where it was');
+    expect(r.viewer.currentPage, content.layout.pageOfVerse(first.fromVerse));
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsOneWidget);
+    // Nothing marks the chapter's first verse: no wash, no pulse (the owner's choice).
+    expect(r.viewer.activeId, 226);
+    expect((r.viewer.pulse, r.viewer.playingRectAt(r.viewer.hiliteStart + 1000)), (null, null));
+
+    await tester.tap(find.text('عودة إلى البيت ٢٢٦'));
+    await frames();
+    expect(r.viewer.currentPage, 19);
+    expect(find.text('عودة إلى البيت ٢٢٦'), findsNothing);
+    await tester.runAsync(r.playPause);
+    await frames();
+    await unmount(tester);
+  });
+
   testWidgets('a tap on the page leaves the top bar and the dock where they are, and usable', (tester) async {
     await open(tester);
     final bar = find.text('نقل حركة الهمزة إلى الساكن قبلها'), dock = find.byType(Dock);

@@ -229,7 +229,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     final navigator = appNavigator.currentState;
     if (reader == null || navigator == null) return;
     navigator.popUntil((r) => r.isFirst);
-    reader.tapVerse(target.verse);
+    reader.goToVerse(target.verse);
     appShell.currentState?.select(DockTab.matn);
   }
 
@@ -244,7 +244,7 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     navigator.popUntil((r) => r.isFirst);
     if (request.verse case final verse?) {
       // The widget shows the current verse: only a widget that is behind moves the reader.
-      if (verse != reader.verse) reader.tapVerse(verse);
+      if (verse != reader.verse) reader.goToVerse(verse);
       appShell.currentState?.select(DockTab.matn);
     } else {
       navigator.push(MaterialPageRoute<void>(builder: (_) => AppRoute.downloads.build(reader)));

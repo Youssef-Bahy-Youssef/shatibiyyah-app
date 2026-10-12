@@ -2,9 +2,14 @@
 //
 // Owns what the reader shows and plays: the current verse, whether the view
 // follows playback or the student has browsed away (the «عودة إلى البيت N» chip),
-// and the verse menu. The top bar and the dock always show. Playback runs on the rule-tested PlaybackPlan/PlaybackEngine
-// over just_audio; with no recording on the device there is no engine and the
-// player says so. Page drawing reuses PageViewerController.
+// and the verse menu. The view follows the recitation until the student looks
+// elsewhere (turns the page, scrolls the text, opens a verse from the index or a
+// search): the recitation goes on, the chip leads back, and the view follows
+// again by itself once the recited verse is back on screen (ADR 0030). The top
+// bar and the dock always show. Playback runs on the rule-tested
+// PlaybackPlan/PlaybackEngine over just_audio; with no recording on the device
+// there is no engine and the player says so. Page drawing reuses
+// PageViewerController.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -70,6 +75,7 @@ class ReaderController extends ChangeNotifier {
   bool _textMode = false;
   double _textScale = 1;
   bool _detached = false;
+  int? _browsed; // the verse the student went to look at while another is recited
   int? _menuVerse;
   int? _heading; // the chapter whose heading was tapped (its card is open)
   String? _notice; // a short notice, e.g. «بدأ باب جديد · …»
@@ -111,7 +117,7 @@ class ReaderController extends ChangeNotifier {
     _subs.add(viewer.onPageTap.listen((_) => tapPage()));
     _subs.add(viewer.onPageChange.listen((_) => _onPageSwiped()));
     _subs.add(viewer.onChapterTap.listen(openHeading));
-    viewer.setActiveVerse(_verse);
+    _mark();
   }
 
   Recording get recording => _recording;
@@ -138,11 +144,10 @@ class ReaderController extends ChangeNotifier {
     _recording = recording;
     _engine = engine;
     _engineState = null;
-    _detached = false;
     if (engine == null) _sectionSet = false; // its plan held the section
     _speed = store?.speedFor(recording.id) ?? 1;
     _attachEngine();
-    viewer.setActiveVerse(_verse);
+    _follow();
     notifyListeners();
     if (resume && engine != null) await engine.play(_verse);
   }
@@ -157,6 +162,10 @@ class ReaderController extends ChangeNotifier {
   bool get audioAvailable => engine != null;
   bool get playing => _engineState?.playing ?? false;
   bool get detached => _detached;
+
+  /// The verse the student opened from elsewhere while another is recited
+  /// ([goToVerse]), until the view moves again.
+  int? get browsedVerse => _browsed;
   int? get menuVerse => _menuVerse;
 
   /// The chapter whose heading card is open (tapped on the page), if any.
@@ -188,8 +197,11 @@ class ReaderController extends ChangeNotifier {
   /// In the silence between two plays: the listener's «playing», with the player stopped.
   bool get inGap => _engineState?.inGap ?? false;
 
-  /// The chapter shown in the top bar: the playing verse's, or the page's when browsing.
+  /// The chapter shown in the top bar: the playing verse's, or the page's when
+  /// browsing; the chapter of a verse the student opened from elsewhere.
   MatnChapter get headerChapter {
+    // The text has no pages: the verse recited, or the one the student went to.
+    if (_textMode || _browsed != null) return content.matn.chapterOfVerse(_browsed ?? _verse);
     // Following (or browsing back to the verse's own page): the current verse's chapter.
     if (!_detached && content.layout.pageOfVerse(_verse) == page) return chapter;
     final onPage = content.layout.versesOnPage(page);
@@ -277,6 +289,7 @@ class ReaderController extends ChangeNotifier {
     store?.textMode = on;
     _menuVerse = null;
     _symbol = null;
+    if (_detached) _follow(); // the other view opens on the recited verse
     notifyListeners();
   }
 
@@ -338,8 +351,7 @@ class ReaderController extends ChangeNotifier {
     if (playing) {
       await e.pause();
     } else {
-      _detached = false;
-      viewer.setActiveVerse(_verse);
+      _follow();
       final state = _engineState;
       if (state != null && !state.finished && e.plan.verse == _verse) {
         await e.resume(); // in the middle of a verse: the same section, the same counters
@@ -362,8 +374,7 @@ class ReaderController extends ChangeNotifier {
     if (e == null) return;
     _menuVerse = null;
     _verse = scope.fromVerse;
-    _detached = false;
-    viewer.setActiveVerse(_verse);
+    _follow(title: scope.fromChapterTitle && _settings.playTitles);
     e.plan.scope = scope;
     _sectionSet = true;
     notifyListeners();
@@ -397,8 +408,7 @@ class ReaderController extends ChangeNotifier {
       return;
     }
     _verse = verse;
-    _detached = false;
-    viewer.setActiveVerse(verse);
+    _follow(title: false); // a jump goes to the verse itself, past any title
     final e = engine;
     if (e != null && playing) {
       // Outside the section in hand, a new one starts from the tapped verse.
@@ -411,7 +421,37 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Opens [verse] from elsewhere: the index, a search result, a bookmark, a note,
+  /// a reminder. While a recitation plays it goes on where it is: only the view
+  /// moves, and «عودة إلى البيت N» leads back. Otherwise the reader moves to the
+  /// verse, as a tap on it does.
+  Future<void> goToVerse(int verse) async {
+    if (!playing || selecting) return tapVerse(verse);
+    closeMenu();
+    closeHeading();
+    if (verse == _verse) return resumeFollowing();
+    _browsed = verse;
+    viewer.showVerse(verse);
+    // On the page the recited verse may be on the same page: nothing to lead back to.
+    _detached = _textMode || viewer.activePage != page;
+    if (!_detached) _browsed = null;
+    notifyListeners();
+  }
+
   // ── following playback ──
+  /// Marks the recited verse on the page (its chapter's heading while the title
+  /// is recited). The view goes to it unless the student has browsed away.
+  /// [title] is given when the student has just moved the recitation, and the
+  /// player has not said yet where it stands.
+  void _mark({bool? title}) => viewer.setActiveVerse(_verse, title: title ?? inTitle, follow: !_detached);
+
+  /// The view is on the recited verse again.
+  void _follow({bool? title}) {
+    _detached = false;
+    _browsed = null;
+    _mark(title: title);
+  }
+
   void _onEngineState(EngineState s) {
     if (s.playing && !(_engineState?.playing ?? false)) rating?.used();
     final changed = s.verse != _verse;
@@ -421,9 +461,15 @@ class ReaderController extends ChangeNotifier {
     if (changed && s.playing && content.matn.chapterOfVerse(s.verse).id != chapter.id) {
       showNotice('بدأ باب جديد · ${content.matn.chapterOfVerse(s.verse).title}');
     }
-    if (changed) {
-      _verse = s.verse;
-      if (!_detached) viewer.setActiveVerse(s.verse);
+    if (changed) _verse = s.verse;
+    if (changed || s.inTitle != viewer.activeTitle) {
+      _mark();
+      // The recitation reached the page the student is on: the view follows again.
+      // (In text mode the column says so: [viewMoved].)
+      if (_detached && !_textMode && viewer.activePage == page) {
+        _detached = false;
+        _browsed = null;
+      }
     }
     // The engine reports on every position tick. Nothing on screen reads the
     // position from here (the player listens to the audio itself), so only a
@@ -442,15 +488,27 @@ class ReaderController extends ChangeNotifier {
       a.finished == b.finished;
 
   void _onPageSwiped() {
-    // Browsing away while audio plays detaches the view (the chip offers the way back).
-    if (playing && content.layout.pageOfVerse(_verse) != page) _detached = true;
+    // Browsing away while audio plays detaches the view (the chip offers the way
+    // back); turning back to the page of the recited verse follows it again.
+    _browsed = null;
+    _detached = playing && viewer.activePage != page;
     notifyListeners(); // the top bar shows the page on screen and its chapter
+  }
+
+  /// The text column was scrolled by hand: [onRecited] says whether the recited
+  /// verse is in view. Out of view while audio plays, the view is detached.
+  void viewMoved({required bool onRecited}) {
+    final detached = playing && !onRecited;
+    if (detached == _detached && _browsed == null) return;
+    _detached = detached;
+    _browsed = null;
+    if (!detached) _mark(); // the page behind the text is on the recited verse again
+    notifyListeners();
   }
 
   /// «عودة إلى البيت N».
   void resumeFollowing() {
-    _detached = false;
-    viewer.setActiveVerse(_verse);
+    _follow();
     notifyListeners();
   }
 
