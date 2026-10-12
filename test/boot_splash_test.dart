@@ -1,7 +1,7 @@
-// The launch splash: at least 1200 ms, a 400 ms fade, the slow-loading line only
-// after 2 s, and a tap skips the minimum wait but never the loading. It begins as
-// the platform's launch screen leaves off (the logo alone, at the launch
-// screen's size, in the middle of the screen) and settles into its own picture.
+// The launch splash covers loading and nothing more: no minimum time, a 250 ms
+// fade. While loading is quick it is the platform's launch screen continued (the
+// logo alone, at the launch screen's size, in the middle of the screen); only
+// after 2 s of loading does it settle into its own picture, with the progress line.
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -13,43 +13,86 @@ import 'package:shatibiyyah/ui/design/taysir_logo.dart';
 import 'package:shatibiyyah/ui/shell/boot_splash.dart';
 
 void main() {
-  Widget app(bool ready) => MaterialApp(home: BootSplash(ready: ready, child: const Text('reader')));
+  Widget app(bool ready, {Widget child = const Text('reader')}) =>
+      MaterialApp(home: BootSplash(ready: ready, child: child));
   final name = find.text('تيسير الشاطبية');
+  final logo = find.byType(TaysirLogo);
+  final subtitle = find.text('حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي');
+  // How much of [text] shows: 0 while the launch screen's picture stands, 1 once the splash has settled.
+  double seen(WidgetTester tester, Finder text) =>
+      tester.widget<FadeTransition>(find.ancestor(of: text, matching: find.byType(FadeTransition)).first).opacity.value;
 
-  testWidgets('stays 1200 ms even when loading is instant, then fades out', (tester) async {
-    await tester.pumpWidget(app(true));
-    expect(name, findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1100));
-    expect(name, findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200)); // minimum reached: the fade starts
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(name, findsNothing);
+  testWidgets('no minimum: with loading done it lifts at once and is gone in 250 ms', (tester) async {
+    await tester.pumpWidget(app(true)); // the reader is built under it
+    expect(logo, findsOneWidget);
+    await tester.pump(); // the frame after: it begins to lift
+    await tester.pump(const Duration(milliseconds: 240));
+    expect(logo, findsOneWidget); // still fading
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(logo, findsNothing);
     expect(find.text('reader'), findsOneWidget);
   });
 
-  testWidgets('the slow-loading line appears only after 2 s', (tester) async {
+  testWidgets('quick loading never shows the name: the launch picture, then the app', (tester) async {
     await tester.pumpWidget(app(false));
-    await tester.pump(const Duration(milliseconds: 1900));
-    expect(find.text('يعمل دون اتصال'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('يعمل دون اتصال'), findsOneWidget);
-
-    await tester.pumpWidget(app(true)); // loading done: fades straight away
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(name, findsNothing);
-  });
-
-  testWidgets('a tap skips the minimum wait, not the loading', (tester) async {
-    await tester.pumpWidget(app(false));
-    await tester.tap(find.byType(BootSplash));
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(name, findsOneWidget); // still loading
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.getRect(logo).size, const Size.square(kLaunchLogoSize));
+    expect(seen(tester, name), 0);
 
     await tester.pumpWidget(app(true));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(name, findsNothing); // well before 1200 ms
+    await tester.pump(const Duration(milliseconds: 125)); // half-way out
+    expect(tester.getRect(logo).size, const Size.square(kLaunchLogoSize));
+    expect(seen(tester, name), 0);
+    await tester.pump(const Duration(milliseconds: 135));
+    expect(logo, findsNothing);
+  });
+
+  testWidgets('loading longer than 2 s: it settles into its own picture, with the progress line', (tester) async {
+    await tester.pumpWidget(app(false));
+    await tester.pump(const Duration(milliseconds: 1900));
+    expect(find.text('يعمل دون اتصال'), findsNothing);
+    expect(seen(tester, name), 0);
+    await tester.pump(const Duration(milliseconds: 200)); // 2 s have passed: it begins to settle
+    expect(find.text('يعمل دون اتصال'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(tester.getRect(logo).width, inExclusiveRange(kLaunchLogoSize, kSplashLogoSize));
+    await tester.pump(const Duration(milliseconds: 160));
+
+    final screen = tester.getRect(find.byType(BootSplash));
+    final mark = tester.getRect(logo), title = tester.getRect(name), poem = tester.getRect(subtitle);
+    expect(mark.size, const Size.square(kSplashLogoSize));
+    expect(seen(tester, name), 1);
+    expect(title.top - mark.bottom, 26);
+    expect(poem.top - title.bottom, 6);
+    // The three stand together in the middle of the screen, as the splash is drawn.
+    expect((mark.top + poem.bottom) / 2, moreOrLessEquals(screen.center.dy, epsilon: 0.01));
+    expect(mark.center.dx, screen.center.dx);
+    expect(title.center.dx, moreOrLessEquals(screen.center.dx, epsilon: 0.01));
+
+    await tester.pumpWidget(app(true)); // loading done: the line goes, and it lifts
+    expect(find.text('يعمل دون اتصال'), findsNothing);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(name, findsNothing);
+  });
+
+  testWidgets('touches do not reach what it covers until it lifts', (tester) async {
+    var taps = 0;
+    final under = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => taps++,
+      child: const SizedBox.expand(),
+    );
+    await tester.pumpWidget(app(false, child: under));
+    await tester.tapAt(const Offset(100, 100));
+    expect(taps, 0);
+
+    await tester.pumpWidget(app(true, child: under));
+    await tester.pump(); // lifting: the app takes touches while the splash fades
+    await tester.tapAt(const Offset(100, 100));
+    expect(taps, 1);
+    await tester.pump(const Duration(milliseconds: 300));
   });
 
   group('lifting', () {
@@ -57,10 +100,9 @@ void main() {
     final lightBars = find.byWidgetPredicate(
         (w) => w is AnnotatedRegion<SystemUiOverlayStyle> && w.value == SystemUiOverlayStyle.light);
 
-    testWidgets('loading that outlasts the minimum: the fade begins a frame after the reader is first built',
-        (tester) async {
+    testWidgets('the fade begins a frame after the reader is first built', (tester) async {
       await tester.pumpWidget(app(false));
-      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpWidget(app(true)); // the frame the reader is built in: the heaviest of the launch
       expect(find.text('reader'), findsOneWidget);
       expect(target(tester), 1); // still wholly covered
@@ -69,22 +111,17 @@ void main() {
     });
 
     testWidgets('the status bar\'s icons are the splash\'s until it lifts, then the app\'s', (tester) async {
-      await tester.pumpWidget(app(true));
-      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pumpWidget(app(false));
       expect(lightBars, findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 200)); // lifting
-      expect(name, findsOneWidget);
+      await tester.pumpWidget(app(true));
+      expect(lightBars, findsOneWidget);
+      await tester.pump(); // lifting
+      expect(logo, findsOneWidget);
       expect(lightBars, findsNothing);
     });
   });
 
   group('from the launch screen', () {
-    final logo = find.byType(TaysirLogo);
-    final subtitle = find.text('حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي');
-    // How much of [text] shows: 0 while the launch screen's picture stands, 1 once the splash has settled.
-    double seen(WidgetTester tester, Finder text) =>
-        tester.widget<FadeTransition>(find.ancestor(of: text, matching: find.byType(FadeTransition)).first).opacity.value;
-
     testWidgets('its first frame is the launch screen\'s: the logo alone, at its size, centred', (tester) async {
       await tester.pumpWidget(app(false));
       final screen = tester.getRect(find.byType(BootSplash));
@@ -123,31 +160,15 @@ void main() {
       expect(mark! * 288, closeTo(kLaunchLogoSize, 1));
     });
 
-    testWidgets('it settles in 320 ms: the logo at 176 px over the name, the group centred', (tester) async {
-      await tester.pumpWidget(app(false));
-      await tester.pump(const Duration(milliseconds: 160));
-      final midway = tester.getRect(logo);
-      expect(midway.width, inExclusiveRange(kLaunchLogoSize, kSplashLogoSize));
-      await tester.pump(const Duration(milliseconds: 160));
-
-      final screen = tester.getRect(find.byType(BootSplash));
-      final mark = tester.getRect(logo), title = tester.getRect(name), poem = tester.getRect(subtitle);
-      expect(mark.size, const Size.square(kSplashLogoSize));
-      expect(seen(tester, name), 1);
-      expect(title.top - mark.bottom, 26);
-      expect(poem.top - title.bottom, 6);
-      // The three stand together in the middle of the screen, as the splash is drawn.
-      expect((mark.top + poem.bottom) / 2, moreOrLessEquals(screen.center.dy, epsilon: 0.01));
-      expect(mark.center.dx, screen.center.dx);
-      expect(title.center.dx, moreOrLessEquals(screen.center.dx, epsilon: 0.01));
-    });
-
-    testWidgets('reduced motion: it stands as drawn from its first frame', (tester) async {
+    testWidgets('reduced motion: after 2 s it stands as drawn at once', (tester) async {
       await tester.pumpWidget(MaterialApp(
         builder: (context, child) =>
             MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: child!),
         home: const BootSplash(ready: false, child: Text('reader')),
       ));
+      expect(tester.getRect(logo).size, const Size.square(kLaunchLogoSize));
+      await tester.pump(const Duration(milliseconds: 2000));
+      await tester.pump();
       expect(tester.getRect(logo).size, const Size.square(kSplashLogoSize));
       expect(seen(tester, name), 1);
     });

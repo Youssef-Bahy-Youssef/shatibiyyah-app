@@ -1,19 +1,17 @@
 // lib/ui/shell/boot_splash.dart — the launch splash (features-v3 boot-splash).
 //
-// The logo on the night ground, «تيسير الشاطبية» and «حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي»;
-// always dark, whatever the theme. It covers loading for at least 1200 ms, then
-// fades in 400 ms. A thin progress line and «يعمل دون اتصال» appear only when
-// loading takes longer than 2 s. A tap skips the minimum wait (never the loading
-// itself).
+// It covers loading and nothing more: there is no minimum time (ADR 0029).
+// While loading is quick it is the platform's launch screen continued, the
+// logo alone on the flat night ground, so nothing jumps when
+// Flutter's first frame replaces the launch screen; then it fades to the app in
+// 250 ms. Only when loading takes longer than 2 s does it settle, in 320 ms, into
+// its own picture: the larger logo, «تيسير الشاطبية» and «حِرْزُ الأَمَانِي وَوَجْهُ التَّهَانِي»
+// under it, the glow behind, a thin progress line and «يعمل دون اتصال». Always
+// dark, whatever the theme.
 //
 // It starts to lift a frame after what it covers was first built, so the heaviest
 // frame of the launch is drawn under it, not in the fade; and the status bar's
 // icons become the app's as the fade begins, not with a snap at its end.
-//
-// It takes over from the platform's launch screen, which can only draw the logo
-// on a flat ground: its first frame is that same picture, and it settles into its
-// own (the larger logo, the name under it, the glow behind) in 320 ms, so nothing
-// jumps when Flutter's first frame replaces the launch screen.
 //
 // [child] stays at a fixed place in the tree underneath, so the app below is never
 // rebuilt from scratch when the splash goes.
@@ -26,8 +24,10 @@ import '../design/components/tz_motion.dart';
 import '../design/tokens.g.dart';
 import '../design/taysir_logo.dart';
 
-const Duration kSplashMinimum = Duration(milliseconds: 1200);
-const Duration kSplashFade = Duration(milliseconds: 400);
+const Duration kSplashFade = Duration(milliseconds: 250);
+
+/// Loading that has gone on this long is slow: the splash settles into its own
+/// picture and shows the progress line.
 const Duration kSplashSlow = Duration(seconds: 2);
 
 /// The logo on the platform's launch screen: 134.4 px, in the middle of the
@@ -55,19 +55,16 @@ class BootSplash extends StatefulWidget {
 }
 
 class _BootSplashState extends State<BootSplash> {
-  bool _minimumDone = false;
   bool _slow = false;
   bool _gone = false;
 
   /// What the splash covers has been on the screen for a frame.
   bool _drawn = false;
-  late final Timer _minimum;
   late final Timer _slowTimer;
 
   @override
   void initState() {
     super.initState();
-    _minimum = Timer(kSplashMinimum, _skip);
     _slowTimer = Timer(kSplashSlow, () {
       if (mounted && !widget.ready) setState(() => _slow = true);
     });
@@ -84,20 +81,15 @@ class _BootSplashState extends State<BootSplash> {
         if (mounted) setState(() => _drawn = true);
       });
 
-  void _skip() {
-    if (mounted && !_minimumDone) setState(() => _minimumDone = true);
-  }
-
   @override
   void dispose() {
-    _minimum.cancel();
     _slowTimer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final leaving = widget.ready && _minimumDone && _drawn;
+    final leaving = widget.ready && _drawn;
     return Stack(
       children: [
         widget.child,
@@ -112,16 +104,13 @@ class _BootSplashState extends State<BootSplash> {
                 widget.onGone?.call();
               }
             },
+            // It takes every touch until it lifts; then the app under it does.
             child: IgnorePointer(
               ignoring: leaving,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _skip,
-                // Above the app's Scaffold: without a Material the text gets the debug underline.
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: _SplashFace(slow: _slow && !widget.ready),
-                ),
+              // Above the app's Scaffold: without a Material the text gets the debug underline.
+              child: Material(
+                type: MaterialType.transparency,
+                child: _SplashFace(full: _slow, loading: !widget.ready),
               ),
             ),
           ),
@@ -137,8 +126,12 @@ class _BootSplashState extends State<BootSplash> {
 }
 
 class _SplashFace extends StatefulWidget {
-  final bool slow;
-  const _SplashFace({required this.slow});
+  /// Loading is slow: the splash shows its own picture, not the launch screen's.
+  final bool full;
+
+  /// Still loading: the progress line stands under that picture.
+  final bool loading;
+  const _SplashFace({required this.full, required this.loading});
 
   @override
   State<_SplashFace> createState() => _SplashFaceState();
@@ -150,17 +143,16 @@ class _SplashFaceState extends State<_SplashFace> with SingleTickerProviderState
   late final Animation<double> _settled = CurvedAnimation(parent: _settle, curve: TzMotion.emphasized);
   late final Animation<double> _logoScale =
       Tween<double>(begin: kLaunchLogoSize / kSplashLogoSize, end: 1).animate(_settled);
-  bool _started = false;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_started) return;
-    _started = true;
-    // Under reduced motion the splash stands as drawn from its first frame.
-    _settle
-      ..duration = tzDuration(context, TzMotion.long)
-      ..forward();
+  void didUpdateWidget(_SplashFace old) {
+    super.didUpdateWidget(old);
+    if (widget.full && !old.full) {
+      // Under reduced motion it stands as drawn at once.
+      _settle
+        ..duration = tzDuration(context, TzMotion.long)
+        ..forward();
+    }
   }
 
   @override
@@ -220,7 +212,7 @@ class _SplashFaceState extends State<_SplashFace> with SingleTickerProviderState
                 ),
               ],
             ),
-            if (widget.slow)
+            if (widget.full && widget.loading)
               Positioned(
                 left: 0,
                 right: 0,
