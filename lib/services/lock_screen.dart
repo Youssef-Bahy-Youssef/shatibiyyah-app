@@ -120,6 +120,8 @@ class LockScreenHandler extends BaseAudioHandler {
   Future<void> onTaskRemoved() async {
     _playWhenAttached = false;
     await pause();
+    // One a call is holding ends too: it would come back with no app to show it (ADR 0035).
+    await _reader?.engine?.pause();
     _ended = true;
     _shown = null;
     playbackState.add(PlaybackState(processingState: AudioProcessingState.idle, playing: false));

@@ -305,16 +305,21 @@ class AudioLibrary extends ChangeNotifier {
   }
 }
 
-/// The app's engine: just_audio, with our own interruption policy.
+/// The app's engine: just_audio, with our own interruption policy (ADR 0035).
 Future<({PlaybackEngine engine, Future<void> Function() dispose})> justAudioEngine(
     Recording recording, String filePath, PlaybackPlan plan) async {
-  // Interruptions follow our own policy (AudioFocus): just_audio's would resume after a call.
+  // Interruptions follow our own policy (AudioFocus): just_audio's would resume in the middle of the verse.
   final port = JustAudioPort(AudioPlayer(handleInterruptions: false));
   final decoded = await port.load(filePath);
   final engine = PlaybackEngine(port, plan)..decodedDurationMs = decoded?.inMilliseconds;
   AudioFocus? focus;
   try {
-    focus = await AudioFocus.attach(isPlaying: () => engine.state.playing, pause: engine.pause, setVolume: port.setVolume);
+    focus = await AudioFocus.attach(
+      interrupt: engine.interrupt,
+      endInterruption: engine.endInterruption,
+      pause: engine.pause,
+      setVolume: port.setVolume,
+    );
   } catch (_) {
     // Without a session the app still plays; it only loses the interruption policy.
   }
