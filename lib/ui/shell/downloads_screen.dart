@@ -380,15 +380,8 @@ class ReciterOption extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      spacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
-                        // Both recordings are first-class; this one is preselected (ADR 0006).
-                        if (r.isDefault) Text('الافتراضية', style: TzType.caption.copyWith(color: t.goldText)),
-                      ],
-                    ),
+                    // Both recordings are first-class: neither is marked (ADR 0034).
+                    Text(r.reciterName, style: TzType.body.copyWith(color: t.text)),
                     Text(
                       '${durationHms(r.durationMs)}، ${megabytes(r.localBytes)}، '
                       '${library.isOnDevice(r) ? 'على الجهاز' : 'غير منزّل'}',

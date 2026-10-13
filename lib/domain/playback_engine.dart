@@ -23,6 +23,10 @@
 // the silent gap between verses. When the player stops or starts without the engine
 // asking (the lock-screen buttons, a call, headphones unplugged), the engine takes
 // that as a pause or a resume, so the UI and the gap timers never run on alone.
+//
+// An interruption that ends (a call, an alarm) is a pause the student did not ask
+// for: when it is over the verse it cut is recited again from its start, unless
+// the student has given a command since (ADR 0035).
 import 'dart:async';
 
 import 'playback_plan.dart';
@@ -86,6 +90,7 @@ class PlaybackEngine {
   StreamSubscription<int>? _positionSub;
   StreamSubscription<bool>? _playingSub;
   bool _active = false; // the student wants playback (true through gaps)
+  bool _interrupted = false; // paused by an interruption, not by the student; any command clears it
   Timer? _gapTimer;
   Timer? _endTimer;
   double _speed = 1;
@@ -117,9 +122,45 @@ class PlaybackEngine {
     _armEnd();
   }
 
-  Future<void> pause() async {
+  Future<void> pause() => _pause();
+
+  /// A call, an alarm, another app taking the sound for a while: a pause the
+  /// student did not ask for (ADR 0035).
+  Future<void> interrupt() async {
+    if (_active) await _pause(interrupted: true);
+  }
+
+  /// The interruption is over. With [playOn], and no command from the student
+  /// since it began, the verse it cut is recited again from its start: the same
+  /// section, the same counters. Otherwise the recitation stays paused.
+  Future<void> endInterruption({required bool playOn}) async {
+    final interrupted = _interrupted;
+    _interrupted = false;
+    if (!interrupted || !playOn) return;
+    final current = _current;
+    if (current is! PlayRange) return resume(); // cut in the gap between two verses: as «play» does
+    final generation = ++_generation;
+    _active = true;
+    // Cut in the verse after its chapter's spoken title: the verse alone.
+    final titleEnd = current.titleEndMs;
+    final from = titleEnd != null && audio.currentPositionMs >= titleEnd ? titleEnd : current.fromMs;
+    _seeking = generation;
+    try {
+      await audio.seek(from);
+    } finally {
+      if (_seeking == generation) _seeking = null;
+    }
+    if (generation != _generation) return; // superseded while seeking
+    if (!audio.playing) await audio.play();
+    if (generation != _generation) return;
+    _armEnd();
+    _emit();
+  }
+
+  Future<void> _pause({bool interrupted = false}) async {
     _generation++;
     _active = false;
+    _interrupted = interrupted;
     _gapTimer?.cancel();
     _endTimer?.cancel();
     await audio.pause();
@@ -129,6 +170,7 @@ class PlaybackEngine {
   /// Resume the current action where the player stands; after the end of the
   /// scope, start it again.
   Future<void> resume() async {
+    _interrupted = false;
     final current = _current;
     if (current is PlayRange) {
       _generation++;
@@ -162,6 +204,7 @@ class PlaybackEngine {
   /// [ended] is the range that just reached its end, when that is why [action] runs.
   Future<void> _run(PlanAction action, {PlayRange? ended}) async {
     final generation = ++_generation;
+    _interrupted = false;
     _gapTimer?.cancel();
     _endTimer?.cancel();
     _current = action;

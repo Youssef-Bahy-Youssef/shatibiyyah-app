@@ -252,7 +252,7 @@ void main() {
   });
 
   testWidgets('the dock: playing opens the player; downloading, failed, paused and none say so in place', (tester) async {
-    final total = data.content.recordings.defaultRecording.localBytes;
+    final total = data.sampleRecording.localBytes;
     Future<void> show(DownloadProgress p) async {
       final r = await data.reader(tester, download: p);
       await pumpPhone(tester, AppShell(reader: r));

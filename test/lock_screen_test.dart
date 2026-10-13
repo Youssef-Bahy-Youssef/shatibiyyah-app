@@ -138,6 +138,22 @@ void main() {
     expect(handler.playbackState.value.processingState, AudioProcessingState.idle);
   });
 
+  test('swiped away while a call holds the recitation: the end of the call brings nothing back (ADR 0035)', () async {
+    final r = await reader();
+    final handler = LockScreenHandler()..attach(r);
+    await handler.play();
+    await Future<void>.delayed(Duration.zero);
+    await r.engine!.interrupt();
+    await Future<void>.delayed(Duration.zero);
+    expect(r.playing, isFalse);
+
+    await handler.onTaskRemoved();
+    await r.engine!.endInterruption(playOn: true);
+    await Future<void>.delayed(Duration.zero);
+    expect((r.playing, r.engine!.audio.playing), (false, false));
+    expect(handler.playbackState.value.processingState, AudioProcessingState.idle);
+  });
+
   test('without a recording on the device the session is idle', () async {
     final handler = LockScreenHandler()..attach(await reader(audio: false));
     expect(handler.playbackState.value.processingState, AudioProcessingState.idle);

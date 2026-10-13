@@ -136,7 +136,7 @@ void main() {
         return (engine: PlaybackEngine(_SilentAudio(), plan), dispose: () async {});
       },
     );
-    await sideLoad(dm, content.recordings.defaultRecording); // Atiq on the device
+    await sideLoad(dm, content.recordings.defaultRecording); // the preselected one (Qaryu) on the device
     await library.refresh();
     final windows = await content.windowsFor(library.current);
     final reader = ReaderController(
@@ -155,36 +155,36 @@ void main() {
     final (library, reader, _, opened) = await setUpLibrary();
     expect(library.isOnDevice(library.current), isTrue);
     expect(reader.audioAvailable, isTrue);
-    expect(opened, ['muhammad-atiq-1']);
+    expect(opened, ['abdulhamid-alqaryu-1']);
     expect(reader.library, library);
   });
 
   // ADR 0007: a verified file whose hash is no longer in the snapshot.
   test('an older recording\'s file on the device needs an update: not «on the device», never played', () async {
     final (library, reader, dm, opened) = await setUpLibrary();
-    final atiq = library.current;
-    // An app update brought another file for Atiq: what is on the device has another size.
-    final raf = await dm.fileFor(atiq).open(mode: FileMode.write);
-    await raf.truncate(atiq.localBytes - 10);
+    final inUse = library.current;
+    // An app update brought another file for it: what is on the device has another size.
+    final raf = await dm.fileFor(inUse).open(mode: FileMode.write);
+    await raf.truncate(inUse.localBytes - 10);
     await raf.close();
     await library.refresh();
-    expect((library.needsUpdate(atiq), library.isOnDevice(atiq), library.holdsBytes(atiq)), (true, false, true));
-    final windows = await content.windowsFor(atiq);
+    expect((library.needsUpdate(inUse), library.isOnDevice(inUse), library.holdsBytes(inUse)), (true, false, true));
+    final windows = await content.windowsFor(inUse);
     opened.clear();
     expect(await library.openCurrent(PlaybackPlan(windows, const PlaybackScope(226, 234), const PlaybackSettings())), isNull);
     expect(opened, isEmpty); // no engine was built on the old file
     expect(reader.verse, 229);
 
-    await library.delete(atiq);
-    expect((library.needsUpdate(atiq), library.holdsBytes(atiq), dm.fileFor(atiq).existsSync()), (false, false, false));
+    await library.delete(inUse);
+    expect((library.needsUpdate(inUse), library.holdsBytes(inUse), dm.fileFor(inUse).existsSync()), (false, false, false));
   });
 
   test('a file verified before the markers is adopted at refresh; a later change of its hash is then seen', () async {
     final (library, _, dm, _) = await setUpLibrary();
-    final atiq = library.current;
-    expect(library.isOnDevice(atiq), isTrue);
-    final marker = File(dm.fileFor(atiq).path.replaceAll(RegExp(r'\.mp3$'), '.ok'));
-    expect(await marker.readAsString(), atiq.delivery?.sha256 ?? atiq.audioSha256);
+    final inUse = library.current;
+    expect(library.isOnDevice(inUse), isTrue);
+    final marker = File(dm.fileFor(inUse).path.replaceAll(RegExp(r'\.mp3$'), '.ok'));
+    expect(await marker.readAsString(), inUse.delivery?.sha256 ?? inUse.audioSha256);
   });
 
   // ADR 0006: switching reciter keeps the verse and keeps playing.
@@ -226,20 +226,20 @@ void main() {
 
     test('one not on the device: the current keeps playing; the switch waits for the file, then for the verse\'s end', () async {
       final (library, reader, dm, _) = await setUpLibrary();
-      final atiq = library.current;
+      final inUse = library.current;
       final other = library.recordings.firstWhere((r) => !r.isDefault);
       await reader.playScope(const PlaybackScope(228, 232));
       await pumpEventQueue();
       await library.choose(other); // its download starts (offline here: it fails)
       await until(() => (dm.transfer as _OfflineTransfer).attempts > 0 && !library.isDownloading(other));
-      expect((library.current.id, library.pending?.id), (atiq.id, other.id));
-      expect((reader.recording.id, reader.playing, reader.audioAvailable), (atiq.id, true, true));
+      expect((library.current.id, library.pending?.id), (inUse.id, other.id));
+      expect((reader.recording.id, reader.playing, reader.audioAvailable), (inUse.id, true, true));
       expect((dm.transfer as _OfflineTransfer).attempts, greaterThan(0));
 
       // The file arrives and verifies while verse 228 is still being recited: no switch yet.
       await sideLoad(dm, other);
       await library.backgroundFinished();
-      expect((library.current.id, reader.recording.id, reader.verse), (atiq.id, atiq.id, 228));
+      expect((library.current.id, reader.recording.id, reader.verse), (inUse.id, inUse.id, 228));
 
       // The next verse begins: now.
       await reader.engine!.next();
@@ -261,19 +261,19 @@ void main() {
 
     test('choosing the playing one again drops a pending switch', () async {
       final (library, reader, dm, _) = await setUpLibrary();
-      final atiq = library.current;
+      final inUse = library.current;
       final other = library.recordings.firstWhere((r) => !r.isDefault);
       await reader.playScope(const PlaybackScope(228, 232));
       await pumpEventQueue();
       await library.choose(other);
-      await library.choose(atiq);
+      await library.choose(inUse);
       expect(library.pending, isNull);
       await until(() => !library.isDownloading(other)); // the attempt it started has ended
       await sideLoad(dm, other);
       await library.backgroundFinished();
       await reader.engine!.next();
       await pumpEventQueue();
-      expect(reader.recording.id, atiq.id); // downloaded, not switched to
+      expect(reader.recording.id, inUse.id); // downloaded, not switched to
     });
 
     test('picked, then downloaded while the app was closed: it is the recording at the next start', () async {
@@ -287,9 +287,9 @@ void main() {
       expect((library.current.id, library.pending, reader.verse, reader.playing), (other.id, null, 229, false));
     });
 
-    test('Atiq is the default and is preselected', () async {
+    test('Qaryu is the default and is preselected (ADR 0034)', () async {
       final (library, _, _, _) = await setUpLibrary();
-      expect((library.current.isDefault, library.current.slug), (true, 'muhammad-atiq-1'));
+      expect((library.current.isDefault, library.current.slug), (true, 'abdulhamid-alqaryu-1'));
     });
   });
 
@@ -360,13 +360,13 @@ void main() {
     late AudioLibrary library;
     await tester.runAsync(() async => (library, _, _, _) = await setUpLibrary());
     await host(tester, DownloadsScreen(library: library));
-    expect(find.text('محمد بن عتيق الصنوي'), findsOneWidget);
-    expect(find.text('\u2066٢:٣٠:٣٧\u2069، ١٤٥ م.ب'), findsOneWidget);
+    expect(find.text('عبدالحميد بن عبدالله القريو الليبي'), findsOneWidget);
+    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ١٢٥ م.ب'), findsOneWidget);
     expect(find.text('على الجهاز · مُتحقَّق منه'), findsOneWidget);
     expect(find.text('المختار'), findsOneWidget);
-    expect(find.text('\u2066٢:٥٣:٤٧\u2069، ١٢٥ م.ب'), findsOneWidget);
+    expect(find.text('\u2066٢:٣٠:٣٧\u2069، ١٤٥ م.ب'), findsOneWidget);
     expect(find.text('غير منزّل'), findsOneWidget);
-    expect(find.text('التلاوات على الجهاز: ١٤٥ م.ب'), findsOneWidget);
+    expect(find.text('التلاوات على الجهاز: ١٢٥ م.ب'), findsOneWidget);
 
     await tester.tap(find.text('تنزيل'));
     // Three rounds over both mirrors, each step real file I/O: several settles.
@@ -381,12 +381,12 @@ void main() {
     late AudioLibrary library;
     late AppContent broken;
     await tester.runAsync(() async {
-      // A snapshot whose default recording (Atiq) has no cue for verse 500.
+      // A snapshot whose default recording (Qaryu) has no cue for verse 500.
       final dir = await Directory.systemTemp.createTemp('missing_cue');
       addTearDown(() => dir.delete(recursive: true));
       final copy = await File('assets/content/content.sqlite').copy('${dir.path}/content.sqlite');
       final db = await databaseFactoryFfi.openDatabase(copy.path);
-      await db.rawDelete("DELETE FROM verse_timings WHERE recording_id = 'recording:shatibiyyah:muhammad-atiq-1' "
+      await db.rawDelete("DELETE FROM verse_timings WHERE recording_id = 'recording:shatibiyyah:abdulhamid-alqaryu-1' "
           "AND matn_verse_id = 'verse:shatibiyyah:500'");
       await db.close(); // no VACUUM: the size stays what content.json says
       broken = await AppContent.open(
@@ -403,19 +403,19 @@ void main() {
       library = AudioLibrary(content: broken, prefs: prefs, downloads: dm, engineFactory: (r, path, plan) async {
         fail('no engine for an unusable recording');
       });
-      final atiq = broken.recordings.defaultRecording;
-      expect(broken.isUsable(atiq), isFalse);
+      final preselected = broken.recordings.defaultRecording;
+      expect(broken.isUsable(preselected), isFalse);
       expect(broken.isUsable(library.recordings.firstWhere((r) => !r.isDefault)), isTrue);
-      await sideLoad(dm, atiq); // even on the device, it is not played
+      await sideLoad(dm, preselected); // even on the device, it is not played
       await library.refresh();
       // What reader_boot does: windows only for a usable recording, then the engine.
-      final windows = await broken.windowsOrNull(atiq);
+      final windows = await broken.windowsOrNull(preselected);
       expect(windows, isNull);
       final other = await broken.windowsFor(library.recordings.firstWhere((r) => !r.isDefault));
       expect(await library.openCurrent(PlaybackPlan(other, const PlaybackScope(1, 1), const PlaybackSettings())), isNull);
       ReaderController(
         content: broken,
-        recording: atiq,
+        recording: preselected,
         viewer: PageViewerController(legacyData(broken, windows), prefs),
         initialVerse: 500,
       );
@@ -475,7 +475,7 @@ void main() {
     await host(tester, DownloadsScreen(library: library));
     expect(find.text('متوقف عند ٦٠٪'), findsOneWidget);
     expect(find.text('متابعة'), findsOneWidget);
-    expect(find.text('حذف'), findsNWidgets(2)); // Atiq on the device, and the paused one
+    expect(find.text('حذف'), findsNWidgets(2)); // the one on the device, and the paused one
 
     await confirmDelete(tester);
     await settle(tester);
@@ -525,7 +525,7 @@ void main() {
       await host(tester, DownloadsScreen(library: library));
       await settle(tester);
       expect(find.text('غير منزّل · المتاح على الجهاز ٣٫٤ غ.ب'), findsOneWidget);
-      expect(find.textContaining('١٢٥ م.ب'), findsWidgets); // its size
+      expect(find.textContaining('١٤٥ م.ب'), findsWidgets); // its size
     });
 
     testWidgets('waiting for Wi-Fi: «نزّل عبر البيانات» for this one download', (tester) async {
@@ -600,11 +600,14 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(find.text('يبقى البيت الحالي عند التبديل، وتستمر التلاوة'), findsOneWidget);
-    expect(find.text('الافتراضية'), findsOneWidget); // Atiq
-    await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
+    // Qaryu first, then Atiq, and neither is marked (ADR 0034).
+    expect(find.text('الافتراضية'), findsNothing);
+    expect(tester.getCenter(find.text('عبدالحميد بن عبدالله القريو الليبي')).dy,
+        lessThan(tester.getCenter(find.text('محمد بن عتيق الصنوي')).dy));
+    await tester.tap(find.text('محمد بن عتيق الصنوي'));
     await settle(tester);
     // The one in use stays until the other is downloaded and verified (ADR 0006).
-    expect((reader.recording.slug, library.pending?.slug), ('muhammad-atiq-1', 'abdulhamid-alqaryu-1'));
+    expect((reader.recording.slug, library.pending?.slug), ('abdulhamid-alqaryu-1', 'muhammad-atiq-1'));
     expect(reader.verse, 229);
     expect(reader.audioAvailable, isTrue);
     expect(find.byType(DownloadsScreen), findsOneWidget);
@@ -649,7 +652,7 @@ void main() {
       await tester.pump();
       expect(find.text('اختر التلاوة'), findsOneWidget); // the pick screen's title
       expect(find.text('المتن والشروح جاهزة الآن دون تنزيل. اختر التلاوة التي تسمعها مع المتن.'), findsOneWidget);
-      expect(find.text('ابدأ التلاوة'), findsOneWidget); // Atiq is on the device
+      expect(find.text('ابدأ التلاوة'), findsOneWidget); // the preselected one is on the device
       expect(tourDone(prefs), isFalse);
       await tester.tap(find.text('ابدأ التلاوة'));
       await tester.pumpAndSettle();
@@ -661,14 +664,14 @@ void main() {
       final (library, prefs) = await openTour(tester);
       await tester.tap(find.text('تخطَّ'));
       await tester.pump();
-      await tester.tap(find.text('عبدالحميد بن عبدالله القريو الليبي'));
+      await tester.tap(find.text('محمد بن عتيق الصنوي'));
       await settle(tester);
-      expect(find.text('تنزيل ١٢٥ م.ب والبدء'), findsOneWidget);
+      expect(find.text('تنزيل ١٤٥ م.ب والبدء'), findsOneWidget);
       await tester.tap(find.text('لاحقًا، ابدأ بالقراءة'));
       await tester.pumpAndSettle();
       expect(tourDone(prefs), isTrue);
       // It is the listener's pick; the one on the device stays in use until it is downloaded.
-      expect((library.chosen.slug, library.current.slug), ('abdulhamid-alqaryu-1', 'muhammad-atiq-1'));
+      expect((library.chosen.slug, library.current.slug), ('muhammad-atiq-1', 'abdulhamid-alqaryu-1'));
       expect(library.isDownloading(library.chosen), isFalse); // «لاحقًا»: nothing started
     });
 
