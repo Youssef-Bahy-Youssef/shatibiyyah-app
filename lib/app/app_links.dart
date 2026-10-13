@@ -7,8 +7,9 @@
 // التطبيق» nor «قيّم التطبيق».
 import 'package:flutter/foundation.dart';
 
-/// The address feedback is written to, named by the owner on 2026-10-11 (plan Q12).
-const String kSupportEmail = 'youssefbahy2026@gmail.com';
+/// The address feedback is written to: the app's own, which the owner made for it
+/// on 2026-10-13 in place of a personal one (plan Q12).
+const String kSupportEmail = 'taysir.shatibiyyah@gmail.com';
 
 /// The Android application id, which is the app's page on Google Play
 /// (test/app_links_test.dart keeps it equal to android/app/build.gradle.kts).
