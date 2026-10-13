@@ -58,7 +58,7 @@ void main() {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    final windows = await tester.runAsync(() => data.content.windowsFor(data.content.recordings.defaultRecording));
+    final windows = await tester.runAsync(() => data.content.windowsFor(r.recording));
     expect((r.playing, r.verse), (true, 227));
     return (r, audio, windows!.cues[227]);
   }
@@ -130,7 +130,7 @@ void main() {
 
   testWidgets('the next verse: the highlight glides for 320 ms on its own layer; the image is not touched', (tester) async {
     final (r, audio, _) = await reciting(tester);
-    final windows = await tester.runAsync(() => data.content.windowsFor(data.content.recordings.defaultRecording));
+    final windows = await tester.runAsync(() => data.content.windowsFor(r.recording));
     final images = PageViewer.debugImageBuilds;
 
     // The end of verse 227: the engine goes on to 228.

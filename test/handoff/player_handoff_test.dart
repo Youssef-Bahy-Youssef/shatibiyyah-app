@@ -190,7 +190,7 @@ void main() {
     testWidgets('$name: the dock says what the download is doing, in place', (tester) async {
       final spec = HandoffSpec.load('$name-paper');
       if (spec == null) return markTestSkipped('the workspace (design/redesign/handoff/) is not around the app');
-      final total = data.content.recordings.defaultRecording.localBytes;
+      final total = data.sampleRecording.localBytes;
       final r = await data.reader(tester,
           download: DownloadProgress(phase, (total * 0.42).ceil(), total, phase == DownloadPhase.failed ? DownloadError.network : null));
       await pumpPhone(tester, AppShell(reader: r));

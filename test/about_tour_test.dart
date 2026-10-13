@@ -93,7 +93,7 @@ void main() {
           findsOneWidget);
       expect(find.text('١١٧٣ بيتًا في ٧٨ بابًا، بعرض الصفحة أو النص'), findsOneWidget); // under the row «المتن»
       expect(find.text('الوافي · إبراز المعاني · سراج القارئ'), findsOneWidget);
-      expect(find.text('محمد بن عتيق الصنوي · عبدالحميد بن عبدالله القريو الليبي'), findsOneWidget);
+      expect(find.text('عبدالحميد بن عبدالله القريو الليبي · محمد بن عتيق الصنوي'), findsOneWidget);
       for (final label in ['المتن', 'الشروح', 'التلاوة']) {
         expect(find.ancestor(of: find.text(label), matching: find.byType(InkWell)), findsNothing, reason: label);
       }

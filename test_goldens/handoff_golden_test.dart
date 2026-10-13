@@ -49,7 +49,7 @@ void main() {
     debugDisableShadows = false;
     final onSettings = state.tab == DockTab.settings;
     // A download in progress or failed is 42 % in, as the design's sample.
-    final total = data.content.recordings.defaultRecording.localBytes;
+    final total = data.sampleRecording.localBytes;
     final r = await data.reader(tester,
         audio: state.audio,
         library: onSettings || state.audio, // «التلاوة» leads to the reciters

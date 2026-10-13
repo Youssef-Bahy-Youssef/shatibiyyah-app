@@ -111,18 +111,25 @@ class HandoffContent {
     await _support.delete(recursive: true);
   }
 
+  /// The reciter in the design's pictures: Atiq, as the student's choice (the app
+  /// itself starts with Qaryu, ADR 0034).
+  Recording get sampleRecording => content.recordings.recordings.firstWhere((r) => r.slug == 'muhammad-atiq-1');
+
   /// The reader on verse 226. With [audio], a recording is on the device and the
   /// section is the chapter (226–234). With [bookmarks], the prototype's three.
   /// With [library], the downloads are there, nothing downloaded yet; with
   /// [download], the chosen recording is in that state (a [FixedLibrary]).
+  /// With [firstRun], no reciter has been chosen: the app's own (ADR 0034), not
+  /// the design's sample.
   Future<ReaderController> reader(WidgetTester tester,
       {bool audio = false,
       bool bookmarks = true,
       bool note = false,
       bool library = false,
+      bool firstRun = false,
       DownloadProgress? download,
       AudioPort? port}) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({if (!firstRun) 'flutter.$kRecordingPref': sampleRecording.id});
     late ReaderController r;
     await tester.runAsync(() async {
       final dir = await Directory.systemTemp.createTemp('handoff_user');
@@ -138,7 +145,7 @@ class HandoffContent {
       }
       if (note) await personal.saveNote(230, 'قارن بالوافي');
       final prefs = await Prefs.create();
-      final recording = content.recordings.defaultRecording;
+      final recording = firstRun ? content.recordings.defaultRecording : sampleRecording;
       final windows = await content.windowsFor(recording);
       r = ReaderController(
         content: content,
