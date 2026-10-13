@@ -43,7 +43,7 @@ void main() {
     addTearDown(tester.view.reset);
     // Shadows with their blur, as on a device (flutter_test draws them flat by default).
     debugDisableShadows = false;
-    final r = await data.reader(tester, library: true, bookmarks: false);
+    final r = await data.reader(tester, library: true, bookmarks: false, firstRun: true); // as a new install
     await tester.pumpWidget(RepaintBoundary(
       key: boundary,
       child: MaterialApp(

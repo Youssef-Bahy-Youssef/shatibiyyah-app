@@ -194,9 +194,9 @@ void main() {
   });
 
   group('RecordingRepository', () {
-    test('two recordings, Atiq the default; each hosted on two HTTPS mirrors', () {
-      expect(recordings.recordings, hasLength(2));
-      expect(recordings.defaultRecording.slug, 'muhammad-atiq-1');
+    test('two recordings, Qaryu the default and first (ADR 0034); each hosted on two HTTPS mirrors', () {
+      expect(recordings.recordings.map((r) => r.slug), ['abdulhamid-alqaryu-1', 'muhammad-atiq-1']);
+      expect(recordings.defaultRecording.slug, 'abdulhamid-alqaryu-1');
       for (final r in recordings.recordings) {
         final d = r.delivery!;
         // The hosted file is the timed file itself (no re-encode): same bytes, same hash.

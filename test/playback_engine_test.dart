@@ -414,6 +414,179 @@ void main() {
     });
   });
 
+  group('an interruption that ends (ADR 0035)', () {
+    PlaybackEngine engineOn(AudioPort audio, {int gapMs = 0, int verseRepeats = 1, PlaybackScope? scope}) => PlaybackEngine(
+        audio,
+        PlaybackPlan(windows, scope ?? const PlaybackScope(1, 5),
+            PlaybackSettings(gapMs: gapMs, verseRepeats: verseRepeats)));
+
+    test('it pauses; when it is over the verse is recited again from its start', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio);
+        final states = <EngineState>[];
+        engine.states.listen(states.add);
+        engine.play(2);
+        async.elapse(const Duration(milliseconds: 600)); // in verse 2
+        engine.interrupt();
+        async.flushMicrotasks();
+        expect((engine.state.playing, states.last.playing, audio.playing), (false, false, false));
+        async.elapse(const Duration(minutes: 5)); // the call
+        expect(engine.state.verse, 2);
+        engine.endInterruption(playOn: true);
+        async.flushMicrotasks();
+        expect((engine.state.playing, states.last.playing, audio.playing), (true, true, true));
+        expect(audio.seeks, [1950, 1950]); // where the jump to it started
+        async.elapse(const Duration(milliseconds: 1200));
+        expect(engine.state.verse, 3); // and on from there
+        expect(audio.seeks, hasLength(2));
+        audio.dispose();
+      });
+    });
+
+    test('a verse reached by playing on starts again at its cue, and counts no repetition', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio, verseRepeats: 2);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 2400)); // verse 1 twice, then into verse 2
+        expect((engine.state.verse, engine.state.verseRepetition), (2, 1));
+        engine.interrupt();
+        async.elapse(const Duration(seconds: 30));
+        engine.endInterruption(playOn: true);
+        async.flushMicrotasks();
+        expect(audio.seeks.last, 2000);
+        expect((engine.state.verse, engine.state.verseRepetition), (2, 1));
+        audio.dispose();
+      });
+    });
+
+    test('cut in the verse after its chapter\'s spoken title: the verse alone is recited again', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio, scope: const PlaybackScope(4, 5, fromChapterTitle: true));
+        engine.play();
+        async.elapse(const Duration(milliseconds: 100));
+        expect(engine.state.inTitle, isTrue);
+        engine.interrupt();
+        engine.endInterruption(playOn: true);
+        async.flushMicrotasks();
+        expect(audio.seeks, [3800, 3800]); // cut in the title: the title again
+        async.elapse(const Duration(milliseconds: 500)); // into the verse
+        expect(engine.state.inTitle, isFalse);
+        engine.interrupt();
+        engine.endInterruption(playOn: true);
+        async.flushMicrotasks();
+        expect(audio.seeks.last, 4000);
+        audio.dispose();
+      });
+    });
+
+    test('one that does not allow it (another app took the sound for good) stays paused', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 600));
+        engine.interrupt();
+        engine.endInterruption(playOn: false);
+        async.elapse(const Duration(seconds: 1));
+        expect((engine.state.playing, audio.playing), (false, false));
+        engine.endInterruption(playOn: true); // a later end is not this interruption's
+        async.elapse(const Duration(seconds: 1));
+        expect((engine.state.playing, audio.playing), (false, false));
+        audio.dispose();
+      });
+    });
+
+    test('a command from the student during it stands: nothing resumes by itself', () {
+      for (final command in <(String, Future<void> Function(PlaybackEngine))>[
+        ('pause', (e) => e.pause()),
+        ('play then pause', (e) async {
+          await e.resume();
+          await e.pause();
+        }),
+        ('next then pause', (e) async {
+          await e.next();
+          await e.pause();
+        }),
+      ]) {
+        fakeAsync((async) {
+          final audio = FakeAudio();
+          final engine = engineOn(audio);
+          engine.play();
+          async.elapse(const Duration(milliseconds: 600));
+          engine.interrupt();
+          async.flushMicrotasks();
+          command.$2(engine);
+          async.flushMicrotasks();
+          final seeks = audio.seeks.length;
+          engine.endInterruption(playOn: true);
+          async.elapse(const Duration(seconds: 1));
+          expect((engine.state.playing, audio.playing, audio.seeks.length), (false, false, seeks), reason: command.$1);
+          audio.dispose();
+        });
+      }
+    });
+
+    test('the student played on during it: its end does not send the verse back to its start', () {
+      for (final command in <(String, Future<void> Function(PlaybackEngine))>[
+        ('play', (e) => e.resume()),
+        ('next', (e) => e.next()),
+        ('the lock screen\'s play', (e) async => (e.audio as FakeAudio).outsidePlay()),
+      ]) {
+        fakeAsync((async) {
+          final audio = FakeAudio();
+          final engine = engineOn(audio);
+          engine.play();
+          async.elapse(const Duration(milliseconds: 600));
+          engine.interrupt();
+          async.flushMicrotasks();
+          command.$2(engine);
+          async.elapse(const Duration(milliseconds: 300));
+          final seeks = audio.seeks.length, at = audio.currentPositionMs;
+          engine.endInterruption(playOn: true);
+          async.flushMicrotasks();
+          expect((engine.state.playing, audio.seeks.length, audio.currentPositionMs), (true, seeks, at),
+              reason: command.$1);
+          audio.dispose();
+        });
+      }
+    });
+
+    test('one that comes while paused resumes nothing', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 600));
+        engine.pause();
+        engine.interrupt();
+        engine.endInterruption(playOn: true);
+        async.elapse(const Duration(seconds: 1));
+        expect((engine.state.playing, audio.playing), (false, false));
+        audio.dispose();
+      });
+    });
+
+    test('cut in the gap between two verses: the recitation goes on as «play» does', () {
+      fakeAsync((async) {
+        final audio = FakeAudio();
+        final engine = engineOn(audio, gapMs: 1000);
+        engine.play();
+        async.elapse(const Duration(milliseconds: 1260)); // verse 1 done, in the gap
+        expect(engine.state.inGap, isTrue);
+        engine.interrupt();
+        async.elapse(const Duration(seconds: 5));
+        expect(engine.state.playing, isFalse);
+        engine.endInterruption(playOn: true);
+        async.elapse(const Duration(milliseconds: 100));
+        expect((engine.state.playing, engine.state.inGap, audio.playing), (true, false, true));
+        audio.dispose();
+      });
+    });
+  });
+
   // ADR 0005: wherever playback stops or jumps, it ends within 40 ms of the
   // window's end at every speed. The player reports its position only every
   // 200 ms, so the end is scheduled from the position and the speed.

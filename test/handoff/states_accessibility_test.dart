@@ -81,7 +81,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
     addTearDown(tester.view.reset);
-    final total = data.content.recordings.defaultRecording.localBytes;
+    final total = data.sampleRecording.localBytes;
     final r = await data.reader(tester,
         audio: state.audio,
         library: state.tab == DockTab.settings || state.audio,

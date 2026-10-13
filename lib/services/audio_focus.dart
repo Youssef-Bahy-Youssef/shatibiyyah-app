@@ -1,14 +1,18 @@
 // lib/services/audio_focus.dart — what an interruption does to recitation
 // (features-v3 audio-interruptions).
 //
-// - A call, an alarm, another app taking the audio: pause, and stay paused when it
-//   ends. A student who was reciting along should pick up deliberately.
+// (ADR 0035).
+//
+// - A call, an alarm, a voice message: pause. When it ends the verse it cut is
+//   recited again from its start, unless the student gave a command meanwhile.
+// - Another app taking the sound for good (music, a video): pause, and stay paused.
 // - A short sound that only asks to duck (a notification, navigation): lower the
 //   volume, restore it after.
-// - Headphones unplugged: pause.
-// The session is configured as spoken audio, so on Android the app is told about
-// ducks instead of being ducked silently. just_audio's own handling is off (it
-// resumes after a call); the engine then learns about the pause through its port.
+// - Headphones unplugged: pause and stay paused, during an interruption too.
+// The session is spoken audio, but not one that pauses when ducked: with that
+// setting audio_session reports every notification sound as a pause. just_audio's
+// own handling is off (it resumes in the middle of the verse, and after the
+// student's own pause during a call); the engine decides.
 import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
@@ -16,8 +20,18 @@ import 'package:audio_session/audio_session.dart';
 /// Volume while another app's short sound plays over the recitation.
 const double kDuckVolume = 0.3;
 
+/// The recitation's session: spoken audio that plays on, lowered, under a short sound.
+final AudioSessionConfiguration kRecitationSession =
+    const AudioSessionConfiguration.speech().copyWith(androidWillPauseWhenDucked: false);
+
 class AudioFocus {
-  final bool Function() isPlaying;
+  /// PlaybackEngine.interrupt: a pause the student did not ask for.
+  final Future<void> Function() interrupt;
+
+  /// PlaybackEngine.endInterruption.
+  final Future<void> Function({required bool playOn}) endInterruption;
+
+  /// The student's own pause: nothing resumes after it.
   final Future<void> Function() pause;
   final Future<void> Function(double volume) setVolume;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -26,15 +40,15 @@ class AudioFocus {
   AudioFocus({
     required Stream<AudioInterruptionEvent> interruptions,
     required Stream<void> becomingNoisy,
-    required this.isPlaying,
+    required this.interrupt,
+    required this.endInterruption,
     required this.pause,
     required this.setVolume,
   }) {
     _subs
       ..add(interruptions.listen(_onInterruption))
-      ..add(becomingNoisy.listen((_) {
-        if (isPlaying()) pause();
-      }));
+      // Also while a call holds the recitation: it must not come back on the speaker.
+      ..add(becomingNoisy.listen((_) => pause()));
   }
 
   /// What keeps the session from the recitation's settings for now, or null: the
@@ -44,12 +58,13 @@ class AudioFocus {
 
   /// Configures the app's audio session and follows its events.
   static Future<AudioFocus> attach({
-    required bool Function() isPlaying,
+    required Future<void> Function() interrupt,
+    required Future<void> Function({required bool playOn}) endInterruption,
     required Future<void> Function() pause,
     required Future<void> Function(double volume) setVolume,
   }) async {
     final session = await AudioSession.instance;
-    Future<void> configure() => session.configure(const AudioSessionConfiguration.speech());
+    Future<void> configure() => session.configure(kRecitationSession);
     if (sessionHold case final hold?) {
       unawaited(hold.then((_) => configure()).catchError((Object _) {}));
     } else {
@@ -58,7 +73,8 @@ class AudioFocus {
     return AudioFocus(
       interruptions: session.interruptionEventStream,
       becomingNoisy: session.becomingNoisyEventStream,
-      isPlaying: isPlaying,
+      interrupt: interrupt,
+      endInterruption: endInterruption,
       pause: pause,
       setVolume: setVolume,
     );
@@ -75,8 +91,19 @@ class AudioFocus {
       }
       return;
     }
-    // pause / unknown: pause at the start; never resume at the end.
-    if (e.begin && isPlaying()) pause();
+    // A short sound that grew into a full interruption sends no end of its own.
+    if (_ducked) {
+      _ducked = false;
+      setVolume(1);
+    }
+    if (e.begin) {
+      interrupt();
+    } else {
+      // The system says whether to play on: Android gives the sound back only
+      // after a loss that was to end; iOS sets «should resume» (both arrive as
+      // `pause`). Sound taken for good never comes back, or ends as `unknown`.
+      endInterruption(playOn: e.type == AudioInterruptionType.pause);
+    }
   }
 
   Future<void> dispose() async {
