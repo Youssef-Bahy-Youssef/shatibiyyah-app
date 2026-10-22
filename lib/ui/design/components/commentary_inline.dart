@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'ornament.dart';
+import 'tz_motion.dart';
 
 /// A commentary's running text at the reader's verse size (v2.css .c-body: 0.92 ×, line 1.9).
 TextStyle commentaryStyle(TzColors c, double verseSize) =>
@@ -81,7 +82,7 @@ class QuoteChip extends StatelessWidget {
       label: 'من البيت: $words',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
+      child: TzPressable(sink: true, borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 1),
@@ -118,9 +119,8 @@ class FootnoteMarker extends StatelessWidget {
       label: 'حاشية $label',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
+      child: TzPressable(sink: true, borderRadius: BorderRadius.circular(TzRadius.pill),
         onTap: onTap,
-        behavior: HitTestBehavior.opaque,
         child: Padding(
           padding: const EdgeInsetsDirectional.only(start: 1, bottom: 10),
           child: Container(

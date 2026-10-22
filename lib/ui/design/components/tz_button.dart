@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_icon.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 enum _Kind { primary, tonal }
 
@@ -45,7 +46,7 @@ class TzButton extends StatelessWidget {
             type: MaterialType.transparency,
             child: dense
                 // The fill is 44 px high; the target around it is 48.
-                ? InkWell(
+                ? TzPressable(sink: true, tint: ink,
                     onTap: onPressed,
                     borderRadius: radius,
                     child: SizedBox(
@@ -63,7 +64,7 @@ class TzButton extends StatelessWidget {
                 : Ink(
                     height: TzSize.touchTarget,
                     decoration: BoxDecoration(color: fill, borderRadius: radius),
-                    child: InkWell(onTap: onPressed, borderRadius: radius, child: _content(ink, 18)),
+                    child: TzPressable(sink: true, tint: ink, onTap: onPressed, borderRadius: radius, child: _content(ink, 18)),
                   ),
           ),
         ),

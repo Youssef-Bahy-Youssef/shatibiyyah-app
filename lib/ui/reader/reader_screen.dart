@@ -50,7 +50,11 @@ class ReaderScreen extends StatefulWidget {
   /// (v2: the dock at z 6, the spotlight at 8, the popover at 9); null on its own.
   final Widget? dock;
 
-  const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools, this.dock});
+  /// The tab's entrance (ADR 0037): the page and the bars fade in with it; the
+  /// dock, which was already there, does not.
+  final Animation<double>? entrance;
+
+  const ReaderScreen({super.key, required this.reader, this.onSearch, this.onTools, this.dock, this.entrance});
 
   static const folioKey = ValueKey('reader-folio');
   static const backSheetKey = ValueKey('reader-back-sheet');
@@ -74,6 +78,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Rect? _anchor(int verse, ReaderLayout layout) => reader.textMode
       ? _text.currentState?.rowRect(verse)
       : reader.viewer.viewRectOfVerse(verse)?.shift(layout.page.topLeft);
+
+  /// [child] fading in with the tab (ADR 0037).
+  Widget _entering(Widget child) => switch (widget.entrance) {
+        null => child,
+        final a => FadeTransition(opacity: a, child: child),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +259,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             key: ReaderScreen.backSheetKey,
             rect: layout.page.shift(const Offset(3, 3)),
             child: IgnorePointer(
-              child: Opacity(
+              child: _entering(Opacity(
                 opacity: 0.9,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -258,16 +268,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     border: Border.all(color: c.lineSoft),
                   ),
                 ),
-              ),
+              )),
             ),
           ),
         Positioned.fromRect(
           key: ReaderScreen.pageKey,
           rect: layout.page,
           // Kept mounted in text mode so the page is where it was when the student returns.
-          child: Offstage(
-            offstage: reader.textMode,
-            child: ClipRRect(
+          // The page and the text cross-fade as the view changes (ADR 0037).
+          child: _FadeStage(
+            shown: !reader.textMode,
+            child: _entering(ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: PageViewer(
                 controller: reader.viewer,
@@ -276,35 +287,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   return 'البيت ${ar(n)}: ${v.firstHemistich}، ${v.secondHemistich}';
                 },
               ),
-            ),
+            )),
           ),
         ),
-        if (reader.textMode)
-          Positioned.fromRect(
-            rect: layout.textZone,
-            child: TextReader(
-              key: _text,
-              reader: reader,
-              // Under the commentary sheet the column ends at the sheet's top.
-              bottomInset: explained == null ? layout.textInset : layout.textZone.bottom - sheetTop + 8,
-            ),
+        Positioned.fromRect(
+          rect: layout.textZone,
+          child: TzPresence(
+            fadeIn: true,
+            child: reader.textMode
+                ? _entering(TextReader(
+                    key: _text,
+                    reader: reader,
+                    // Under the commentary sheet the column ends at the sheet's top.
+                    bottomInset: explained == null ? layout.textInset : layout.textZone.bottom - sheetTop + 8,
+                  ))
+                : null,
           ),
+        ),
         Positioned.fromRect(
           rect: layout.bar,
-          child: reader.selecting
-              ? _SelectionHeader(reader: reader)
-              : _TopBar(
-                  reader: reader,
-                  onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
-                  onTools: widget.onTools ?? () => showDisplaySheet(context, reader),
-                ),
+          // The bar and the selection's header cross-fade.
+          child: _entering(TzFadeSwitcher(
+            child: reader.selecting
+                ? _SelectionHeader(key: const ValueKey('selecting'), reader: reader)
+                : _TopBar(
+                    key: const ValueKey('bar'),
+                    reader: reader,
+                    onSearch: widget.onSearch ?? () => SearchScreen.open(context, reader),
+                    onTools: widget.onTools ?? () => showDisplaySheet(context, reader),
+                  ),
+          )),
         ),
-        if (widget.dock case final dock? when !reader.selecting && explained == null)
+        // The dock steps aside for the selection bar and the commentary sheet.
+        if (widget.dock case final dock?)
           Positioned(
             left: ReaderTokens.dockSide,
             right: ReaderTokens.dockSide,
             bottom: ReaderTokens.dockBottom(mq.padding.bottom),
-            child: dock,
+            child: TzPresence(fadeIn: true, travel: 8, child: !reader.selecting && explained == null ? dock : null),
           ),
         // While selecting, the selection bar takes the dock's zone.
         if (reader.selecting)
@@ -314,25 +334,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
             travel: 8,
             child: _SelectionActions(reader: reader),
           ),
-        if (reader.selecting && !reader.selectionComplete)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: layout.bar.bottom + 8,
-            child: IgnorePointer(
-              child: Center(child: _SelectionHint(reader: reader)),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: layout.bar.bottom + 8,
+          child: IgnorePointer(
+            child: TzPresence(
+              fadeIn: true,
+              child: reader.selecting && !reader.selectionComplete ? Center(child: _SelectionHint(reader: reader)) : null,
             ),
           ),
-        if (reader.detached && reader.playing && !reader.selecting)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: layout.dock.top - 24,
-            child: Center(child: _ResumeChip(reader: reader)),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: layout.dock.top - 24,
+          child: TzPresence(
+            fadeIn: true,
+            travel: 8,
+            child: reader.detached && reader.playing && !reader.selecting ? Center(child: _ResumeChip(reader: reader)) : null,
           ),
-        if (reader.headingChapter case final chapter?)
-          Positioned.fill(
-            child: ChapterPopover(
+        ),
+        Positioned.fill(
+          child: TzPresence(
+            id: reader.headingIndex,
+            child: switch (reader.headingChapter) {
+              null => null,
+              final chapter => ChapterPopover(
               anchor: reader.viewer.viewRectOfChapter(reader.headingIndex!)?.shift(layout.page.topLeft),
               chapter: chapter,
               page: reader.content.layout.pageOfVerse(chapter.fromVerse),
@@ -352,16 +380,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     },
               onClose: reader.closeHeading,
             ),
+            },
           ),
-        if (reader.notice != null)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: mq.size.height - layout.dock.top + 16,
-            child: IgnorePointer(
-              child: Center(child: _Notice(text: reader.notice!)),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: mq.size.height - layout.dock.top + 16,
+          child: IgnorePointer(
+            child: TzPresence(
+              id: reader.notice,
+              fadeIn: true,
+              travel: 8,
+              child: reader.notice == null ? null : Center(child: _Notice(text: reader.notice!)),
             ),
           ),
+        ),
         VerseMenu(
           listenable: reader,
           content: reader.content,
@@ -399,28 +433,56 @@ class _ReaderScreenState extends State<ReaderScreen> {
           hasNote: (v) => reader.personal?.noteFor(v) != null,
           onExplain: _explain,
         ),
-        if (reader.symbol case final symbol? when reader.textMode) ..._symbolTip(context, symbol, layout),
-        if (explainedRect != null)
-          Positioned.fromRect(
-            key: ReaderScreen.explainedRingKey,
-            rect: VerseRing.around(explainedRect),
-            child: VerseRing(
-              color: tz.night ? tz.nightInk.accent : c.lapis,
-              tint: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : null,
+        Positioned.fill(
+          child: TzPresence(
+            id: reader.symbol,
+            child: switch (reader.symbol) {
+              final symbol? when reader.textMode => switch (_symbolTip(context, symbol, layout)) {
+                  [] => null,
+                  final tip => Stack(children: tip),
+                },
+              _ => null,
+            },
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: TzPresence(
+              fadeIn: true,
+              child: explainedRect == null
+                  ? null
+                  : Stack(children: [
+                      Positioned.fromRect(
+                        key: ReaderScreen.explainedRingKey,
+                        rect: VerseRing.around(explainedRect),
+                        child: VerseRing(
+                          color: tz.night ? tz.nightInk.accent : c.lapis,
+                          tint: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : null,
+                        ),
+                      ),
+                    ]),
             ),
           ),
-        if (explained != null)
-          Positioned.fill(
-            child: CommentarySheet(
-              key: ReaderScreen.commentaryKey,
-              reader: reader,
-              half: (mq.size.height - sheetTop) / mq.size.height,
-              notchX: mq.size.width / 2,
-              // A verse low on the page is behind the sheet: the strip carries it.
-              verseVisible: reader.textMode || explainedRect == null || explainedRect.bottom <= sheetTop - 8,
-              legend: reader.textMode,
-            ),
+        ),
+        // The sheet rises 60 dp as it fades in, and goes back down as it fades out.
+        Positioned.fill(
+          child: TzPresence(
+            fadeIn: true,
+            travel: 60,
+            enter: TzMotion.long,
+            child: explained == null
+                ? null
+                : CommentarySheet(
+                    key: ReaderScreen.commentaryKey,
+                    reader: reader,
+                    half: (mq.size.height - sheetTop) / mq.size.height,
+                    notchX: mq.size.width / 2,
+                    // A verse low on the page is behind the sheet: the strip carries it.
+                    verseVisible: reader.textMode || explainedRect == null || explainedRect.bottom <= sheetTop - 8,
+                    legend: reader.textMode,
+                  ),
           ),
+        ),
       ],
     );
   }
@@ -458,7 +520,7 @@ class _Notice extends StatelessWidget {
 /// The top bar while selecting: clear, the count and range, and «الباب كاملًا».
 class _SelectionHeader extends StatelessWidget {
   final ReaderController reader;
-  const _SelectionHeader({required this.reader});
+  const _SelectionHeader({super.key, required this.reader});
 
   @override
   Widget build(BuildContext context) {
@@ -577,7 +639,7 @@ class _SelectionActions extends StatelessWidget {
         button: true,
         label: reason == null ? label : '$label، $reason',
         excludeSemantics: true,
-        child: InkWell(
+        child: TzPressable(sink: true,
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Opacity(
@@ -691,7 +753,7 @@ class _Chrome extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   final ReaderController reader;
   final VoidCallback? onSearch, onTools;
-  const _TopBar({required this.reader, this.onSearch, this.onTools});
+  const _TopBar({super.key, required this.reader, this.onSearch, this.onTools});
 
   @override
   Widget build(BuildContext context) {
@@ -714,11 +776,16 @@ class _TopBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    chapterBarTitle(chapter.shortLabel),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TzType.chapter.copyWith(fontWeight: FontWeight.w700, height: 26 / 18, color: c.ink),
+                  // A new chapter's name cross-fades in (ADR 0037).
+                  TzFadeSwitcher(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      chapterBarTitle(chapter.shortLabel),
+                      key: ValueKey(chapter.shortLabel),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TzType.chapter.copyWith(fontWeight: FontWeight.w700, height: 26 / 18, color: c.ink),
+                    ),
                   ),
                   // One phrase for a screen reader, as the prototype's caption span: «ص ١٩ · الأصول · …».
                   MergeSemantics(
@@ -819,7 +886,7 @@ class _ResumeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
-    return GestureDetector(
+    return TzPressable(sink: true, borderRadius: BorderRadius.circular(999), tint: t.onGold,
       onTap: reader.resumeFollowing,
       child: Container(
         height: 48,
@@ -836,4 +903,49 @@ class _ResumeChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The page while text mode comes and goes (ADR 0037): it fades out to offstage
+/// and back in, kept mounted so it is where it was.
+class _FadeStage extends StatefulWidget {
+  final bool shown;
+  final Widget child;
+  const _FadeStage({required this.shown, required this.child});
+
+  @override
+  State<_FadeStage> createState() => _FadeStageState();
+}
+
+class _FadeStageState extends State<_FadeStage> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: TzMotion.medium, value: widget.shown ? 1 : 0);
+
+  @override
+  void didUpdateWidget(_FadeStage old) {
+    super.didUpdateWidget(old);
+    if (widget.shown == old.shown) return;
+    if (tzReduced(context)) {
+      _c.value = widget.shown ? 1 : 0;
+    } else {
+      widget.shown ? _c.forward() : _c.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        child: widget.child,
+        builder: (context, child) => Offstage(
+          offstage: _c.value == 0,
+          child: IgnorePointer(
+            ignoring: !widget.shown,
+            child: Opacity(opacity: _c.value, child: child),
+          ),
+        ),
+      );
 }

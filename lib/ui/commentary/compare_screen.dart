@@ -15,6 +15,7 @@ import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import 'commentary_parts.dart';
+import '../design/components/tz_motion.dart';
 
 /// From this width the books stand in columns; below it, they are pages.
 const double kCompareColumnsMinWidth = 840;
@@ -203,7 +204,7 @@ class _CompareScreenState extends State<CompareScreen> {
               selected: i == _page,
               label: _books[i].shortTitle,
               excludeSemantics: true,
-              child: InkWell(
+              child: TzPressable(sink: true,
                 onTap: () =>
                     _pages.animateToPage(i, duration: const Duration(milliseconds: 250), curve: Curves.easeOutCubic),
                 child: SizedBox(

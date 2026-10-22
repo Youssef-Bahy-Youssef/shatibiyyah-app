@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'night_crop.dart';
+import 'tz_motion.dart';
 
 class NightInkOption extends StatelessWidget {
   final TzNightInk ink;
@@ -30,10 +31,12 @@ class NightInkOption extends StatelessWidget {
         child: Material(
           color: c.surface,
           borderRadius: radius,
-          child: InkWell(
+          child: TzPressable(sink: true,
             onTap: onTap,
             borderRadius: radius,
-            child: Container(
+            child: AnimatedContainer(
+              duration: tzDuration(context, TzMotion.medium),
+              curve: TzMotion.standard,
               constraints: const BoxConstraints(minHeight: 72),
               // The edge is drawn over the box (1.5 px, as v2.css), the content
               // stays where the measured 1 px edge and 8 px padding put it.
@@ -74,8 +77,11 @@ class NightInkOption extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Container(
+                  // The ring darkens and its dot grows in (ADR 0037).
+                  AnimatedContainer(
                     key: radioKey,
+                    duration: tzDuration(context, TzMotion.medium),
+                    curve: TzMotion.standard,
                     width: 24,
                     height: 24,
                     alignment: Alignment.center,
@@ -83,9 +89,12 @@ class NightInkOption extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: selected ? c.ink : c.line, width: 2),
                     ),
-                    child: selected
-                        ? Container(width: 12, height: 12, decoration: BoxDecoration(color: c.ink, shape: BoxShape.circle))
-                        : null,
+                    child: AnimatedScale(
+                      scale: selected ? 1 : 0,
+                      duration: tzDuration(context, TzMotion.medium),
+                      curve: TzMotion.emphasized,
+                      child: Container(width: 12, height: 12, decoration: BoxDecoration(color: c.ink, shape: BoxShape.circle)),
+                    ),
                   ),
                 ],
               ),

@@ -9,6 +9,7 @@ import '../tokens.g.dart';
 import '../tz_icon.dart';
 import '../tz_theme.dart';
 import 'khatam.dart';
+import 'tz_motion.dart';
 
 class BindingStepper extends StatelessWidget {
   final String previous, next;
@@ -66,7 +67,7 @@ class BindingStepper extends StatelessWidget {
           enabled: onTap != null,
           child: Opacity(
             opacity: onTap == null ? 0.45 : 1,
-            child: InkWell(
+            child: TzPressable(sink: true,
               onTap: onTap,
               borderRadius: BorderRadius.circular(TzRadius.control),
               child: Container(

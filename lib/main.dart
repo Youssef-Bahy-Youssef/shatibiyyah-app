@@ -8,8 +8,10 @@
 // (night or paper) is app-wide and switched from the tools sheet.
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:audio_service/audio_service.dart';
@@ -88,17 +90,36 @@ class ShatibiyyahApp extends StatefulWidget {
   State<ShatibiyyahApp> createState() => _ShatibiyyahAppState();
 }
 
-class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObserver {
+class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  // The palette shown, and the screen as it was in the one before while it fades
+  // away over the new one (ADR 0037): paper and night cross-fade in 320 ms instead
+  // of one replacing the other in a frame.
+  late ReaderTheme _theme;
+  late TzNightInk _ink;
+  final _screen = GlobalKey();
+  ui.Image? _was;
+  late final AnimationController _fade = AnimationController(vsync: this, duration: TzMotion.long);
+  late final Animation<double> _wasShown = ReverseAnimation(CurvedAnimation(parent: _fade, curve: TzMotion.standard));
+  bool _pending = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     applyThemeChoice(appThemeChoice.value); // the splash is already in the system's palette
+    _theme = appTheme.value;
+    _ink = appNightInk.value;
+    appTheme.addListener(_onTheme);
+    appNightInk.addListener(_onTheme);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    appTheme.removeListener(_onTheme);
+    appNightInk.removeListener(_onTheme);
+    _fade.dispose();
+    _was?.dispose();
     super.dispose();
   }
 
@@ -106,13 +127,44 @@ class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObse
   @override
   void didChangePlatformBrightness() => applyThemeChoice(appThemeChoice.value);
 
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([appTheme, appNightInk]),
-      builder: (context, _) => _app(appTheme.value),
-    );
+  /// The palette changed: once the frame being drawn is on screen, it is kept as
+  /// a picture and the new palette is applied under it.
+  void _onTheme() {
+    if (_pending) return;
+    _pending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _apply());
+    WidgetsBinding.instance.scheduleFrame();
   }
+
+  void _apply() {
+    _pending = false;
+    if (!mounted || (appTheme.value == _theme && appNightInk.value == _ink)) return;
+    ui.Image? was;
+    if (!WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations) {
+      try {
+        final box = _screen.currentContext?.findRenderObject();
+        if (box is RenderRepaintBoundary && box.hasSize) was = box.toImageSync(pixelRatio: View.of(context).devicePixelRatio);
+      } catch (_) {
+        // No picture: the palette simply changes.
+      }
+    }
+    setState(() {
+      _theme = appTheme.value;
+      _ink = appNightInk.value;
+      _was?.dispose();
+      _was = was;
+    });
+    if (was case final shot?) {
+      _fade.forward(from: 0).whenCompleteOrCancel(() {
+        if (!mounted || _was != shot) return;
+        setState(() => _was = null);
+        shot.dispose();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _app(_theme);
 
   Widget _app(ReaderTheme theme) => MaterialApp(
         title: 'تيسير الشاطبية',
@@ -126,11 +178,28 @@ class _ShatibiyyahAppState extends State<ShatibiyyahApp> with WidgetsBindingObse
           GlobalCupertinoLocalizations.delegate,
         ],
         // The one theme source: the tokens (item 3.1).
-        theme: tzThemeData(tzThemeFor(theme, ink: appNightInk.value)),
+        theme: tzThemeData(tzThemeFor(theme, ink: _ink)),
+        // The cross-fade above is the change of palette: Material's own blend would
+        // run under it, and the token colours do not blend.
+        themeAnimationDuration: Duration.zero,
         // Status and navigation bar icons follow the theme: light on night, dark on paper.
         builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: theme == ReaderTheme.paper ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
-          child: Directionality(textDirection: TextDirection.rtl, child: child!),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(key: _screen, child: child!),
+                if (_was case final was?)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: FadeTransition(opacity: _wasShown, child: RawImage(image: was, fit: BoxFit.fill)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
         home: const _Boot(),
       );

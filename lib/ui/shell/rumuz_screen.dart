@@ -21,6 +21,7 @@ import '../design/tz_theme.dart';
 import '../reader/reader_controller.dart';
 import 'app_shell.dart';
 import 'shell_page.dart';
+import '../design/components/tz_motion.dart';
 
 class RumuzScreen extends StatefulWidget {
   final ReaderController reader;
@@ -110,7 +111,7 @@ class _RumuzScreenState extends State<RumuzScreen> {
   /// Where the poem defines the tab's symbols: opens the reader there.
   Widget _source(String text, int verse, TzColors c) => Semantics(
         button: true,
-        child: InkWell(
+        child: TzPressable(
           key: RumuzScreen.sourceKey,
           onTap: () => _openVerse(verse),
           child: ConstrainedBox(
@@ -186,7 +187,7 @@ class _RumuzScreenState extends State<RumuzScreen> {
       label: 'رمز ${r.code}: ${r.label}${members == null ? '' : ' ($members)'}، $verse',
       excludeSemantics: true,
       onTap: () => _openVerse(r.fromVerse),
-      child: InkWell(
+      child: TzPressable(
         key: _isFocus(r) ? _focused : null,
         onTap: () => _openVerse(r.fromVerse),
         child: Container(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/arabic.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 class TextSizeGrid extends StatelessWidget {
   final List<double> scales;
@@ -38,20 +39,23 @@ class TextSizeGrid extends StatelessWidget {
         label: '${ar((s * 100).round())}٪',
         inMutuallyExclusiveGroup: true,
         checked: on,
-        child: Material(
+        // The fill and the letter ease to the choice (ADR 0037).
+        child: TzColorTween(
           color: on ? c.action : c.tonal,
-          borderRadius: radius,
-          child: InkWell(
+          builder: (context, fill, child) => Material(color: fill, borderRadius: radius, child: child),
+          child: TzPressable(sink: true,
             onTap: () => onSelect(s),
             borderRadius: radius,
             child: SizedBox(
               height: 52,
               child: Center(
                 child: ExcludeSemantics(
-                  child: Text('أ',
-                      textScaler: TextScaler.noScaling, // the sizes are the steps themselves
-                      style: TextStyle(
-                          fontFamily: TzFont.text, fontSize: 15.0 + i * 3, height: 1, color: on ? c.onAction : c.ink)),
+                  child: TzColorTween(
+                    color: on ? c.onAction : c.ink,
+                    builder: (context, ink, _) => Text('أ',
+                        textScaler: TextScaler.noScaling, // the sizes are the steps themselves
+                        style: TextStyle(fontFamily: TzFont.text, fontSize: 15.0 + i * 3, height: 1, color: ink)),
+                  ),
                 ),
               ),
             ),

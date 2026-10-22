@@ -26,6 +26,7 @@ import '../design/tz_icon.dart';
 import '../design/tz_theme.dart';
 import '../shell/downloads_screen.dart';
 import 'reader_controller.dart';
+import '../design/components/tz_motion.dart';
 
 Future<void> showPlayerSheet(BuildContext context, ReaderController reader) => showModalBottomSheet<void>(
       context: context,
@@ -369,7 +370,7 @@ class _Glyph extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         onTap: onTap,
-        child: InkWell(
+        child: TzPressable(sink: true,
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox.square(
@@ -404,7 +405,7 @@ class _Row extends StatelessWidget {
       ),
     );
     if (onTap == null) return row;
-    return MergeSemantics(child: Semantics(button: true, child: InkWell(onTap: onTap, child: row)));
+    return MergeSemantics(child: Semantics(button: true, child: TzPressable(onTap: onTap, child: row)));
   }
 }
 

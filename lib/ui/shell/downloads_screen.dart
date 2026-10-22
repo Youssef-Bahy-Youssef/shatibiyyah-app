@@ -17,6 +17,7 @@ import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import 'shell_page.dart';
+import '../design/components/tz_motion.dart';
 
 class DownloadsScreen extends StatelessWidget {
   final AudioLibrary library;
@@ -362,7 +363,7 @@ class ReciterOption extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       checked: chosen,
       button: true,
-      child: InkWell(
+      child: TzPressable(sink: true,
         borderRadius: BorderRadius.circular(16),
         onTap: onPick,
         child: Container(

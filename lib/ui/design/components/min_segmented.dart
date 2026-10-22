@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 class MinSegmented<T> extends StatelessWidget {
   final Map<T, String> options;
@@ -45,7 +46,7 @@ class MinSegmented<T> extends StatelessWidget {
                 children: [
                   for (final (i, MapEntry(:key, :value)) in options.entries.indexed) ...[
                     if (i > 0) const SizedBox(width: 2),
-                    Flexible(child: _segment(c, key, value)),
+                    Flexible(child: _segment(context, c, key, value)),
                   ],
                 ],
               ),
@@ -56,33 +57,39 @@ class MinSegmented<T> extends StatelessWidget {
     );
   }
 
-  Widget _segment(TzColors c, T key, String label) {
+  Widget _segment(BuildContext context, TzColors c, T key, String label) {
     final on = key == selected;
     return MergeSemantics(
       child: Semantics(
         inMutuallyExclusiveGroup: true,
         checked: on,
-        child: InkWell(
+        child: TzPressable(sink: true,
           onTap: () => onSelect(key),
           borderRadius: BorderRadius.circular(10),
           child: SizedBox(
             height: TzSize.touchTarget,
             child: Center(
               widthFactor: 1,
-              child: Container(
+              // The raised segment fades from one choice to the next (ADR 0037).
+              child: AnimatedContainer(
+                duration: tzDuration(context, TzMotion.medium),
+                curve: TzMotion.standard,
                 constraints: const BoxConstraints(minWidth: 52),
                 height: 38,
                 decoration: on
                     ? BoxDecoration(color: c.raised, borderRadius: BorderRadius.circular(10), boxShadow: _raise)
-                    : null,
+                    : BoxDecoration(color: c.raised.withValues(alpha: 0), borderRadius: BorderRadius.circular(10)),
                 // Large text that no longer fits its share of the row is drawn smaller, never cut.
                 child: Center(
                   widthFactor: 1, // as wide as its word (at least 52), not its whole share of the row
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(label,
-                        style: TzType.label.copyWith(
-                            fontSize: 13, color: on ? c.ink : c.ink2, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+                    child: TzColorTween(
+                      color: on ? c.ink : c.ink2,
+                      builder: (context, ink, _) => Text(label,
+                          style: TzType.label.copyWith(
+                              fontSize: 13, color: ink, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+                    ),
                   ),
                 ),
               ),

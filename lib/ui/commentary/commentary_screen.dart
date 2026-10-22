@@ -26,6 +26,7 @@ import '../design/pill_tabs.dart';
 import '../design/taysir_colors.dart';
 import '../shell/shell_page.dart' show readingPadding;
 import 'commentary_parts.dart';
+import '../design/components/tz_motion.dart';
 
 /// How long after the student's last scroll in the pane a new verse from outside
 /// waits before it replaces the passage being read.
@@ -235,7 +236,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
                 child: Semantics(
                   selected: book.id == _bookId,
                   button: true,
-                  child: InkWell(
+                  child: TzPressable(
                     onTap: book.id == _bookId
                         ? null
                         : () {

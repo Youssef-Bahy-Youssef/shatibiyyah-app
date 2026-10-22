@@ -10,6 +10,7 @@ import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
 import 'reader_controller.dart';
+import '../design/components/tz_motion.dart';
 
 /// The scopes offered from [verse], with their labels. On a chapter's last verse
 /// «إلى نهاية الباب» would repeat «البيت فقط», so it is left out.
@@ -60,7 +61,7 @@ Future<void> showListenSheet(BuildContext context, ReaderController reader, int 
                 Text('الاستماع إلى؟', style: TzType.title.copyWith(color: t.text)),
                 const SizedBox(height: 12),
                 for (final o in listenOptions(reader, verse)) ...[
-                  InkWell(
+                  TzPressable(sink: true,
                     borderRadius: BorderRadius.circular(16),
                     onTap: () {
                       Navigator.of(sheet).pop();

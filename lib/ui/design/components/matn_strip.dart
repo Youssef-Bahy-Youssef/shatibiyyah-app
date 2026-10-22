@@ -16,6 +16,7 @@ import 'khatam.dart';
 import 'rubric.dart';
 import 'tap_reach.dart';
 import 'verse_unit.dart';
+import 'tz_motion.dart';
 
 class MatnStrip extends StatelessWidget {
   final String number; // «٢٢٦»
@@ -153,7 +154,7 @@ class MatnStrip extends StatelessWidget {
           button: true,
           selected: on,
           label: 'البيت $label',
-          child: InkWell(
+          child: TzPressable(sink: true,
             onTap: onVerse == null ? null : () => onVerse!(i),
             borderRadius: BorderRadius.circular(TzRadius.pill),
             // A 48 px target around the 32 px pill.

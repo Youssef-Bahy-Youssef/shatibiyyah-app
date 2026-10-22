@@ -29,6 +29,7 @@ import '../reader/reader_controller.dart';
 import '../reader/verse_rubrics.dart';
 import 'commentary_parts.dart';
 import 'commentary_screen.dart' show CommentaryScreen;
+import '../design/components/tz_motion.dart';
 
 class CommentarySheet extends StatefulWidget {
   final ReaderController reader;
@@ -364,17 +365,23 @@ class _CommentarySheetState extends State<CommentarySheet> {
       child: Semantics(
         button: true,
         selected: on,
-        child: InkWell(
+        child: TzPressable(
           onTap: () => _chooseBook(book.id),
           child: Container(
             height: 48,
             padding: const EdgeInsets.only(top: 4),
-            child: Container(
+            // The line under the chosen book and its name ease across (ADR 0037).
+            child: AnimatedContainer(
+              duration: tzDuration(context, TzMotion.medium),
+              curve: TzMotion.standard,
               padding: const EdgeInsets.only(top: 10.8, bottom: 8.8),
-              decoration:
-                  BoxDecoration(border: Border(bottom: BorderSide(color: on ? c.lapis : Colors.transparent, width: 2))),
-              child: Text(book.shortTitle,
-                  style: TzType.label.copyWith(color: on ? c.ink : c.ink3, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+              decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: on ? c.lapis : c.lapis.withValues(alpha: 0), width: 2))),
+              child: TzColorTween(
+                color: on ? c.ink : c.ink3,
+                builder: (context, ink, _) => Text(book.shortTitle,
+                    style: TzType.label.copyWith(color: ink, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
+              ),
             ),
           ),
         ),
