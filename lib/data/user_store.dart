@@ -151,11 +151,12 @@ class UserStore {
   // ── bookmarks (features-v3 bookmarks) ──
   // One live bookmark per verse or range; deleting sets deleted_at (a tombstone).
 
-  /// Live bookmarks, the most recently changed first.
+  /// Live bookmarks, the most recently changed first; within one millisecond, the
+  /// last created first (rowid), not the order of whichever index SQLite scans.
   Future<List<Bookmark>> bookmarks() async => [
         for (final r in await db.rawQuery(
             'SELECT uuid, from_verse_id, to_verse_id, color, tag, updated_at FROM bookmarks '
-            'WHERE deleted_at IS NULL ORDER BY updated_at DESC'))
+            'WHERE deleted_at IS NULL ORDER BY updated_at DESC, rowid DESC'))
           Bookmark(
             r['uuid'] as String,
             _verseNumber(r['from_verse_id'] as String),
@@ -227,10 +228,10 @@ class UserStore {
 
   // ── notes (features-v3 verse-notes): one per verse; saving an empty one deletes it ──
 
-  /// Live notes, the most recently changed first.
+  /// Live notes, the most recently changed first (the last created, within one millisecond).
   Future<List<Note>> notes() async => [
         for (final r in await db.rawQuery(
-            'SELECT uuid, matn_verse_id, body, updated_at FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC'))
+            'SELECT uuid, matn_verse_id, body, updated_at FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC, rowid DESC'))
           Note(r['uuid'] as String, _verseNumber(r['matn_verse_id'] as String), r['body'] as String,
               DateTime.fromMillisecondsSinceEpoch(r['updated_at'] as int)),
       ];
