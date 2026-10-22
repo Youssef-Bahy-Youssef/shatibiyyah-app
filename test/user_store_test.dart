@@ -194,6 +194,15 @@ void main() {
       expect((await store.bookmarks()).single.toVerse, isNull);
     });
 
+    // Saves in one millisecond (the handoff fixture's three) keep the newest first.
+    test('saved in the same millisecond: the last created comes first', () async {
+      final at = DateTime(2026, 1, 1);
+      await store.saveBookmark(683, color: BookmarkColor.blue, tag: BookmarkTag.ishkal, at: at);
+      await store.saveBookmark(120, to: 123, color: BookmarkColor.orange, tag: BookmarkTag.hifz, at: at);
+      await store.saveBookmark(229, color: BookmarkColor.gold, tag: BookmarkTag.muraja, at: at);
+      expect((await store.bookmarks()).map((b) => b.fromVerse), [229, 120, 683]);
+    });
+
     test('delete by uuid, then restore: the same row; refused when its verses were taken', () async {
       await store.saveBookmark(226, to: 234, color: BookmarkColor.blue, tag: BookmarkTag.muraja);
       final b = (await store.bookmarks()).single;
@@ -237,6 +246,14 @@ void main() {
       expect(row['uuid'], uuid);
       expect(row['created_at'], DateTime(2026, 1, 1).millisecondsSinceEpoch);
       expect(row['updated_at'], DateTime(2026, 1, 2).millisecondsSinceEpoch);
+    });
+
+    test('saved in the same millisecond: the last created comes first', () async {
+      final at = DateTime(2026, 1, 1);
+      for (final v in [1001, 229, 683]) {
+        await store.saveNote(v, 'ملاحظة', at: at);
+      }
+      expect((await store.notes()).map((n) => n.verse), [683, 229, 1001]);
     });
 
     test('delete by id, then «تراجع»: the same uuid and text', () async {
