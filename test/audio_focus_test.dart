@@ -3,7 +3,6 @@
 import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shatibiyyah/services/audio_focus.dart';
 
@@ -75,50 +74,5 @@ void main() {
     expect(kRecitationSession.androidWillPauseWhenDucked, isFalse);
     expect(kRecitationSession.androidAudioAttributes?.contentType, AndroidAudioContentType.speech);
     expect(kRecitationSession.avAudioSessionMode, AVAudioSessionMode.spokenAudio);
-  });
-
-  group('the session and the opening verse (ADR 0027)', () {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    const channel = MethodChannel('com.ryanheise.audio_session');
-    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    late List<String> configured; // each time the session is given the recitation's settings
-
-    setUp(() {
-      configured = [];
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        if (call.method == 'setConfiguration') configured.add('speech');
-        return null;
-      });
-    });
-
-    tearDown(() {
-      messenger.setMockMethodCallHandler(channel, null);
-      AudioFocus.sessionHold = null;
-    });
-
-    Future<AudioFocus> attach() => AudioFocus.attach(
-        interrupt: () async {},
-        endInterruption: ({required bool playOn}) async {},
-        pause: () async {},
-        setVolume: (_) async {});
-
-    test('with nothing holding it, the session is the recitation\'s before attach returns', () async {
-      final attached = await attach();
-      expect(configured, ['speech']);
-      await attached.dispose();
-    });
-
-    test('while the opening verse holds it, the session becomes the recitation\'s only when the verse has ended', () async {
-      final verse = Completer<void>();
-      AudioFocus.sessionHold = verse.future;
-      final attached = await attach(); // boot does not wait for the verse
-      await pumpEventQueue();
-      expect(configured, isEmpty);
-
-      verse.complete();
-      await pumpEventQueue();
-      expect(configured, ['speech']);
-      await attached.dispose();
-    });
   });
 }

@@ -3,8 +3,8 @@
 // Boots the v3 reader (lib/app/reader_boot.dart) under the launch splash. Content
 // comes from assets/content/content.sqlite, built by `spd app-snapshot` in
 // shatibiyyah-data; the 94 manuscript pages are assets/pages/page001–094.webp.
-// No recording is bundled: one plays from a file on the device. The only audio in
-// the app is «بيت الافتتاح», the verse recited as it opens (ADR 0027). The theme
+// No recording is bundled: one plays from a file on the device, and the app carries
+// no audio at all (ADR 0036). The theme
 // (night or paper) is app-wide and switched from the tools sheet.
 import 'dart:async';
 import 'dart:io';
@@ -14,15 +14,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:audio_service/audio_service.dart';
 
-import 'app/opening_recitation.dart';
 import 'app/reader_boot.dart';
 import 'app/reminders.dart';
 import 'app/routes.dart';
 import 'app/widgets.dart';
-import 'services/audio_focus.dart';
 import 'services/lock_screen.dart';
-import 'services/opening_audio.dart';
-import 'services/preferences_service.dart';
 import 'ui/design/tokens.g.dart';
 import 'data/settings_store.dart';
 import 'ui/design/app_theme.dart';
@@ -154,14 +150,10 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
   HomeWidgets? _widgets;
   WidgetRequest? _openWhenShown; // a widget's tap that started the app, until the splash is gone
 
-  /// «بيت الافتتاح»: starts under the splash and goes on over the reader (ADR 0027).
-  final OpeningRecitation _opening = OpeningRecitation(JustAudioOpening());
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _reciteOpening();
     _init();
   }
 
@@ -170,30 +162,18 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _taps?.cancel();
     _widgets?.dispose();
-    unawaited(_opening.stop());
     super.dispose();
   }
 
   /// Leaving the app moves «تذكير الباب» to three days from now, on the current
-  /// verse, ends the opening verse, and tells the home-screen widgets where the
-  /// reader stands without waiting.
+  /// verse and tells the home-screen widgets where the reader stands without
+  /// waiting.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _opening.lifecycle(state);
     if (state == AppLifecycleState.paused) {
       _reader?.reminders?.reschedule();
       _widgets?.publishNow();
     }
-  }
-
-  /// The verse does not wait for the reader: only for its switch, read here from
-  /// the preferences, and for the app to be on screen.
-  void _reciteOpening() {
-    if (Platform.isIOS) {
-      AudioFocus.sessionHold = _opening.done.whenComplete(() => AudioFocus.sessionHold = null);
-    }
-    _opening.lifecycle(WidgetsBinding.instance.lifecycleState);
-    unawaited(_opening.start(enabled: Prefs.create().then((prefs) => SettingsStore(prefs).playOpening)));
   }
 
   Future<void> _init() async {
@@ -204,10 +184,6 @@ class _BootState extends State<_Boot> with WidgetsBindingObserver {
       final reader = await bootReader(
         onFirstPage: (page) => firstPage = mounted ? PageViewer.warm(context, page) : null,
       );
-      // A recitation takes over from the opening verse, and its switch going off ends it.
-      reader.addListener(() {
-        if (reader.playing || !reader.playOpening) unawaited(_opening.stop());
-      });
       unawaited(lockScreen.then((handler) => handler?.attach(reader)));
       _taps = reader.reminders?.taps.listen(_openReminder);
       // The home-screen widgets (Android; iOS in plan 7.4). Started here, not after the

@@ -45,8 +45,6 @@ flutter:
     - assets/content/
     - assets/pages/
     - assets/icons/
-    # «بيت الافتتاح»: verse 1124, the only audio in the app (ADR 0027)
-    - assets/opening/
 
   fonts:
     # --text: "Scheherazade New" — the poem, chapter names, commentary and display titles
