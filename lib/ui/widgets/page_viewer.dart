@@ -34,6 +34,16 @@ const double _dblSlop = 34;
 /// Hold time before a verse's action menu opens (features-v3: 450 ms).
 const int kLongPressMs = 450;
 
+/// A turn of the page (ADR 0037): from which page to which, and how far the page
+/// had been drawn aside by the finger when it was let go (0 for a turn the
+/// finger did not make). [serial] tells two turns between the same pages apart.
+@immutable
+class PageTurn {
+  final int from, to, serial;
+  final double dx;
+  const PageTurn({required this.from, required this.to, required this.dx, required this.serial});
+}
+
 // page-viewer.js COLORS / CHAPTER_COLORS
 class _Col {
   final Color fill, stroke, ghost;
@@ -107,6 +117,17 @@ class PageViewerController extends ChangeNotifier {
 
   bool reduceMotion = false;
 
+  // ── the page under the finger, and its turns (ADR 0037) ──
+  /// How far a swipe has drawn the page aside (dp, + toward the next page); 0 at rest.
+  final ValueNotifier<double> swipe = ValueNotifier(0);
+
+  /// The last turn of the page; the viewer slides the old page away.
+  final ValueNotifier<PageTurn?> turn = ValueNotifier(null);
+  int _turns = 0;
+  double _releaseDx = 0;
+  AnimationController? _settle; // a swipe that did not turn, back to rest
+  double _settleFrom = 0;
+
   // ── event streams (mirror addEventListener) ──
   final _verseTap = StreamController<int>.broadcast();
   final _verseLongPress = StreamController<int>.broadcast();
@@ -149,6 +170,8 @@ class PageViewerController extends ChangeNotifier {
     if (_vsync != null) _release();
     _vsync = vsync;
     _xform = AnimationController(vsync: vsync)..addListener(_onXformTick);
+    _settle = AnimationController(vsync: vsync, duration: TzMotion.medium)
+      ..addListener(() => swipe.value = _settleFrom * (1 - TzMotion.standard.transform(_settle!.value)));
     // A frame of the highlight's glide is a repaint of its layer, not a rebuild.
     _overlay = vsync.createTicker((elapsed) {
       final at = elapsed.inMicroseconds / 1000.0;
@@ -183,9 +206,12 @@ class PageViewerController extends ChangeNotifier {
     _xform?.dispose();
     _overlay?.dispose();
     _momentum?.dispose();
+    _settle?.dispose();
     _xform = null;
     _overlay = null;
     _momentum = null;
+    _settle = null;
+    swipe.value = 0;
     _vsync = null;
   }
 
@@ -329,6 +355,10 @@ class PageViewerController extends ChangeNotifier {
       if (fromUser) _pageChange.add(n);
       return;
     }
+    if (currentPage != 0) turn.value = PageTurn(from: currentPage, to: n, dx: _releaseDx, serial: ++_turns);
+    _releaseDx = 0;
+    _settle?.stop();
+    swipe.value = 0; // the new page is at rest; the old one goes from where it was
     _loadPage(n);
     prevBox = null; // a glide does not cross pages
     if (fromUser) {
@@ -693,6 +723,7 @@ class PageViewerController extends ChangeNotifier {
       _armLongPress(local);
     } else if (_pts.length == 2) {
       _cancelLongPress();
+      _settleSwipe();
       _mode = 'pinch';
       _moved = true;
       final c = _centroid();
@@ -743,6 +774,8 @@ class PageViewerController extends ChangeNotifier {
         _mode = 'swipe';
       }
     }
+
+    if (_mode == 'swipe') _follow(dx);
 
     if (_mode == 'pan') {
       final now = _now();
@@ -796,11 +829,15 @@ class PageViewerController extends ChangeNotifier {
 
     if (_mode == 'swipe' || (_mode == null && dx.abs() > _swipeMin)) {
       if (dx.abs() > _swipeMin && dx.abs() > dy.abs() * 1.4) {
+        _releaseDx = swipe.value;
         _userGo(currentPage + (dx > 0 ? 1 : -1));
+        _releaseDx = 0;
+        _settleSwipe(); // no page that way: back to rest
         _mode = null;
         return;
       }
     }
+    _settleSwipe();
 
     if (_mode == 'pan') {
       _startMomentum(_vx, _vy);
@@ -831,6 +868,27 @@ class PageViewerController extends ChangeNotifier {
     _longPressed = false;
     _pts.remove(id);
     if (_pts.isEmpty) _mode = null;
+    _settleSwipe();
+  }
+
+  /// The page follows the finger across ([dx] from where it went down); past the
+  /// first or last page it gives only a quarter as much.
+  void _follow(double dx) {
+    if (reduceMotion || _vsync == null || _pts.length != 1) return;
+    _settle?.stop();
+    final none = dx > 0 ? currentPage >= data.pageCount : currentPage <= 1;
+    swipe.value = none ? dx / 4 : dx;
+  }
+
+  /// A page drawn aside that did not turn goes back to rest in 200 ms.
+  void _settleSwipe() {
+    if (swipe.value == 0) return;
+    if (_settle == null || reduceMotion) {
+      swipe.value = 0;
+      return;
+    }
+    _settleFrom = swipe.value;
+    _settle!.forward(from: 0);
   }
 
   // ── momentum (ported: _startMomentum / _stopMomentum) ──
@@ -871,6 +929,8 @@ class PageViewerController extends ChangeNotifier {
     _overlay?.dispose();
     _momentum?.dispose();
     _cancelLongPress();
+    swipe.dispose();
+    turn.dispose();
     _verseTap.close();
     _verseLongPress.close();
     _pageChange.close();
@@ -939,18 +999,54 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
   /// The page the highlight layer is drawing: the one on screen once its scan is there.
   int get overlayPage => _arrived.value;
 
+  // The page turning away (ADR 0037). A neighbour and the new page move as one
+  // strip, the new one joined to the old one's edge, as in a book's pages laid
+  // side by side; a page further off fades over the new one.
+  late final AnimationController _turning = AnimationController(vsync: this);
+  ({int page, double dx, double dir, bool jump, double zoom, double tx, double ty})? _away;
+
   @override
   void initState() {
     super.initState();
     c.attach(this);
+    c.turn.addListener(_onTurn);
+  }
+
+  @override
+  void didUpdateWidget(PageViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.turn.removeListener(_onTurn);
+    widget.controller.turn.addListener(_onTurn);
   }
 
   @override
   void dispose() {
     _stream?.removeListener(_onImage);
     _arrived.dispose();
+    c.turn.removeListener(_onTurn);
+    _turning.dispose();
     c.detach(this); // before super.dispose(): the mixin asserts its tickers are gone
     super.dispose();
+  }
+
+  void _onTurn() {
+    final turn = c.turn.value;
+    if (turn == null || !mounted) return;
+    // Not on screen (text mode, another tab), no motion asked for, or not laid out: the page just changes.
+    if (c.reduceMotion || !TickerMode.valuesOf(context).enabled || c.baseW <= 0) {
+      _away = null;
+      _turning.value = 0;
+      return;
+    }
+    final jump = (turn.to - turn.from).abs() > 1;
+    // The finger's way, else the book's: a later page sends the old one to the right.
+    final dir = turn.dx != 0 ? turn.dx.sign : (turn.to > turn.from ? 1.0 : -1.0);
+    _away = (page: turn.from, dx: turn.dx, dir: dir, jump: jump, zoom: c.zoom, tx: c.tx, ty: c.ty);
+    // What the finger already did is not done again: a page let go half-way has half the way left.
+    final left = jump ? 1.0 : (1 - turn.dx.abs() / c.viewW).clamp(0.4, 1.0);
+    _turning.duration = (jump ? TzMotion.medium : TzMotion.long) * left;
+    _turning.forward(from: 0);
   }
 
   /// Follows [page]'s scan until it is decoded, and fetches its neighbours ahead.
@@ -977,6 +1073,10 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
         return ClipRect(
           child: Stack(
             children: [
+              // The page the finger is bringing in, joined to the edge of the one it draws aside.
+              Positioned.fill(
+                child: ValueListenableBuilder<double>(valueListenable: c.swipe, builder: (context, dx, _) => _beside(dx)),
+              ),
               // the transformed stage (image + overlay). Chrome (toolbar / nav / page-no)
               // is overlaid by the home screen so immersive mode can animate it.
               Listener(
@@ -986,15 +1086,109 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
                 onPointerUp: (e) => c.pointerUp(e.pointer, e.localPosition),
                 onPointerCancel: (e) => c.pointerCancel(e.pointer),
                 child: AnimatedBuilder(
-                  animation: c,
-                  builder: (context, _) => _buildStage(),
+                  animation: Listenable.merge([c.swipe, _turning]),
+                  builder: (context, stage) =>
+                      Transform.translate(offset: Offset(c.swipe.value + _arriving(), 0), child: stage),
+                  child: AnimatedBuilder(
+                    animation: c,
+                    builder: (context, _) => _buildStage(),
+                  ),
                 ),
+              ),
+              // The page that was turned, on its way off.
+              Positioned.fill(
+                child: IgnorePointer(child: AnimatedBuilder(animation: _turning, builder: (context, _) => _turningAway())),
               ),
             ],
           ),
         );
       },
     );
+  }
+
+  /// The space between two pages side by side.
+  static const double gutter = 8;
+
+  /// The neighbour on the side a swipe of [dx] is bringing in, joined to the page's edge.
+  Widget _beside(double dx) {
+    final page = dx > 0 ? c.currentPage + 1 : c.currentPage - 1;
+    if (dx == 0 || c.baseW <= 0 || page < 1 || page > c.data.pageCount) return const SizedBox.shrink();
+    return Transform.translate(
+      offset: Offset(dx - dx.sign * (c.viewW + gutter), 0),
+      child: _sheet(page, c.zoom, c.tx, c.ty),
+    );
+  }
+
+  /// Where the turned page is now: from where the finger let it go to a page's
+  /// width (and the gutter) off toward its side.
+  double _leavingAt(({int page, double dx, double dir, bool jump, double zoom, double tx, double ty}) a) {
+    final t = TzMotion.standard.transform(_turning.value);
+    final to = a.dir * (c.viewW + gutter);
+    return a.dx + (to - a.dx) * t;
+  }
+
+  bool get _turningNow => _away != null && !_turning.isCompleted && !_turning.isDismissed;
+
+  /// How far the new page still is from its place: joined to the leaving one's edge.
+  double _arriving() {
+    final a = _away;
+    if (!_turningNow || a!.jump) return 0;
+    return _leavingAt(a) - a.dir * (c.viewW + gutter);
+  }
+
+  /// The turned page leaving beside the new one, or, for a jump, fading over it.
+  Widget _turningAway() {
+    final a = _away;
+    if (!_turningNow) return const SizedBox.shrink();
+    final sheet = _sheet(a!.page, a.zoom, a.tx, a.ty);
+    if (a.jump) return Opacity(opacity: 1 - TzMotion.standard.transform(_turning.value), child: sheet);
+    return Transform.translate(offset: Offset(_leavingAt(a), 0), child: sheet);
+  }
+
+  /// [page]'s sheet as the stage draws it, without the marks over it.
+  Widget _sheet(int page, double zoom, double tx, double ty) => SizedBox(
+        width: c.viewW,
+        height: c.viewH,
+        child: Transform(
+          transform: _viewMatrix(zoom, tx, ty),
+          child: SizedBox(
+            width: c.baseW,
+            height: c.baseH,
+            child: DecoratedBox(decoration: _sheetDecoration, child: ExcludeSemantics(child: _scan(page))),
+          ),
+        ),
+      );
+
+  /// The view transform: screen = base·zoom + (tx, ty), column-major.
+  static Matrix4 _viewMatrix(double zoom, double tx, double ty) =>
+      Matrix4(zoom, 0, 0, 0, 0, zoom, 0, 0, 0, 0, 1, 0, tx, ty, 0, 1);
+
+  BoxDecoration get _sheetDecoration => BoxDecoration(
+        color: c.pageBg,
+        // v2.css .page: 0 1px 2px and 0 10px 28px, both at 8 % black.
+        boxShadow: [
+          BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 1), blurRadius: 2),
+          BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 10), blurRadius: 28),
+        ],
+      );
+
+  /// [page]'s scan, in the night ink at night.
+  Widget _scan(int page) {
+    Widget image = Image.asset(
+      PageViewer.pageAsset(page),
+      width: c.baseW,
+      height: c.baseH,
+      fit: BoxFit.fill,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+    );
+    if (c.night) {
+      image = ColorFiltered(
+        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk)),
+        child: image,
+      );
+    }
+    return image;
   }
 
   Widget _buildStage() {
@@ -1011,26 +1205,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     if (of == _stageOf && _stage != null) return _stage!;
     _stageOf = of;
     PageViewer.debugStageBuilds++;
-    // column-major: scale(zoom) on x/y + translation (tx,ty) — avoids the deprecated
-    // Matrix4.translate/scale helpers. screen = base·zoom + (tx,ty).
-    final m = Matrix4(
-      c.zoom,
-      0,
-      0,
-      0, //
-      0,
-      c.zoom,
-      0,
-      0, //
-      0,
-      0,
-      1,
-      0, //
-      c.tx,
-      c.ty,
-      0,
-      1,
-    );
+    final m = _viewMatrix(c.zoom, c.tx, c.ty);
     return _stage = SizedBox(
       width: c.viewW,
       height: c.viewH,
@@ -1040,14 +1215,7 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
           width: c.baseW,
           height: c.baseH,
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: c.pageBg,
-              // v2.css .page: 0 1px 2px and 0 10px 28px, both at 8 % black.
-              boxShadow: [
-                BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 1), blurRadius: 2),
-                BoxShadow(color: TzColors.paper.ink.withValues(alpha: 0.08), offset: const Offset(0, 10), blurRadius: 28),
-              ],
-            ),
+            decoration: _sheetDecoration,
             child: Stack(
               children: [
                 _buildImage(),
@@ -1092,22 +1260,9 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     if (of == _imageOf && _image != null) return _image!;
     _imageOf = of;
     PageViewer.debugImageBuilds++;
-    Widget image = Image.asset(
-      PageViewer.pageAsset(c.currentPage),
-      width: c.baseW,
-      height: c.baseH,
-      fit: BoxFit.fill,
-      gaplessPlayback: true,
-      filterQuality: FilterQuality.medium,
-    );
-    if (c.night) {
-      image = ColorFiltered(
-        colorFilter: ColorFilter.matrix(PageViewerController.nightPageMatrix(c.nightInk)),
-        child: image,
-      );
-    }
     // The scan itself says nothing; the verses over it do.
-    return _image = RepaintBoundary(key: PageViewer.imageKey, child: _PaintCount(child: ExcludeSemantics(child: image)));
+    return _image =
+        RepaintBoundary(key: PageViewer.imageKey, child: _PaintCount(child: ExcludeSemantics(child: _scan(c.currentPage))));
   }
 }
 

@@ -35,6 +35,10 @@ void main() {
     await tester.tap(find.text('الصفحة'));
     await tester.pump();
     expect(view, 'page');
+    // The ink eases to the new choice (ADR 0037).
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(text('الصفحة').style!.color, isNot(anyOf(TzColors.paper.ink, TzColors.paper.ink2)));
+    await tester.pumpAndSettle();
     expect(text('الصفحة').style!.color, TzColors.paper.ink);
     expect(tester.getSemantics(find.text('الصفحة')),
         matchesSemantics(label: 'الصفحة', isInMutuallyExclusiveGroup: true, hasCheckedState: true, isChecked: true, hasTapAction: true, hasFocusAction: true, isFocusable: true));

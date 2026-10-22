@@ -5,8 +5,10 @@
 // selection handles, scrollbars) turn light on paper and dark at night. The
 // token colours themselves travel as a ThemeExtension: widgets read them with
 // `TzTheme.of(context)`.
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
+import 'components/tz_motion.dart';
 import 'tokens.g.dart';
 
 /// The token colours of the current theme, and which night ink the page uses.
@@ -119,9 +121,28 @@ ThemeData tzThemeData(TzTheme tz) {
       contentTextStyle: TzType.body.copyWith(color: c.ink2),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: c.lapis, linearTrackColor: c.line),
+    // The app's own tap targets answer with TzPressable (ADR 0037); a bare InkWell
+    // stays quiet, and Material's buttons ripple softly inside their own shape.
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
+    iconButtonTheme: const IconButtonThemeData(style: _ripple),
+    textButtonTheme: const TextButtonThemeData(style: _ripple),
+    filledButtonTheme: const FilledButtonThemeData(style: _ripple),
+    outlinedButtonTheme: const OutlinedButtonThemeData(style: _ripple),
+    // Pushed screens move along the reading direction (ADR 0037); iOS keeps its
+    // own, which already mirrors in Arabic and follows the back swipe.
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: TzPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: TzPageTransitionsBuilder(),
+      TargetPlatform.linux: TzPageTransitionsBuilder(),
+      TargetPlatform.windows: TzPageTransitionsBuilder(),
+      TargetPlatform.fuchsia: TzPageTransitionsBuilder(),
+    }),
     materialTapTargetSize: MaterialTapTargetSize.padded,
     extensions: [tz],
   );
 }
+
+/// Material's buttons: a ripple from the touch, inside the button's own shape.
+const ButtonStyle _ripple = ButtonStyle(splashFactory: InkRipple.splashFactory);

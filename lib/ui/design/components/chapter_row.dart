@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'khatam.dart';
+import 'tz_motion.dart';
 
 class ChapterRow extends StatelessWidget {
   /// The chapter's number; 0 is the introduction, whose khatam is empty.
@@ -48,7 +49,7 @@ class ChapterRow extends StatelessWidget {
       label: semanticLabel,
       excludeSemantics: true,
       onTap: onTap,
-      child: InkWell(
+      child: TzPressable(
         onTap: onTap,
         child: Container(
           constraints: const BoxConstraints(minHeight: 64),

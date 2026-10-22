@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'tokens.g.dart';
 import 'taysir_colors.dart';
+import 'components/tz_motion.dart';
 
 class PillTabs<T> extends StatelessWidget {
   final Map<T, String> options;
@@ -37,24 +38,30 @@ class PillTabs<T> extends StatelessWidget {
               child: Semantics(
                 selected: e.key == selected,
                 button: true,
-                child: InkWell(
+                child: TzPressable(sink: true,
                   borderRadius: BorderRadius.circular(999),
                   onTap: () => onSelect(e.key),
                   child: Padding(
                     padding: const EdgeInsets.all(4),
-                    child: Container(
+                    // The chosen tab's fill fades across (ADR 0037).
+                    child: AnimatedContainer(
+                      duration: tzDuration(context, TzMotion.medium),
+                      curve: TzMotion.standard,
                       height: 40,
                       alignment: Alignment.center,
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       decoration: BoxDecoration(
-                        color: e.key == selected ? t.gold : null,
+                        color: e.key == selected ? t.gold : t.gold.withValues(alpha: 0),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(
-                        e.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TzType.label.copyWith(color: e.key == selected ? t.onGold : t.text),
+                      child: TzColorTween(
+                        color: e.key == selected ? t.onGold : t.text,
+                        builder: (context, ink, _) => Text(
+                          e.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TzType.label.copyWith(color: ink),
+                        ),
                       ),
                     ),
                   ),

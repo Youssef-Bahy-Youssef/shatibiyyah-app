@@ -245,18 +245,6 @@ class ReaderController extends ChangeNotifier {
     _apply(_settings.copyWith(playTitles: on));
   }
 
-  bool? _playOpening;
-
-  /// «بيت الافتتاح»: recited when the app is opened, unless the student turned it
-  /// off (ADR 0027). Turning it off also ends one that is sounding (lib/main.dart).
-  bool get playOpening => _playOpening ?? store?.playOpening ?? true;
-
-  void setPlayOpening(bool on) {
-    _playOpening = on;
-    store?.playOpening = on;
-    notifyListeners();
-  }
-
   void setSpeed(double v) {
     _speed = v;
     store?.setSpeedFor(recording.id, v);

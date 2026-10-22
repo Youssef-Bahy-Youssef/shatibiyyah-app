@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../tz_icon.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 class PlayDisc extends StatelessWidget {
   final bool playing;
@@ -22,7 +23,7 @@ class PlayDisc extends StatelessWidget {
       label: playing ? 'إيقاف مؤقت' : 'تشغيل',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
+      child: TzPressable(circle: true, sink: true, tint: c.onAction,
         onTap: onTap,
         child: Container(
           width: 72,

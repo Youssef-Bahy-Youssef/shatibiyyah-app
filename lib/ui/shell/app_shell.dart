@@ -10,11 +10,18 @@
 //
 // Pushed screens (search, downloads, the commentary) cover the dock: it belongs
 // to the top level only. Each tab's screen is built on its first visit and kept.
+//
+// Changing tabs moves (ADR 0037): the new tab's screen fades in as it rises 8 dp,
+// the dock's selection glides to its tab, and the now-playing row opens or closes,
+// all in 320 ms. The dock is drawn by the reader on «المتن» and by the shell
+// elsewhere; both read the shell's animations, so it moves as one.
 import 'package:flutter/material.dart';
 
 import '../../services/download_manager.dart';
 import '../../utils/arabic.dart';
 import '../design/components/dock.dart';
+import '../design/components/tz_motion.dart';
+import '../design/tokens.g.dart';
 import '../design/tz_theme.dart';
 import '../reader/fixed_page_layout.dart';
 import '../reader/player_sheet.dart';
@@ -49,15 +56,45 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => AppShellState();
 }
 
-class AppShellState extends State<AppShell> {
+class AppShellState extends State<AppShell> with TickerProviderStateMixin {
   late DockTab _tab = widget.initialTab;
   late final Set<DockTab> _built = {_tab};
+
+  /// The dock's selection, as a tab's index.
+  late final AnimationController _selection = AnimationController.unbounded(vsync: this, value: _tab.index.toDouble());
+
+  /// How open the now-playing row is.
+  late final AnimationController _row =
+      AnimationController(vsync: this, duration: TzMotion.long, value: nowPlayingOn(_tab) ? 1 : 0);
+  late final Animation<double> _rowOpen = CurvedAnimation(parent: _row, curve: TzMotion.emphasized);
+
+  /// The current tab's entrance.
+  late final AnimationController _enter = AnimationController(vsync: this, duration: TzMotion.long, value: 1);
+  late final Animation<double> _entering = CurvedAnimation(parent: _enter, curve: TzMotion.emphasized);
 
   DockTab get tab => _tab;
 
   /// Shows [t].
   void select(DockTab t) {
-    if (t != _tab) setState(() => _built.add(_tab = t));
+    if (t == _tab) return;
+    setState(() => _built.add(_tab = t));
+    final open = nowPlayingOn(t) ? 1.0 : 0.0;
+    if (tzReduced(context)) {
+      _selection.value = t.index.toDouble();
+      _row.value = open;
+      return;
+    }
+    _selection.animateTo(t.index.toDouble(), duration: TzMotion.long, curve: TzMotion.emphasized);
+    _row.animateTo(open);
+    _enter.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    _row.dispose();
+    _enter.dispose();
+    super.dispose();
   }
 
   /// Whether the dock carries the now-playing row on [t] (v2.js: withNp).
@@ -82,7 +119,10 @@ class AppShellState extends State<AppShell> {
                   for (final t in DockTab.values)
                     ShellInset(
                       bottom: ReaderTokens.dockInset(safeBottom, nowPlaying: nowPlayingOn(t)),
-                      child: _built.contains(t) ? _screen(t) : const SizedBox.shrink(),
+                      // The reader brings its own page in (its dock must not fade).
+                      child: _built.contains(t)
+                          ? (t == DockTab.matn ? _screen(t) : TabEntrance(animation: _entering, child: _screen(t)))
+                          : const SizedBox.shrink(),
                     ),
                 ],
               ),
@@ -103,9 +143,9 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// The dock for the current tab.
+  /// The dock for the current tab. The now-playing row is given to it on every
+  /// tab, so it has something to show as it closes; [_row] says how much shows.
   Widget _dock() {
-    final withRow = nowPlayingOn(_tab);
     // The dock is a fixed-height binding, like a system tab bar: its text
     // follows the system size up to 1.3×, not beyond. Item 3.12 keeps this:
     // every tab keeps its icon and a 48 px target, and what it leads to scales in full.
@@ -113,12 +153,12 @@ class AppShellState extends State<AppShell> {
       data: MediaQuery.of(context).copyWith(
         textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
       ),
-      child: Dock(nowPlaying: withRow ? _nowPlaying() : null, current: _tab, onTab: select),
+      child: Dock(nowPlaying: _nowPlaying(), current: _tab, onTab: select, selection: _selection, row: _rowOpen),
     );
   }
 
   Widget _screen(DockTab t) => switch (t) {
-        DockTab.matn => ReaderScreen(reader: widget.reader, dock: _dock()),
+        DockTab.matn => ReaderScreen(reader: widget.reader, dock: _dock(), entrance: _entering),
         DockTab.contents => IndexScreen(reader: widget.reader),
         DockTab.saved => SavedScreen(reader: widget.reader),
         DockTab.settings => SettingsScreen(reader: widget.reader),
@@ -205,6 +245,22 @@ class AppShellState extends State<AppShell> {
     return NpNone(
       subtitle: '${rec.reciterName} · ${megabytes(rec.localBytes)} · مرة واحدة',
       onDownload: () => library?.download(rec),
+    );
+  }
+}
+
+/// A tab's screen coming in (ADR 0037): it fades in as it rises 8 dp.
+class TabEntrance extends AnimatedWidget {
+  final Widget child;
+  const TabEntrance({super.key, required Animation<double> animation, required this.child}) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (listenable as Animation<double>).value;
+    // Always the same two wrappers, so the screen under them keeps its state.
+    return Opacity(
+      opacity: v.clamp(0.0, 1.0),
+      child: Transform.translate(offset: Offset(0, 8 * (1 - v)), child: child),
     );
   }
 }

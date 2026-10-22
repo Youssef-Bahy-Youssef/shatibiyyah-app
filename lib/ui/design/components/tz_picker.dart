@@ -150,10 +150,11 @@ class PickerOption extends StatelessWidget {
       child: Semantics(
         inMutuallyExclusiveGroup: true,
         checked: selected,
-        child: Material(
+        // The fill and the label ease to the choice (ADR 0037).
+        child: TzColorTween(
           color: selected ? c.action : c.tonal,
-          borderRadius: radius,
-          child: InkWell(
+          builder: (context, fill, child) => Material(color: fill, borderRadius: radius, child: child),
+          child: TzPressable(sink: true,
             onTap: onTap,
             borderRadius: radius,
             child: ConstrainedBox(
@@ -161,7 +162,13 @@ class PickerOption extends StatelessWidget {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: style)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: TzColorTween(
+                      color: style.color!,
+                      builder: (context, ink, _) => Text(label, maxLines: 1, style: style.copyWith(color: ink)),
+                    ),
+                  ),
                 ),
               ),
             ),

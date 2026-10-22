@@ -51,11 +51,6 @@ class AudioFocus {
       ..add(becomingNoisy.listen((_) => pause()));
   }
 
-  /// What keeps the session from the recitation's settings for now, or null: the
-  /// opening verse on iOS, where the silent switch mutes it only in the category
-  /// it chose (ADR 0027). A recitation that starts sooner ends the verse first.
-  static Future<void>? sessionHold;
-
   /// Configures the app's audio session and follows its events.
   static Future<AudioFocus> attach({
     required Future<void> Function() interrupt,
@@ -64,12 +59,7 @@ class AudioFocus {
     required Future<void> Function(double volume) setVolume,
   }) async {
     final session = await AudioSession.instance;
-    Future<void> configure() => session.configure(kRecitationSession);
-    if (sessionHold case final hold?) {
-      unawaited(hold.then((_) => configure()).catchError((Object _) {}));
-    } else {
-      await configure();
-    }
+    await session.configure(kRecitationSession);
     return AudioFocus(
       interruptions: session.interruptionEventStream,
       becomingNoisy: session.becomingNoisyEventStream,

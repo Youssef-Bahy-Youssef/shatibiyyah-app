@@ -30,6 +30,7 @@ import '../search/search_screen.dart';
 import '../study/study_sheets.dart';
 import 'app_shell.dart';
 import 'shell_page.dart';
+import '../design/components/tz_motion.dart';
 
 class SavedScreen extends StatefulWidget {
   final ReaderController reader;
@@ -321,7 +322,7 @@ class _Tabs extends StatelessWidget {
               child: Semantics(
                 button: true,
                 selected: i == selected,
-                child: InkWell(
+                child: TzPressable(
                   onTap: () => onSelect(i),
                   child: Container(
                     constraints: const BoxConstraints(minHeight: TzSize.touchTarget),
@@ -384,7 +385,7 @@ class SavedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
-    return InkWell(
+    return TzPressable(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(

@@ -8,6 +8,7 @@ import '../../data/user_store.dart';
 import '../design/tokens.g.dart';
 import '../../utils/arabic.dart';
 import '../design/taysir_colors.dart';
+import '../design/components/tz_motion.dart';
 
 Widget _sheetFrame(BuildContext context, List<Widget> children) {
   final t = TaysirColors.of(context);
@@ -192,7 +193,7 @@ class _BookmarkSheetState extends State<_BookmarkSheet> {
                 button: true,
                 selected: c == _color,
                 label: 'لون',
-                child: GestureDetector(
+                child: TzPressable(circle: true, sink: true,
                   onTap: () => setState(() => _color = c),
                   child: Container(
                     width: 40,

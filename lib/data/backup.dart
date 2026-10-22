@@ -35,7 +35,6 @@ bool isBackupSetting(String key) =>
       'v2.repeat.section',
       'v2.gap_ms',
       'v2.titles.play',
-      'v2.opening.play',
       'v2.search.recent',
     }.contains(key) ||
     key.startsWith('v2.speed.');

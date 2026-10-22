@@ -23,6 +23,7 @@ import '../reader/reader_controller.dart';
 import '../reader/split_panel.dart' show kSplitMinWidth;
 import '../shell/app_shell.dart';
 import '../shell/shell_page.dart' show readingPadding;
+import '../design/components/tz_motion.dart';
 
 /// Verses shown before «عرض المزيد», and how many more each tap shows.
 const int kVersePageSize = 40;
@@ -254,7 +255,7 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Material(
             color: t.panel,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: t.line)),
-            child: InkWell(
+            child: TzPressable(
               borderRadius: BorderRadius.circular(16),
               onTap: onTap,
               child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: child),
@@ -353,7 +354,7 @@ class _SearchScreenState extends State<SearchScreen> {
       if (r.verses.isNotEmpty) ...[
         label('الأبيات'),
         for (final n in r.verses.take(_verseLimit))
-          InkWell(
+          TzPressable(
             onTap: () => _openVerse(n),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),

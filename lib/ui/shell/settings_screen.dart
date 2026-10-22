@@ -4,10 +4,9 @@
 //   الوضع الليلي    لون الحبر الليلي, with the night page in the chosen ink
 //   الاستماع        التلاوة · التنزيلات · عناوين الأبواب
 //   التطبيق         رموز القراء · نسخ احتياطي واستعادة · حول تيسير الشاطبية
-// Two rows the design does not draw stand last in «التطبيق», so every drawn row
+// A row the design does not draw stands last in «التطبيق», so every drawn row
 // keeps its measured place: «التنبيهات» (the reminder is a kept feature and this
-// is its only way in), then «بيت الافتتاح» (the verse recited when the app is
-// opened, ADR 0027).
+// is its only way in).
 // When Google Play has a newer version, a banner above the groups offers it
 // (lib/app/app_update.dart; the only screen that shows it).
 import 'package:flutter/material.dart';
@@ -127,18 +126,6 @@ class SettingsScreen extends StatelessWidget {
                 SettingsRow(icon: 'copy', label: 'نسخ احتياطي واستعادة', onTap: () => _push(context, BackupScreen(reader: reader))),
                 SettingsRow(icon: 'book', label: 'حول تيسير الشاطبية', onTap: () => _push(context, AppRoute.about.build(reader))),
                 SettingsRow(icon: 'gap', label: 'التنبيهات', onTap: () => _push(context, AppRoute.reminders.build(reader))),
-                SettingsRow.control(
-                  icon: 'listen',
-                  label: 'بيت الافتتاح',
-                  controlOverhang: 11,
-                  control: TzSwitch(
-                    semanticLabel: 'تلاوة بيت الافتتاح عند فتح التطبيق',
-                    value: reader.playOpening,
-                    onWord: 'يُتلى',
-                    offWord: 'لا يُتلى',
-                    onChanged: reader.setPlayOpening,
-                  ),
-                ),
               ]),
             ],
           ),

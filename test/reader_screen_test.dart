@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/ui/design/components/tz_motion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
@@ -179,6 +180,101 @@ void main() {
     expect(find.text(chapterBarTitle(ch.shortLabel)), findsOneWidget);
     expect(r.verse, 226); // browsing does not move the reader
     await unmount(tester);
+  });
+
+  // ADR 0037: the page follows the finger and turns away; it does not swap in one frame.
+  group('page turns', () {
+    Finder scan(int page) => find.byWidgetPredicate(
+        (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == PageViewer.pageAsset(page));
+
+    testWidgets('a swipe draws the page aside with the next one joined to it; let go, both slide on until it is in place', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      final from = r.viewer.currentPage;
+      final rest = tester.getTopLeft(scan(from)).dx;
+      expect(scan(from + 1), findsNothing);
+
+      final finger = await tester.startGesture(tester.getCenter(find.byType(PageViewer)));
+      for (var i = 0; i < 10; i++) {
+        await finger.moveBy(const Offset(12, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      // Toward the next page (Arabic: the finger moves right); it comes in from the left,
+      // joined to the page's edge as in the reference screenshots.
+      final width = tester.getSize(scan(from)).width;
+      const gutter = PageViewerState.gutter;
+      expect(r.viewer.swipe.value, closeTo(120, 1));
+      expect(tester.getTopLeft(scan(from)).dx - rest, closeTo(120, 1));
+      expect(tester.getTopLeft(scan(from)).dx - tester.getTopLeft(scan(from + 1)).dx, closeTo(width + gutter, 0.5));
+
+      await finger.up();
+      await tester.pump();
+      expect(r.viewer.currentPage, from + 1);
+      await tester.pump(const Duration(milliseconds: 80));
+      // Both go on from where the finger left them, still joined.
+      final old = tester.getTopLeft(scan(from)).dx, now = tester.getTopLeft(scan(from + 1)).dx;
+      expect(old - rest, greaterThan(120));
+      expect(now, inExclusiveRange(rest - width, rest));
+      expect(old - now, closeTo(width + gutter, 0.5));
+      await tester.pump(TzMotion.long);
+      expect(scan(from), findsNothing);
+      expect(tester.getTopLeft(scan(from + 1)).dx, closeTo(rest, 0.5));
+      await unmount(tester);
+    });
+
+    testWidgets('a short swipe springs back; past the last page it gives a quarter as much', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      final from = r.viewer.currentPage;
+      final finger = await tester.startGesture(tester.getCenter(find.byType(PageViewer)));
+      await finger.moveBy(const Offset(-20, 0));
+      await finger.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      expect(r.viewer.swipe.value, closeTo(-40, 1));
+      await finger.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(r.viewer.swipe.value, inExclusiveRange(-40, 0));
+      await tester.pumpAndSettle();
+      expect((r.viewer.swipe.value, r.viewer.currentPage), (0.0, from));
+
+      r.viewer.setPage(r.viewer.data.pageCount, false);
+      await tester.pumpAndSettle();
+      final end = await tester.startGesture(tester.getCenter(find.byType(PageViewer)));
+      await end.moveBy(const Offset(40, 0));
+      await end.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(r.viewer.swipe.value, closeTo(20, 1));
+      await end.up();
+      await tester.pumpAndSettle();
+      await unmount(tester);
+    });
+
+    testWidgets('a page turned for the reader slides off; a far jump fades', (tester) async {
+      final r = await reader(tester);
+      await show(tester, r);
+      final from = r.viewer.currentPage;
+      final rest = tester.getTopLeft(scan(from)).dx;
+      r.viewer.setPage(from + 1, false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // A later page sends the old one right and comes in from the left, joined to it.
+      expect(tester.getTopLeft(scan(from)).dx - rest, greaterThan(0));
+      expect(tester.getTopLeft(scan(from + 1)).dx, lessThan(rest));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(scan(from + 1)).dx, closeTo(rest, 0.5));
+      expect(scan(from), findsNothing);
+
+      r.viewer.setPage(from + 30, false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final leaving = tester.widget<Opacity>(find.ancestor(of: scan(from + 1), matching: find.byType(Opacity)).first);
+      expect(leaving.opacity, inExclusiveRange(0, 1));
+      expect(tester.getTopLeft(scan(from + 1)).dx, closeTo(rest, 0.5)); // in place
+      await tester.pumpAndSettle();
+      expect(scan(from + 1), findsNothing);
+      await unmount(tester);
+    });
   });
 
   // ADR 0030: «عودة إلى البيت N» shows only while the recited verse is off the page on screen.
@@ -415,6 +511,7 @@ void main() {
       expect(r.verse, 226);
       expect(find.text('٤ أبيات محددة'), findsOneWidget);
       expect(find.text('الأبيات ٢٢٦–٢٢٩ · اضغط بيتًا آخر للتمديد'), findsOneWidget);
+      await tester.pump(TzPresence.exitDuration); // the hint fades out (ADR 0037)
       expect(find.textContaining('المس البيت الأخير'), findsNothing);
       expect(find.text('تشغيل'), findsNothing); // no recording: no play action
 
@@ -521,6 +618,7 @@ void main() {
       // timer runs on the real clock.
       await tester.runAsync(() => Future<void>.delayed(kNoticeDuration + const Duration(milliseconds: 100)));
       await tester.pump();
+      await tester.pump(TzPresence.exitDuration); // it fades out (ADR 0037)
       expect(find.textContaining('بدأ باب جديد'), findsNothing);
 
       r.tapVerse(226); // the student's own jump is not announced

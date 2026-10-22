@@ -95,7 +95,16 @@ class Dock extends StatelessWidget {
   final DockTab current;
   final ValueChanged<DockTab> onTab;
 
-  const Dock({super.key, this.nowPlaying, required this.current, required this.onTab});
+  /// Where the selection stands as a tab's index, gliding from one tab to the
+  /// next (ADR 0037): the lozenge slides and the two tabs trade their ink. Without
+  /// it, [current] alone.
+  final Animation<double>? selection;
+
+  /// How much of the now-playing row shows, 0…1, as it opens and closes between
+  /// tabs (ADR 0037). Without it, the row is there whenever [nowPlaying] is.
+  final Animation<double>? row;
+
+  const Dock({super.key, this.nowPlaying, required this.current, required this.onTab, this.selection, this.row});
 
   static const bindingKey = ValueKey('dock-binding');
   static const rowKey = ValueKey('dock-row');
@@ -108,6 +117,7 @@ class Dock extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = TzTheme.of(context).colors;
     final np = nowPlaying;
+    final row = this.row;
     return Container(
       key: bindingKey,
       clipBehavior: Clip.antiAlias,
@@ -115,15 +125,26 @@ class Dock extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (np != null) _NowPlayingRow(np),
-          Container(
-            key: tabsKey,
-            height: 54,
-            decoration: BoxDecoration(border: np == null ? null : Border(top: BorderSide(color: c.coverLine))),
+          if (np != null)
+            if (row == null) _NowPlayingRow(np) else _RowReveal(animation: row, child: _NowPlayingRow(np)),
+          AnimatedBuilder(
+            animation: row ?? kAlwaysCompleteAnimation,
+            builder: (context, tabs) => Container(
+              key: tabsKey,
+              height: 54,
+              decoration: BoxDecoration(
+                  border: np == null || (row?.value ?? 1) == 0
+                      ? null
+                      : Border(top: BorderSide(color: c.coverLine.withValues(alpha: c.coverLine.a * (row?.value ?? 1))))),
+              child: tabs,
+            ),
             child: Semantics(
               container: true,
               label: 'التنقل',
-              child: Row(children: [for (final t in DockTab.values) Expanded(child: _tab(c, t))]),
+              child: AnimatedBuilder(
+                animation: selection ?? kAlwaysCompleteAnimation,
+                builder: (context, _) => _tabs(c, selection?.value ?? current.index.toDouble()),
+              ),
             ),
           ),
         ],
@@ -131,33 +152,80 @@ class Dock extends StatelessWidget {
     );
   }
 
-  Widget _tab(TzColors c, DockTab t) {
-    final on = t == current;
-    final ink = on ? c.onCover : c.coverMute;
+  /// The four tabs with the selection at [at] (a tab's index, or between two).
+  Widget _tabs(TzColors c, double at) {
+    final n = DockTab.values.length;
+    return LayoutBuilder(
+      builder: (context, box) => Stack(
+        fit: StackFit.expand,
+        children: [
+          Row(children: [
+            for (final t in DockTab.values) Expanded(child: _tab(c, t, (1 - (at - t.index).abs()).clamp(0.0, 1.0))),
+          ]),
+          // The gilt lozenge under the selection, 4 px above the binding's edge.
+          PositionedDirectional(
+            start: box.maxWidth * (2 * at + 1) / (2 * n) - 10,
+            width: 20,
+            bottom: 5 - 1,
+            child: IgnorePointer(child: Center(child: Lozenge(size: 5, radius: 1, color: c.giltOnCover))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tab [t], [on] of the way to chosen (1 chosen, 0 not, between while gliding).
+  Widget _tab(TzColors c, DockTab t, double on) {
+    final ink = Color.lerp(c.coverMute, c.onCover, on)!;
+    Widget icon(bool chosen) => TzIcon(chosen ? t.activeIcon : t.icon, filled: chosen, size: 21, color: ink);
     return MergeSemantics(
       child: Semantics(
         button: true,
-        selected: on,
-        child: InkWell(
+        selected: t == current,
+        child: TzPressable(
+          sink: true,
+          tint: c.onCover,
           onTap: () => onTab(t),
-          child: Stack(
-            alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TzIcon(on ? t.activeIcon : t.icon, filled: on, size: 21, color: ink),
-                  const SizedBox(height: 2),
-                  Text(t.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TzType.caption.copyWith(fontSize: 11.5, height: 16 / 11.5, color: ink, fontWeight: on ? FontWeight.w600 : FontWeight.w500)),
-                ],
-              ),
-              if (on) Positioned(bottom: 5 - 1, child: Lozenge(size: 5, radius: 1, color: c.giltOnCover)),
+              // The outline gives way to the filled glyph as the tab is chosen.
+              if (on == 0 || on == 1)
+                icon(on == 1)
+              else
+                Stack(children: [
+                  Opacity(opacity: 1 - on, child: icon(false)),
+                  Opacity(opacity: on, child: icon(true)),
+                ]),
+              const SizedBox(height: 2),
+              Text(t.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TzType.caption.copyWith(
+                      fontSize: 11.5, height: 16 / 11.5, color: ink, fontWeight: on >= 0.5 ? FontWeight.w600 : FontWeight.w500)),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The now-playing row opening ([animation] 0 → 1) or closing over the tabs:
+/// it grows from the tabs' edge and fades in as it does.
+class _RowReveal extends AnimatedWidget {
+  final Widget child;
+  const _RowReveal({required Animation<double> animation, required this.child}) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (listenable as Animation<double>).value;
+    if (v <= 0) return const SizedBox.shrink();
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        heightFactor: v,
+        child: Opacity(opacity: v, child: child),
       ),
     );
   }
@@ -245,7 +313,7 @@ class _NowPlayingRow extends StatelessWidget {
                           child: Semantics(
                             button: true,
                             label: 'فتح المشغّل',
-                            child: InkWell(onTap: onOpen, child: SizedBox(height: 62, child: meta)),
+                            child: TzPressable(tint: TzTheme.of(context).colors.onCover, onTap: onOpen, child: SizedBox(height: 62, child: meta)),
                           ),
                         ),
                 ),
@@ -406,7 +474,7 @@ class _IconButton extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         onTap: onTap,
-        child: InkWell(
+        child: TzPressable(sink: true, tint: TzTheme.of(context).colors.onCover,
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox.square(
@@ -431,9 +499,8 @@ class _PlayButton extends StatelessWidget {
       label: playing ? 'إيقاف مؤقت' : 'تشغيل',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
+      child: TzPressable(circle: true, sink: true, tint: c.onCover,
         onTap: onTap,
-        behavior: HitTestBehavior.opaque,
         child: SizedBox.square(
           dimension: TzSize.touchTarget,
           child: Center(
@@ -443,7 +510,10 @@ class _PlayButton extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(color: c.onCover, shape: BoxShape.circle),
               alignment: Alignment.center,
-              child: TzIcon(playing ? 'pause' : 'play', filled: true, size: 18, color: c.cover),
+              child: TzFadeSwitcher(
+                duration: TzMotion.short,
+                child: TzIcon(playing ? 'pause' : 'play', key: ValueKey(playing), filled: true, size: 18, color: c.cover),
+              ),
             ),
           ),
         ),
@@ -464,9 +534,8 @@ class _PillButton extends StatelessWidget {
     return MergeSemantics(
       child: Semantics(
         button: true,
-        child: GestureDetector(
+        child: TzPressable(sink: true, borderRadius: BorderRadius.circular(TzRadius.pill), tint: c.onCover,
           onTap: onTap,
-          behavior: HitTestBehavior.opaque,
           child: SizedBox(
             height: TzSize.touchTarget,
             child: Center(

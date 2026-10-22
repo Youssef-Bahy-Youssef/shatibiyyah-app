@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_theme.dart';
 import 'share_card.dart';
+import 'tz_motion.dart';
 
 /// The card in the sheet (v2.css .share-prev .frame): scaled to fit 330 × 300,
 /// with rounded corners, a soft shadow and a hairline around it.
@@ -57,7 +58,7 @@ class ShareFormatButton extends StatelessWidget {
         child: Material(
           color: enabled ? c.surface : c.tonal,
           borderRadius: radius,
-          child: InkWell(
+          child: TzPressable(sink: true,
             onTap: enabled ? onTap : null,
             borderRadius: radius,
             child: Container(
@@ -105,23 +106,28 @@ class ShareBookChip extends StatelessWidget {
       child: Semantics(
         inMutuallyExclusiveGroup: true,
         checked: selected,
-        child: GestureDetector(
+        child: TzPressable(sink: true, borderRadius: BorderRadius.circular(TzRadius.pill),
           onTap: onTap,
-          behavior: HitTestBehavior.opaque,
           child: SizedBox(
             height: TzSize.touchTarget,
             child: Center(
               heightFactor: 1,
               widthFactor: 1,
-              child: Container(
+              // The pill and its label ease to the choice (ADR 0037).
+              child: AnimatedContainer(
                 key: pillKey,
+                duration: tzDuration(context, TzMotion.medium),
+                curve: TzMotion.standard,
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(color: selected ? c.action : c.tonal, borderRadius: BorderRadius.circular(TzRadius.pill)),
                 // As wide as its label: an `alignment` here would stretch the pill across the row.
                 child: Center(
                   widthFactor: 1,
-                  child: Text(label, style: TzType.label.copyWith(fontSize: 13, color: selected ? c.onAction : c.ink2)),
+                  child: TzColorTween(
+                    color: selected ? c.onAction : c.ink2,
+                    builder: (context, ink, _) => Text(label, style: TzType.label.copyWith(fontSize: 13, color: ink)),
+                  ),
                 ),
               ),
             ),

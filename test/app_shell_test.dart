@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shatibiyyah/ui/design/components/ornament.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shatibiyyah/data/app_content.dart';
 import 'package:shatibiyyah/data/legacy_adapter.dart';
@@ -134,6 +135,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReaderScreen), findsOneWidget);
     expect(r.verse, 226);
+    await unmount(tester);
+  });
+
+  // ADR 0037: changing tabs moves; nothing jumps.
+  testWidgets('a tab change: the screen fades in as it rises, the lozenge glides, the now-playing row closes', (tester) async {
+    await open(tester);
+    double lozenge() => tester.getCenter(find.descendant(of: find.byKey(Dock.tabsKey), matching: find.byType(Lozenge))).dx;
+    double tab(String label) => tester.getCenter(find.descendant(of: find.byKey(Dock.tabsKey), matching: find.text(label))).dx;
+    final rowHigh = tester.getSize(find.byKey(Dock.bindingKey)).height;
+
+    await tester.tap(find.text('الإعدادات')); // no now-playing row there
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final screen = tester.widget<Opacity>(
+        find.ancestor(of: find.byType(SettingsScreen), matching: find.byType(Opacity)).first);
+    expect(screen.opacity, inExclusiveRange(0, 1));
+    expect(lozenge(), inExclusiveRange(tab('المتن'), tab('الإعدادات'))); // RTL: from the right toward the left
+    final dock = tester.getSize(find.byKey(Dock.bindingKey)).height;
+    expect(dock, inExclusiveRange(54, rowHigh));
+
+    await tester.pumpAndSettle();
+    expect(lozenge(), closeTo(tab('الإعدادات'), 0.5));
+    expect(tester.getSize(find.byKey(Dock.bindingKey)).height, 54);
+    expect(find.byKey(Dock.rowKey), findsNothing);
     await unmount(tester);
   });
 

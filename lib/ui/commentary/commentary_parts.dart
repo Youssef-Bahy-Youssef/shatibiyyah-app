@@ -17,6 +17,7 @@ import '../design/components/verse_unit.dart' show kVerseSize;
 import '../design/taysir_colors.dart';
 import '../design/tokens.g.dart';
 import '../design/tz_theme.dart';
+import '../design/components/tz_motion.dart';
 
 /// Everything shown for one block, loaded together so a tab switch never shows a mix.
 class BlockView {
@@ -185,7 +186,7 @@ class CommentaryParts {
     final url = sources.map((s) => s.url).whereType<String>().firstOrNull;
     return Semantics(
       link: url != null,
-      child: InkWell(
+      child: TzPressable(sink: true,
         borderRadius: BorderRadius.circular(16),
         onTap: url == null ? null : () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
         child: Container(

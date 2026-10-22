@@ -36,7 +36,7 @@ class TzSwitch extends StatelessWidget {
         enabled: onChanged != null,
         child: Opacity(
           opacity: onChanged == null ? 0.45 : 1,
-          child: InkWell(
+          child: TzPressable(
             onTap: onChanged == null ? null : () => onChanged!(!value),
             borderRadius: BorderRadius.circular(TzRadius.control),
             child: ConstrainedBox(

@@ -98,45 +98,48 @@ class VerseMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: listenable,
-      builder: (context, _) {
-        final verse = this.verse();
-        if (verse == null) return const SizedBox.shrink();
-        final tz = TzTheme.of(context);
-        final c = tz.colors;
-        final size = MediaQuery.sizeOf(context);
-        final safeBottom = MediaQuery.paddingOf(context).bottom;
-        final avoid = ReaderTokens.dockInset(safeBottom);
-        final rect = anchor(verse);
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Semantics(
-                label: 'إغلاق القائمة',
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onClose,
-                  child: SpotlightScrim(
-                    spot: rect,
-                    ring: tz.night ? tz.nightInk.accent : c.lapis,
-                    tint: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : null,
-                  ),
-                ),
+      // It leaves as softly as it came (ADR 0037).
+      builder: (context, _) => TzPresence(id: verse(), child: _menu(context)),
+    );
+  }
+
+  Widget? _menu(BuildContext context) {
+    final verse = this.verse();
+    if (verse == null) return null;
+    final tz = TzTheme.of(context);
+    final c = tz.colors;
+    final size = MediaQuery.sizeOf(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final avoid = ReaderTokens.dockInset(safeBottom);
+    final rect = anchor(verse);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Semantics(
+            label: 'إغلاق القائمة',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: SpotlightScrim(
+                spot: rect,
+                ring: tz.night ? tz.nightInk.accent : c.lapis,
+                tint: tz.night ? tz.nightInk.accent.withValues(alpha: 0.16) : null,
               ),
             ),
-            Positioned.fill(
-              child: AnchoredPopover(
-                key: ValueKey('verse-popover-$verse'),
-                // A verse not drawn on this page (text mode has no row for it): from the bottom.
-                anchor: rect ?? Rect.fromCenter(center: Offset(size.width / 2, size.height - avoid - 24), width: 0, height: 0),
-                avoidBottom: avoid,
-                // 6, not 8, at the bottom: the last row is a 48 dp target around 44 dp of drawing.
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-                child: _body(context, c, verse),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+        Positioned.fill(
+          child: AnchoredPopover(
+            key: ValueKey('verse-popover-$verse'),
+            // A verse not drawn on this page (text mode has no row for it): from the bottom.
+            anchor: rect ?? Rect.fromCenter(center: Offset(size.width / 2, size.height - avoid - 24), width: 0, height: 0),
+            avoidBottom: avoid,
+            // 6, not 8, at the bottom: the last row is a 48 dp target around 44 dp of drawing.
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+            child: _body(context, c, verse),
+          ),
+        ),
+      ],
     );
   }
 
@@ -241,7 +244,7 @@ class _Tile extends StatelessWidget {
               type: MaterialType.transparency,
               child: Ink(
                 decoration: BoxDecoration(color: primary ? c.action : c.tonal, borderRadius: BorderRadius.circular(TzRadius.control)),
-                child: InkWell(
+                child: TzPressable(sink: true, tint: primary ? c.onAction : c.ink,
                   onTap: onTap,
                   borderRadius: BorderRadius.circular(TzRadius.control),
                   child: ConstrainedBox(
@@ -282,7 +285,7 @@ class _More extends StatelessWidget {
     return MergeSemantics(
       child: Semantics(
         button: true,
-        child: InkWell(
+        child: TzPressable(sink: true,
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
           child: Container(

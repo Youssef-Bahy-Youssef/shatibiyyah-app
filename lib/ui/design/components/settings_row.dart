@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../tokens.g.dart';
 import '../tz_icon.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 class SettingsGroup extends StatelessWidget {
   final String title;
@@ -192,7 +193,7 @@ class SettingsRow extends StatelessWidget {
         button: true,
         label: semanticLabel,
         excludeSemantics: semanticLabel != null,
-        child: InkWell(onTap: onTap, child: row),
+        child: TzPressable(onTap: onTap, child: row),
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../../app/reminders.dart';
 import '../design/tokens.g.dart';
 import '../design/taysir_colors.dart';
 import 'shell_page.dart';
+import '../design/components/tz_motion.dart';
 
 class RemindersScreen extends StatefulWidget {
   final Reminders reminders;
@@ -124,7 +125,7 @@ class _SwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = TaysirColors.of(context);
     return MergeSemantics(
-      child: InkWell(
+      child: TzPressable(
         onTap: () => onChanged(!on),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 64),

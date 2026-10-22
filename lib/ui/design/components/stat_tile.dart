@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../tokens.g.dart';
 import '../tz_theme.dart';
+import 'tz_motion.dart';
 
 class StatTile extends StatelessWidget {
   final String value;
@@ -26,7 +27,7 @@ class StatTile extends StatelessWidget {
           type: MaterialType.transparency,
           child: Ink(
             decoration: BoxDecoration(color: c.tonal, borderRadius: radius),
-            child: InkWell(
+            child: TzPressable(sink: true,
               onTap: onTap,
               borderRadius: radius,
               child: ExcludeSemantics(

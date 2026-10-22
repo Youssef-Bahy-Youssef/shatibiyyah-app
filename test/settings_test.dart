@@ -15,6 +15,7 @@ import 'package:shatibiyyah/data/settings_store.dart';
 import 'package:shatibiyyah/data/user_store.dart';
 import 'package:shatibiyyah/services/preferences_service.dart';
 import 'package:shatibiyyah/ui/design/app_theme.dart';
+import 'package:shatibiyyah/ui/design/components/tz_switch.dart';
 import 'package:shatibiyyah/ui/reader/reader_controller.dart';
 import 'package:shatibiyyah/ui/shell/backup_screen.dart';
 import 'package:shatibiyyah/ui/shell/rumuz_screen.dart';
@@ -128,24 +129,19 @@ void main() {
     expect(find.byType(BackupScreen), findsOneWidget);
   });
 
-  testWidgets('«بيت الافتتاح» is recited until the student turns it off, and the choice is kept', (tester) async {
-    final (r, _) = await open(tester, (r) => SettingsScreen(reader: r));
-    // The last row of «التطبيق», below the fold.
-    await tester.ensureVisible(find.text('بيت الافتتاح'));
+  testWidgets('no verse is recited when the app opens: no «بيت الافتتاح» row, no audio in the app (ADR 0036)', (tester) async {
+    await open(tester, (r) => SettingsScreen(reader: r));
+    await tester.ensureVisible(find.text('التنبيهات'));
     await tester.pump();
-    expect((r.playOpening, r.store!.playOpening), (true, true));
-    expect(find.bySemanticsLabel('تلاوة بيت الافتتاح عند فتح التطبيق'), findsOneWidget);
-
-    await tester.tap(find.text('يُتلى'));
-    await tester.pump();
-    expect((r.playOpening, r.store!.playOpening), (false, false));
-    expect(SettingsStore(r.store!.prefs).playOpening, isFalse); // what the next launch reads
-    expect(find.text('لا يُتلى'), findsOneWidget);
-    expect(isBackupSetting('v2.opening.play'), isTrue);
-
-    await tester.tap(find.text('لا يُتلى'));
-    await tester.pump();
-    expect((r.playOpening, r.store!.playOpening), (true, true));
+    expect(find.text('بيت الافتتاح'), findsNothing);
+    expect(find.byType(TzSwitch), findsOneWidget); // «عناوين الأبواب» alone
+    expect(isBackupSetting('v2.opening.play'), isFalse);
+    expect(File('pubspec.yaml').readAsStringSync(), isNot(contains('assets/opening/')));
+    final audioFiles = [
+      for (final f in Directory('assets').listSync(recursive: true))
+        if (RegExp(r'\.(mp3|m4a|aac|ogg|opus|wav|flac)$').hasMatch(f.path)) f.path,
+    ];
+    expect(audioFiles, isEmpty);
   });
 
   testWidgets('a backup is saved, then restored into another device\'s data', (tester) async {
