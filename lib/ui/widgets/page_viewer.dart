@@ -999,8 +999,9 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
   /// The page the highlight layer is drawing: the one on screen once its scan is there.
   int get overlayPage => _arrived.value;
 
-  // The page turning away (ADR 0037): drawn over the new one, it slides off to
-  // the side it was going (a neighbour) or fades (a page further off).
+  // The page turning away (ADR 0037). A neighbour and the new page move as one
+  // strip, the new one joined to the old one's edge, as in a book's pages laid
+  // side by side; a page further off fades over the new one.
   late final AnimationController _turning = AnimationController(vsync: this);
   ({int page, double dx, double dir, bool jump, double zoom, double tx, double ty})? _away;
 
@@ -1072,9 +1073,9 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
         return ClipRect(
           child: Stack(
             children: [
-              // The page the finger is uncovering, under the one it draws aside.
+              // The page the finger is bringing in, joined to the edge of the one it draws aside.
               Positioned.fill(
-                child: ValueListenableBuilder<double>(valueListenable: c.swipe, builder: (context, dx, _) => _under(dx)),
+                child: ValueListenableBuilder<double>(valueListenable: c.swipe, builder: (context, dx, _) => _beside(dx)),
               ),
               // the transformed stage (image + overlay). Chrome (toolbar / nav / page-no)
               // is overlaid by the home screen so immersive mode can animate it.
@@ -1084,9 +1085,10 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
                 onPointerMove: (e) => c.pointerMove(e.pointer, e.localPosition),
                 onPointerUp: (e) => c.pointerUp(e.pointer, e.localPosition),
                 onPointerCancel: (e) => c.pointerCancel(e.pointer),
-                child: ValueListenableBuilder<double>(
-                  valueListenable: c.swipe,
-                  builder: (context, dx, stage) => Transform.translate(offset: Offset(dx, 0), child: stage),
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([c.swipe, _turning]),
+                  builder: (context, stage) =>
+                      Transform.translate(offset: Offset(c.swipe.value + _arriving(), 0), child: stage),
                   child: AnimatedBuilder(
                     animation: c,
                     builder: (context, _) => _buildStage(),
@@ -1104,23 +1106,43 @@ class PageViewerState extends State<PageViewer> with TickerProviderStateMixin {
     );
   }
 
-  /// The neighbour on the side a swipe of [dx] is uncovering, at rest.
-  Widget _under(double dx) {
+  /// The space between two pages side by side.
+  static const double gutter = 8;
+
+  /// The neighbour on the side a swipe of [dx] is bringing in, joined to the page's edge.
+  Widget _beside(double dx) {
     final page = dx > 0 ? c.currentPage + 1 : c.currentPage - 1;
     if (dx == 0 || c.baseW <= 0 || page < 1 || page > c.data.pageCount) return const SizedBox.shrink();
-    return _sheet(page, c.zoom, c.tx, c.ty);
+    return Transform.translate(
+      offset: Offset(dx - dx.sign * (c.viewW + gutter), 0),
+      child: _sheet(page, c.zoom, c.tx, c.ty),
+    );
   }
 
-  /// The turned page leaving: from where the finger let it go to past the edge,
-  /// or, for a jump, fading where it is.
+  /// Where the turned page is now: from where the finger let it go to a page's
+  /// width (and the gutter) off toward its side.
+  double _leavingAt(({int page, double dx, double dir, bool jump, double zoom, double tx, double ty}) a) {
+    final t = TzMotion.standard.transform(_turning.value);
+    final to = a.dir * (c.viewW + gutter);
+    return a.dx + (to - a.dx) * t;
+  }
+
+  bool get _turningNow => _away != null && !_turning.isCompleted && !_turning.isDismissed;
+
+  /// How far the new page still is from its place: joined to the leaving one's edge.
+  double _arriving() {
+    final a = _away;
+    if (!_turningNow || a!.jump) return 0;
+    return _leavingAt(a) - a.dir * (c.viewW + gutter);
+  }
+
+  /// The turned page leaving beside the new one, or, for a jump, fading over it.
   Widget _turningAway() {
     final a = _away;
-    if (a == null || _turning.isCompleted || _turning.isDismissed) return const SizedBox.shrink();
-    final t = TzMotion.standard.transform(_turning.value);
-    final sheet = _sheet(a.page, a.zoom, a.tx, a.ty);
-    if (a.jump) return Opacity(opacity: 1 - t, child: sheet);
-    final to = a.dir * (c.viewW + 24); // past the edge, its shadow too
-    return Transform.translate(offset: Offset(a.dx + (to - a.dx) * t, 0), child: sheet);
+    if (!_turningNow) return const SizedBox.shrink();
+    final sheet = _sheet(a!.page, a.zoom, a.tx, a.ty);
+    if (a.jump) return Opacity(opacity: 1 - TzMotion.standard.transform(_turning.value), child: sheet);
+    return Transform.translate(offset: Offset(_leavingAt(a), 0), child: sheet);
   }
 
   /// [page]'s sheet as the stage draws it, without the marks over it.

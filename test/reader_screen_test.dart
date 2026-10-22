@@ -187,7 +187,7 @@ void main() {
     Finder scan(int page) => find.byWidgetPredicate(
         (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == PageViewer.pageAsset(page));
 
-    testWidgets('a swipe draws the page aside over its neighbour; let go, it turns and the old page slides off', (tester) async {
+    testWidgets('a swipe draws the page aside with the next one joined to it; let go, both slide on until it is in place', (tester) async {
       final r = await reader(tester);
       await show(tester, r);
       final from = r.viewer.currentPage;
@@ -199,20 +199,26 @@ void main() {
         await finger.moveBy(const Offset(12, 0));
         await tester.pump(const Duration(milliseconds: 16));
       }
-      // Toward the next page (Arabic: the finger moves right); it shows underneath.
+      // Toward the next page (Arabic: the finger moves right); it comes in from the left,
+      // joined to the page's edge as in the reference screenshots.
+      final width = tester.getSize(scan(from)).width;
+      const gutter = PageViewerState.gutter;
       expect(r.viewer.swipe.value, closeTo(120, 1));
       expect(tester.getTopLeft(scan(from)).dx - rest, closeTo(120, 1));
-      expect(scan(from + 1), findsOneWidget);
+      expect(tester.getTopLeft(scan(from)).dx - tester.getTopLeft(scan(from + 1)).dx, closeTo(width + gutter, 0.5));
 
       await finger.up();
       await tester.pump();
       expect(r.viewer.currentPage, from + 1);
-      expect(r.viewer.swipe.value, 0); // the new page is at rest
       await tester.pump(const Duration(milliseconds: 80));
-      // The old one goes on from where the finger left it, off to the right.
-      expect(tester.getTopLeft(scan(from)).dx - rest, greaterThan(120));
+      // Both go on from where the finger left them, still joined.
+      final old = tester.getTopLeft(scan(from)).dx, now = tester.getTopLeft(scan(from + 1)).dx;
+      expect(old - rest, greaterThan(120));
+      expect(now, inExclusiveRange(rest - width, rest));
+      expect(old - now, closeTo(width + gutter, 0.5));
       await tester.pump(TzMotion.long);
       expect(scan(from), findsNothing);
+      expect(tester.getTopLeft(scan(from + 1)).dx, closeTo(rest, 0.5));
       await unmount(tester);
     });
 
@@ -252,8 +258,11 @@ void main() {
       r.viewer.setPage(from + 1, false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.getTopLeft(scan(from)).dx - rest, greaterThan(0)); // a later page sends the old one right
+      // A later page sends the old one right and comes in from the left, joined to it.
+      expect(tester.getTopLeft(scan(from)).dx - rest, greaterThan(0));
+      expect(tester.getTopLeft(scan(from + 1)).dx, lessThan(rest));
       await tester.pumpAndSettle();
+      expect(tester.getTopLeft(scan(from + 1)).dx, closeTo(rest, 0.5));
       expect(scan(from), findsNothing);
 
       r.viewer.setPage(from + 30, false);
