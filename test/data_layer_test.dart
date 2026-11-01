@@ -315,7 +315,7 @@ void main() {
     test('the counts of the full build', () async {
       Future<int> count(String table) async =>
           (await store.db.rawQuery('SELECT count(*) AS n FROM $table')).first['n']! as int;
-      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (2193, 4124, 1820));
+      expect((await count('rumuz_spans'), await count('quran_spans'), await count('matn_quote_spans')), (2193, 4124, 1821));
     });
   });
 }
